@@ -1,0 +1,248 @@
+@import "tailwindcss";
+
+/* ── RivalPulse "Console" design tokens ───────────────────────────────────
+   Source of truth for the approved visual direction. Colours are final;
+   all body and label text meets 4.5:1. Do not reintroduce #8A8781 / #9A968E
+   for text — decorative use only. */
+@theme {
+  --color-canvas: #e8e6e0;
+  --color-surface: #fbfaf8;
+  --color-card: #ffffff;
+  --color-sidebar: #f4f2ee;
+  --color-subtle: #f2f0ec;
+
+  --color-border: #e2dfd8;
+  --color-border-frame: #dbd8d1;
+  --color-divider: #edebe6;
+
+  --color-ink: #1a1a1a;
+  --color-ink-strong: #1f1e1c;
+  --color-ink-2: #4a4842;
+  --color-muted: #6b6862;
+  --color-muted-strong: #57544f;
+  --color-muted-on-dark: #a9a59d;
+
+  --color-accent: #e2650f;
+  --color-accent-hover: #c95a0d;
+  --color-accent-ink: #a04607;
+  --color-accent-wash: #fce9dc;
+  --color-accent-wash-border: #f3d3bb;
+
+  --color-neutral-300: #c9c5bc;
+  --color-neutral-200: #dcd8d0;
+  --color-neutral-100: #edebe6;
+  --color-dot-idle: #cfcbc2;
+
+  --font-sans: var(--font-manrope), system-ui, sans-serif;
+
+  --radius-bar: 6px;
+  --radius-field: 10px;
+  --radius-user: 12px;
+  --radius-detail: 14px;
+  --radius-card: 16px;
+  --radius-frame: 18px;
+
+  --shadow-frame: 0 24px 60px -34px rgb(26 26 26 / 0.55);
+  --shadow-step: 0 0 0 4px rgb(31 30 28 / 0.12);
+
+  --ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-step-pulse: step-pulse 1.6s var(--ease-enter) infinite;
+  --animate-shimmer: shimmer 1.4s ease-in-out infinite;
+
+  @keyframes step-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 4px rgb(31 30 28 / 0.12);
+    }
+    50% {
+      box-shadow: 0 0 0 7px rgb(31 30 28 / 0.05);
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  /* The shell is full-bleed, so `surface` is the ground, not `canvas`.
+     `canvas` stays in the palette for anything that sits behind the app. */
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Every interactive element shares one focus ring. */
+:where(a, button, [role="button"], input, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 120–160ms ease-out on background/colour, per the handoff. `transform` rides
+   along so `active:scale-*` gets press feedback at the same cadence. */
+@utility transition-console {
+  transition-property: background-color, color, border-color, box-shadow,
+    opacity, transform;
+  transition-duration: 140ms;
+  transition-timing-function: ease-out;
+}
+
+/* Bars and donuts animate from 0 on first mount over 500ms. */
+@utility transition-chart {
+  transition-property: width, height, opacity, transform;
+  transition-duration: 500ms;
+  transition-timing-function: var(--ease-enter);
+}
+
+@utility skeleton {
+  background-color: var(--color-subtle);
+  border-radius: var(--radius-bar);
+  background-image: linear-gradient(
+    90deg,
+    rgb(226 101 15 / 0) 25%,
+    rgb(247 225 211 / 0.95) 37%,
+    rgb(226 101 15 / 0) 63%
+  );
+  background-size: 400% 100%;
+  animation: var(--animate-shimmer);
+}
+
+/* ── Motion ──────────────────────────────────────────────────────────────
+   Entrances are bridged by `@starting-style`, so they need no JS and retarget
+   smoothly if re-triggered. Exits toggle a `-out` class and the component
+   delays its unmount long enough for the transition to play — a dismissable
+   surface must leave the way it arrived.
+
+   Only `transform` and `opacity` animate. Nothing here moves data the user is
+   trying to read. */
+
+.rp-fade {
+  transition: opacity 150ms var(--ease-enter);
+}
+@starting-style {
+  .rp-fade {
+    opacity: 0;
+  }
+}
+.rp-fade-out {
+  opacity: 0;
+  transition-duration: 150ms;
+  transition-timing-function: ease-in;
+}
+
+/* Modal: stays centred, so it scales in place rather than from an origin. */
+.rp-modal {
+  transition:
+    opacity 200ms var(--ease-enter),
+    transform 200ms var(--ease-enter);
+}
+@starting-style {
+  .rp-modal {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+.rp-modal-out {
+  opacity: 0;
+  transform: scale(0.97);
+  transition-duration: 160ms;
+  transition-timing-function: ease-in;
+}
+
+/* Drawer: slides from the edge it is anchored to, in percentages so the
+   distance follows the panel width. */
+.rp-drawer {
+  transition: transform 250ms var(--ease-enter);
+}
+@starting-style {
+  .rp-drawer {
+    transform: translateX(-100%);
+  }
+}
+.rp-drawer-out {
+  transform: translateX(-100%);
+  transition-duration: 220ms;
+  transition-timing-function: ease-in;
+}
+
+/* Toast: enters and exits through the bottom edge it lives on. */
+.rp-toast {
+  transition:
+    opacity 260ms var(--ease-enter),
+    transform 260ms var(--ease-enter);
+}
+@starting-style {
+  .rp-toast {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+.rp-toast-out {
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
+  transition-duration: 200ms;
+  transition-timing-function: ease-in;
+}
+
+/* A signal a run just found, settling into the top of the feed. Applied only
+   to rows revealed live — never to the list on load. */
+.rp-row-new {
+  transition:
+    opacity 300ms var(--ease-enter),
+    transform 300ms var(--ease-enter);
+}
+@starting-style {
+  .rp-row-new {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  /* Entrances still fade. Movement is what causes trouble, not opacity, so
+     these keep a short cross-fade instead of snapping into place. */
+  .rp-fade,
+  .rp-fade-out,
+  .rp-modal,
+  .rp-modal-out,
+  .rp-drawer,
+  .rp-drawer-out,
+  .rp-toast,
+  .rp-toast-out,
+  .rp-row-new {
+    transition-property: opacity !important;
+    transition-duration: 120ms !important;
+    transform: none !important;
+  }
+
+  @starting-style {
+    .rp-modal,
+    .rp-drawer,
+    .rp-toast,
+    .rp-row-new {
+      transform: none;
+      opacity: 0;
+    }
+  }
+}

@@ -1,0 +1,32 @@
+# Repo-wide ignores. The frontend keeps its own .gitignore in frontend/,
+# since git applies patterns relative to the file's own directory.
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Secrets — anywhere in the tree
+.env
+.env.*
+!.env.example
+
+# Python / backend (ready for whoever starts it)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.sqlite3
+
+# Logs
+*.log
+
+# Local agent config — personal, and next dev regenerates AGENTS.md anyway.
+AGENTS.md
+CLAUDE.md
+
