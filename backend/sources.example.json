@@ -1,0 +1,5 @@
+[
+  {"symbol": "TLKM", "url": "https://www.telkom.co.id/sites/about-us/en_US/page/profile-and-brief-history-24", "selector": "main", "event_type": "Product"},
+  {"symbol": "ISAT", "url": "https://ioh.co.id/portal/ID/iohaboutus", "selector": "main", "event_type": "Product"},
+  {"symbol": "EXCL", "url": "https://www.xlsmart.co.id/", "selector": "main", "event_type": "Product"}
+]

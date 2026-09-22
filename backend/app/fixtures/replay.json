@@ -1,0 +1,17 @@
+{
+  "notice": "SYNTHETIC TEST DATA, NOT ACTUAL COMPANY METRICS OR RECORDED SECTORS RESULTS. XTS is a test currency.",
+  "financials": {
+    "currency": "XTS",
+    "unit": "synthetic_currency_units",
+    "comparison_basis": "synthetic_same_scope",
+    "historical_financials": [
+      {"year": 2024, "revenue": "1000.00", "earnings": "100.00"},
+      {"year": 2025, "revenue": "1200.00", "earnings": "150.00"}
+    ]
+  },
+  "events": [
+    {"symbol": "TLKM", "subject": "synthetic enterprise partnership", "title": "Synthetic enterprise partnership announcement", "type": "Partnership", "published_at": "2025-01-15", "text": "SYNTHETIC REPLAY: a sample enterprise partnership is announced."},
+    {"symbol": "ISAT", "subject": "synthetic monthly package", "title": "Synthetic monthly package", "type": "Pricing", "published_at": "2025-01-16", "text": "SYNTHETIC REPLAY: sample package costs 100 XTS per month for 10 units, all customers."},
+    {"symbol": "EXCL", "subject": "synthetic product launch", "title": "Synthetic product launch", "type": "Product", "published_at": "2025-01-17", "text": "SYNTHETIC REPLAY: a sample product is introduced."}
+  ]
+}
