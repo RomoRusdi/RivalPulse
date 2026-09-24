@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools==75.8.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rivalpulse-backend"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi==0.115.12", "uvicorn[standard]==0.34.2", "pydantic==2.11.4",
+  "pydantic-settings==2.9.1", "SQLAlchemy==2.0.41", "alembic==1.15.2",
+  "psycopg[binary]==3.2.9", "redis==5.2.1", "rq==2.3.3",
+  "httpx==0.28.1", "beautifulsoup4==4.13.4", "defusedxml==0.7.1"
+]
+
+[project.optional-dependencies]
+test = ["pytest==8.3.5", "fakeredis==2.29.0", "ruff==0.11.10"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.setuptools.package-data]
+app = ["fixtures/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["integration: requires PostgreSQL and Redis"]
+
+[tool.ruff]
+line-length = 110

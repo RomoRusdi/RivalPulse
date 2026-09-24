@@ -1,0 +1,2935 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "RivalPulse",
+    "description": "Private competitive intelligence. Replay is synthetic and explicitly labeled.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/demo/login": {
+      "post": {
+        "summary": "Login",
+        "operationId": "login_demo_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Login"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health/live": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Live",
+        "operationId": "live_api_v1_health_live_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Ready",
+        "operationId": "ready_api_v1_health_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/companies": {
+      "get": {
+        "tags": [
+          "companies"
+        ],
+        "summary": "Companies",
+        "operationId": "companies_api_v1_companies_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "default": "",
+              "title": "Query"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_CompanyOut_"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/watchlists": {
+      "post": {
+        "tags": [
+          "watchlists"
+        ],
+        "summary": "Create Watchlist",
+        "operationId": "create_watchlist_api_v1_watchlists_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchlistCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchlistOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "watchlists"
+        ],
+        "summary": "Watchlists",
+        "operationId": "watchlists_api_v1_watchlists_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_WatchlistOut_"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/watchlists/{watchlist_id}": {
+      "get": {
+        "tags": [
+          "watchlists"
+        ],
+        "summary": "Get Watchlist",
+        "operationId": "get_watchlist_api_v1_watchlists__watchlist_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "watchlist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Watchlist Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchlistOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "watchlists"
+        ],
+        "summary": "Patch Watchlist",
+        "operationId": "patch_watchlist_api_v1_watchlists__watchlist_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "watchlist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Watchlist Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchlistPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchlistOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/research-runs": {
+      "post": {
+        "tags": [
+          "research"
+        ],
+        "summary": "Submit Run",
+        "operationId": "submit_run_api_v1_research_runs_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/research-runs/{run_id}": {
+      "get": {
+        "tags": [
+          "research"
+        ],
+        "summary": "Get Run",
+        "operationId": "get_run_api_v1_research_runs__run_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/watchlists/{watchlist_id}/research-runs": {
+      "get": {
+        "tags": [
+          "research"
+        ],
+        "summary": "History",
+        "operationId": "history_api_v1_watchlists__watchlist_id__research_runs_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "watchlist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Watchlist Id"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_RunDetail_"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/signals": {
+      "get": {
+        "tags": [
+          "signals"
+        ],
+        "summary": "Signals",
+        "operationId": "signals_api_v1_signals_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "watchlist_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Watchlist Id"
+            }
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Severity"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "live",
+                    "replay"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mode"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_SignalCard_"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/signals/{signal_id}": {
+      "get": {
+        "tags": [
+          "signals"
+        ],
+        "summary": "Signal Detail",
+        "operationId": "signal_detail_api_v1_signals__signal_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "signal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Signal Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/dashboard": {
+      "get": {
+        "tags": [
+          "frontend compatibility"
+        ],
+        "summary": "Dashboard",
+        "operationId": "dashboard_dashboard_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "week",
+                "month"
+              ],
+              "type": "string",
+              "default": "week",
+              "title": "Range"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/signals/{signal_id}": {
+      "get": {
+        "tags": [
+          "frontend compatibility"
+        ],
+        "summary": "Old Signal",
+        "operationId": "old_signal_signals__signal_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "signal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Signal Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/runs": {
+      "post": {
+        "tags": [
+          "frontend compatibility"
+        ],
+        "summary": "Old Submit",
+        "operationId": "old_submit_runs_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegacyRunCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/stream": {
+      "get": {
+        "tags": [
+          "frontend compatibility"
+        ],
+        "summary": "Stream",
+        "operationId": "stream_runs__run_id__stream_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/cancel": {
+      "post": {
+        "tags": [
+          "frontend compatibility"
+        ],
+        "summary": "Cancel",
+        "operationId": "cancel_runs__run_id__cancel_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AgentPlan": {
+        "properties": {
+          "tools": {
+            "items": {
+              "$ref": "#/components/schemas/ToolCall"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Tools"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tools"
+        ],
+        "title": "AgentPlan"
+      },
+      "Citation": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "url_or_endpoint": {
+            "type": "string",
+            "title": "Url Or Endpoint"
+          },
+          "excerpt_or_json_pointer": {
+            "type": "string",
+            "title": "Excerpt Or Json Pointer"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "fetched_at": {
+            "type": "string",
+            "title": "Fetched At"
+          },
+          "cache_status": {
+            "type": "string",
+            "title": "Cache Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "snapshot_id",
+          "source",
+          "url_or_endpoint",
+          "excerpt_or_json_pointer",
+          "published_at",
+          "fetched_at",
+          "cache_status"
+        ],
+        "title": "Citation"
+      },
+      "Claim": {
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "title": "Claim Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Evidence Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "claim_id",
+          "text",
+          "evidence_ids"
+        ],
+        "title": "Claim"
+      },
+      "CompanyOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "industry": {
+            "type": "string",
+            "title": "Industry"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases"
+          },
+          "official_domains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Official Domains"
+          },
+          "identity_verified_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identity Verified At"
+          },
+          "identity_reference": {
+            "type": "string",
+            "title": "Identity Reference"
+          },
+          "comparison_note": {
+            "type": "string",
+            "title": "Comparison Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "symbol",
+          "ticker",
+          "name",
+          "industry",
+          "aliases",
+          "official_domains",
+          "identity_verified_at",
+          "identity_reference",
+          "comparison_note"
+        ],
+        "title": "CompanyOut"
+      },
+      "ErrorBody": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "retryable": {
+            "type": "boolean",
+            "title": "Retryable"
+          },
+          "request_id": {
+            "type": "string",
+            "title": "Request Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "retryable",
+          "request_id"
+        ],
+        "title": "ErrorBody"
+      },
+      "FinancialMetric": {
+        "properties": {
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "period": {
+            "type": "string",
+            "title": "Period"
+          },
+          "comparison_basis": {
+            "type": "string",
+            "title": "Comparison Basis"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Evidence Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "metric",
+          "value",
+          "unit",
+          "currency",
+          "period",
+          "comparison_basis",
+          "evidence_ids"
+        ],
+        "title": "FinancialMetric"
+      },
+      "Hypothesis": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "supporting_claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Supporting Claim Ids"
+          },
+          "uncertainty": {
+            "type": "string",
+            "title": "Uncertainty"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "supporting_claim_ids",
+          "uncertainty"
+        ],
+        "title": "Hypothesis"
+      },
+      "LegacyRunCreate": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Query"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "LegacyRunCreate"
+      },
+      "Login": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 16,
+            "title": "Token"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "Login"
+      },
+      "Page_CompanyOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CompanyOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[CompanyOut]"
+      },
+      "Page_RunDetail_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RunDetail"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[RunDetail]"
+      },
+      "Page_SignalCard_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SignalCard"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[SignalCard]"
+      },
+      "Page_WatchlistOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WatchlistOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[WatchlistOut]"
+      },
+      "ProgressStep": {
+        "properties": {
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "sequence": {
+            "type": "integer",
+            "title": "Sequence"
+          },
+          "attempt": {
+            "type": "integer",
+            "title": "Attempt"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Details"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "title": "Duration Ms"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "stage",
+          "sequence",
+          "attempt",
+          "status",
+          "message",
+          "details",
+          "duration_ms"
+        ],
+        "title": "ProgressStep"
+      },
+      "ResearchResult": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "title": "Schema Version",
+            "default": 1
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "live",
+              "replay"
+            ],
+            "title": "Mode"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "partial",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "generated_at": {
+            "type": "string",
+            "title": "Generated At"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "coverage": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Coverage"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "signals": {
+            "items": {
+              "$ref": "#/components/schemas/SignalCard"
+            },
+            "type": "array",
+            "title": "Signals"
+          },
+          "disclaimer": {
+            "type": "string",
+            "title": "Disclaimer",
+            "default": "Information and business analysis only; no investment recommendations or trade execution."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "mode",
+          "status",
+          "generated_at",
+          "summary",
+          "coverage",
+          "warnings",
+          "signals"
+        ],
+        "title": "ResearchResult"
+      },
+      "RunAccepted": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          },
+          "status_url": {
+            "type": "string",
+            "title": "Status Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "mode",
+          "status_url"
+        ],
+        "title": "RunAccepted"
+      },
+      "RunCreate": {
+        "properties": {
+          "watchlist_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Watchlist Id"
+          },
+          "query": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000,
+                "minLength": 3
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query"
+          },
+          "parent_signal_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Signal Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "watchlist_id"
+        ],
+        "title": "RunCreate"
+      },
+      "RunDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "watchlist_id": {
+            "type": "string",
+            "title": "Watchlist Id"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "live",
+              "replay"
+            ],
+            "title": "Mode"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "partial",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "heartbeat_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heartbeat At"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "estimated_credits": {
+            "type": "integer",
+            "title": "Estimated Credits"
+          },
+          "external_calls": {
+            "type": "integer",
+            "title": "External Calls"
+          },
+          "llm_calls": {
+            "type": "integer",
+            "title": "Llm Calls"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Inputs"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResearchResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "progress": {
+            "items": {
+              "$ref": "#/components/schemas/ProgressStep"
+            },
+            "type": "array",
+            "title": "Progress"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "watchlist_id",
+          "mode",
+          "status",
+          "stage",
+          "query",
+          "created_at",
+          "started_at",
+          "finished_at",
+          "heartbeat_at",
+          "attempts",
+          "estimated_credits",
+          "external_calls",
+          "llm_calls",
+          "inputs",
+          "plan",
+          "error_code",
+          "result",
+          "progress"
+        ],
+        "title": "RunDetail"
+      },
+      "SignalCard": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "title": "Schema Version",
+            "default": 1
+          },
+          "signal_id": {
+            "type": "string",
+            "title": "Signal Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
+          "company": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Company"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "live",
+              "replay"
+            ],
+            "title": "Mode"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "change_status": {
+            "type": "string",
+            "enum": [
+              "baseline",
+              "new",
+              "updated",
+              "unchanged"
+            ],
+            "title": "Change Status"
+          },
+          "analysis_status": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "incomplete"
+            ],
+            "title": "Analysis Status"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Severity"
+          },
+          "score_components": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Score Components"
+          },
+          "severity_reason": {
+            "type": "string",
+            "title": "Severity Reason"
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/Claim"
+            },
+            "type": "array",
+            "title": "Facts"
+          },
+          "observed_signals": {
+            "items": {
+              "$ref": "#/components/schemas/Claim"
+            },
+            "type": "array",
+            "title": "Observed Signals"
+          },
+          "hypotheses": {
+            "items": {
+              "$ref": "#/components/schemas/Hypothesis"
+            },
+            "type": "array",
+            "title": "Hypotheses"
+          },
+          "financial_context": {
+            "items": {
+              "$ref": "#/components/schemas/FinancialMetric"
+            },
+            "type": "array",
+            "title": "Financial Context"
+          },
+          "why_marketing_should_care": {
+            "$ref": "#/components/schemas/Hypothesis"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "compared_against_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compared Against Run Id"
+          },
+          "first_seen_at": {
+            "type": "string",
+            "title": "First Seen At"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "stored_at": {
+            "type": "string",
+            "title": "Stored At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "signal_id",
+          "revision_id",
+          "company",
+          "mode",
+          "type",
+          "title",
+          "change_status",
+          "analysis_status",
+          "severity",
+          "score_components",
+          "severity_reason",
+          "facts",
+          "observed_signals",
+          "hypotheses",
+          "financial_context",
+          "why_marketing_should_care",
+          "evidence",
+          "run_id",
+          "compared_against_run_id",
+          "first_seen_at",
+          "published_at",
+          "stored_at"
+        ],
+        "title": "SignalCard"
+      },
+      "SignalDetail": {
+        "properties": {
+          "signal": {
+            "$ref": "#/components/schemas/SignalCard"
+          },
+          "revisions": {
+            "items": {
+              "$ref": "#/components/schemas/SignalCard"
+            },
+            "type": "array",
+            "title": "Revisions"
+          },
+          "first_seen_at": {
+            "type": "string",
+            "title": "First Seen At"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "title": "Last Seen At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "signal",
+          "revisions",
+          "first_seen_at",
+          "last_seen_at"
+        ],
+        "title": "SignalDetail"
+      },
+      "ToolCall": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "get_company_profile",
+              "get_company_metrics",
+              "get_industry_context",
+              "get_recent_signals",
+              "get_previous_state"
+            ],
+            "title": "Name"
+          },
+          "company_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Company Ids"
+          },
+          "requested_periods": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "title": "Requested Periods"
+          },
+          "comparable_period": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2100.0,
+                "minimum": 2000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comparable Period"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "company_ids",
+          "reason"
+        ],
+        "title": "ToolCall"
+      },
+      "WatchlistCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "objective": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Objective"
+          },
+          "company_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "minItems": 2,
+            "title": "Company Ids"
+          },
+          "user_company": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Company"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "objective",
+          "company_ids"
+        ],
+        "title": "WatchlistCreate"
+      },
+      "WatchlistOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "objective": {
+            "type": "string",
+            "title": "Objective"
+          },
+          "user_company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Company"
+          },
+          "companies": {
+            "items": {
+              "$ref": "#/components/schemas/CompanyOut"
+            },
+            "type": "array",
+            "title": "Companies"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "objective",
+          "user_company",
+          "companies",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "WatchlistOut"
+      },
+      "WatchlistPatch": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "objective": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000,
+                "minLength": 3
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Objective"
+          },
+          "company_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "type": "array",
+                "maxItems": 5,
+                "minItems": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Ids"
+          },
+          "user_company": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Company"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "WatchlistPatch"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}
