@@ -7,8 +7,8 @@ import { InvestigateDialog } from "./InvestigateDialog";
 import { DebugPanel } from "./DebugPanel";
 import { SearchField } from "./SearchField";
 import { MobileDrawer } from "./MobileDrawer";
+import { UserMenu } from "./UserMenu";
 import { Button } from "@/components/ui/primitives";
-import { USER } from "@/lib/mock-data";
 
 /**
  * The app shell: sidebar + top bar + routed main, filling the viewport.
@@ -70,17 +70,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Plus aria-hidden size={16} strokeWidth={2} />
               Investigate
             </Button>
-            {/* An empty grey circle reads as a broken image. */}
-            <span
-              aria-hidden
-              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-[13px] font-bold text-ink-2 sm:flex"
-            >
-              {USER.name
-                .split(" ")
-                .map((part) => part[0])
-                .slice(0, 2)
-                .join("")}
-            </span>
+            <UserMenu />
           </div>
         </header>
 

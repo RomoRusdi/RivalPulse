@@ -27,6 +27,7 @@
   --color-accent-ink: #a04607;
   --color-accent-wash: #fce9dc;
   --color-accent-wash-border: #f3d3bb;
+  --color-error: #b42318;
 
   --color-neutral-300: #c9c5bc;
   --color-neutral-200: #dcd8d0;
@@ -70,9 +71,13 @@
   }
 }
 
-html,
-body {
+html {
   height: 100%;
+}
+
+/* min-height, not height: signed-out pages size to their own content. */
+body {
+  min-height: 100%;
 }
 
 body {

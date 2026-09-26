@@ -41,6 +41,23 @@ export const WatchlistSchema = z.object({
   companies: z.array(CompanySchema).max(5),
 });
 
+/**
+ * The signed-in person. Separate from workspace settings on purpose: this is
+ * who you are, `/settings` is how the agent behaves.
+ */
+export const UserProfileSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1, "Name cannot be empty").max(80),
+  /** Job title, shown under the name everywhere the avatar appears. */
+  role: z.string().min(1, "Role cannot be empty").max(80),
+  email: z.email("Enter a valid email address"),
+  /** IANA zone. Every timestamp in the product is rendered against this. */
+  timezone: z.string().min(1),
+  /** ISO date, YYYY-MM-DD. */
+  joinedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD"),
+  workspace: z.string().min(1),
+});
+
 export const EvidenceSchema = z.object({
   kind: EvidenceKindSchema,
   /** e.g. "Sectors v2", "Press release", "Pricing page diff" */

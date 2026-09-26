@@ -4,6 +4,7 @@ import type {
   RunStep,
   Signal,
   SignalType,
+  UserProfile,
   Watchlist,
 } from "./types";
 
@@ -451,9 +452,14 @@ export function aggregatesFor(range: Range): DashboardAggregates {
   return AGGREGATES[range];
 }
 
-export const USER = {
+export const USER: UserProfile = {
+  id: "u-rizky",
   name: "Rizky Pratama",
   role: "Product marketing",
+  email: "rizky@company.co.id",
+  timezone: "Asia/Jakarta",
+  joinedAt: "2026-03-14",
+  workspace: "Telco ID",
 };
 
 /** Past runs. Persisted history is what lets a run reason over change. */

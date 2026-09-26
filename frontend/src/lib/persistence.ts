@@ -34,6 +34,8 @@ export interface LocalState {
    * anything in localStorage is untrusted input.
    */
   watchlist: unknown;
+  /** The user's edited profile, same untrusted-input rules as the watchlist. */
+  profile: unknown;
 }
 
 const EMPTY: LocalState = {
@@ -41,6 +43,7 @@ const EMPTY: LocalState = {
   revealedIds: [],
   lastCheckedAt: null,
   watchlist: null,
+  profile: null,
 };
 
 export function loadLocalState(): LocalState {
@@ -55,6 +58,7 @@ export function loadLocalState(): LocalState {
       lastCheckedAt:
         typeof parsed.lastCheckedAt === "string" ? parsed.lastCheckedAt : null,
       watchlist: parsed.watchlist ?? null,
+      profile: parsed.profile ?? null,
     };
   } catch {
     return EMPTY;

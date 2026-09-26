@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import {
   Card,
   CardHeader,
@@ -7,13 +9,11 @@ import {
   PageTitle,
 } from "@/components/ui/primitives";
 import { useStore } from "@/lib/store";
-import { USER } from "@/lib/mock-data";
 
 export default function SettingsPage() {
   const { watchlist } = useStore();
 
   const rows: { label: string; value: string; note?: string }[] = [
-    { label: "Signed in as", value: `${USER.name} · ${USER.role}` },
     { label: "Active watchlist", value: watchlist?.name ?? "—" },
     {
       label: "Severity threshold",
@@ -37,7 +37,15 @@ export default function SettingsPage() {
       <div>
         <PageTitle>Settings</PageTitle>
         <p className="mt-0.5 text-sm text-muted">
-          Thresholds and refresh policy decide how quiet the feed stays.
+          Thresholds and refresh policy decide how quiet the feed stays. Your
+          own details live in{" "}
+          <Link
+            href="/profile"
+            className="font-semibold text-accent-ink no-underline transition-console hover:text-accent"
+          >
+            Profile
+          </Link>
+          .
         </p>
       </div>
 

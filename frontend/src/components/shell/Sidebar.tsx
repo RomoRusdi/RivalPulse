@@ -13,10 +13,10 @@ import {
   Workflow,
   type LucideIcon,
 } from "lucide-react";
-import { USER } from "@/lib/mock-data";
 import { useStore } from "@/lib/store";
 import { cx } from "@/components/ui/primitives";
 import { Logo } from "@/components/ui/Logo";
+import { Avatar } from "@/components/ui/Avatar";
 
 /**
  * Icons are 17px at 1.5 stroke, per the handoff — heavier strokes fight the
@@ -53,7 +53,7 @@ const GROUPS: {
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const { newSinceLastCheck, aggregates } = useStore();
+  const { newSinceLastCheck, aggregates, profile } = useStore();
 
   return (
     // min-h-full so the footer card sits at the bottom, but the nav can still
@@ -158,22 +158,23 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </Link>
       ) : null}
 
-      <div className="flex items-center gap-2.5 rounded-user border border-border bg-surface p-2.5">
-        <span
-          aria-hidden
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-[13px] font-bold text-ink-2"
-        >
-          {USER.name
-            .split(" ")
-            .map((part) => part[0])
-            .slice(0, 2)
-            .join("")}
-        </span>
+      <Link
+        href={"/profile" as Route}
+        onClick={onNavigate}
+        aria-current={pathname.startsWith("/profile") ? "page" : undefined}
+        className={cx(
+          "flex items-center gap-2.5 rounded-user border p-2.5 no-underline transition-console",
+          pathname.startsWith("/profile")
+            ? "border-accent-wash-border bg-accent-wash"
+            : "border-border bg-surface hover:bg-[#EBE8E2]",
+        )}
+      >
+        <Avatar name={profile.name} size="sm" />
         <div className="min-w-0">
-          <p className="truncate text-[13px] font-bold">{USER.name}</p>
-          <p className="truncate text-xs text-muted">{USER.role}</p>
+          <p className="truncate text-[13px] font-bold">{profile.name}</p>
+          <p className="truncate text-xs text-muted">{profile.role}</p>
         </div>
-      </div>
+      </Link>
       </div>
     </nav>
   );

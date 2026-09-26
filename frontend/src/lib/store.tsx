@@ -21,6 +21,7 @@ import {
   MIX_ORDER,
   RESERVE_SIGNALS,
   RUN_STEPS,
+  USER,
 } from "./mock-data";
 import {
   clearLocalState,
@@ -30,13 +31,14 @@ import {
 import { readDemoSettings } from "./demo-settings";
 import { useToast } from "@/components/ui/Toast";
 import { MAX_COMPANIES } from "./catalogue";
-import { WatchlistSchema } from "./schemas";
+import { UserProfileSchema, WatchlistSchema } from "./schemas";
 import type {
   AgentRun,
   Company,
   DashboardAggregates,
   Range,
   SignalWithState,
+  UserProfile,
   Watchlist,
 } from "./types";
 
@@ -81,6 +83,12 @@ interface StoreValue {
   renameWatchlist: (name: string) => void;
   /** True when the watchlist differs from what the server sent. */
   watchlistEdited: boolean;
+
+  /** The signed-in person. Edits are validated before they are kept. */
+  profile: UserProfile;
+  /** Returns an error message when the patch is rejected, otherwise null. */
+  updateProfile: (patch: Partial<UserProfile>) => string | null;
+  profileEdited: boolean;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -107,6 +115,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [editedWatchlist, setEditedWatchlist] = useState<Watchlist | null>(
     null,
   );
+  const [editedProfile, setEditedProfile] = useState<UserProfile | null>(null);
   const [justRevealedIds, setJustRevealedIds] = useState<string[]>([]);
   const hydrated = useRef(false);
 
@@ -138,6 +147,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // and fall back to the server's copy if it no longer fits the schema.
         const stored = WatchlistSchema.safeParse(local.watchlist);
         setEditedWatchlist(stored.success ? stored.data : null);
+        const storedProfile = UserProfileSchema.safeParse(local.profile);
+        setEditedProfile(storedProfile.success ? storedProfile.data : null);
         setAggregates(data.aggregates);
         setRawSignals(
           data.signals.map((s) => ({
@@ -186,8 +197,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       revealedIds,
       lastCheckedAt,
       watchlist: editedWatchlist,
+      profile: editedProfile,
     });
-  }, [seenIds, revealedIds, lastCheckedAt, editedWatchlist]);
+  }, [seenIds, revealedIds, lastCheckedAt, editedWatchlist, editedProfile]);
 
   useEffect(() => () => unsubscribe.current?.(), []);
 
@@ -358,12 +370,31 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [editWatchlist],
   );
 
+  // ── Profile ─────────────────────────────────────────────────────────────
+  // Same rule as the watchlist: validate before keeping, so a bad edit (or a
+  // tampered localStorage entry) can never reach the rest of the app.
+  const profile = editedProfile ?? USER;
+
+  const updateProfile = useCallback(
+    (patch: Partial<UserProfile>): string | null => {
+      const next = { ...profile, ...patch };
+      const parsed = UserProfileSchema.safeParse(next);
+      if (!parsed.success) {
+        return parsed.error.issues[0]?.message ?? "That change is not valid.";
+      }
+      setEditedProfile(parsed.data);
+      return null;
+    },
+    [profile],
+  );
+
   const resetDemoState = useCallback(() => {
     clearLocalState();
     setSeenIds([]);
     setRevealedIds([]);
     setLastCheckedAt(null);
     setEditedWatchlist(null);
+    setEditedProfile(null);
     setActiveRun(null);
     setReloadToken((n) => n + 1);
   }, []);
@@ -448,6 +479,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       removeCompany,
       renameWatchlist,
       watchlistEdited: editedWatchlist !== null,
+      profile,
+      updateProfile,
+      profileEdited: editedProfile !== null,
     }),
     [
       activeWatchlist,
@@ -472,6 +506,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       addCompany,
       removeCompany,
       renameWatchlist,
+      profile,
+      updateProfile,
+      editedProfile,
     ],
   );
 

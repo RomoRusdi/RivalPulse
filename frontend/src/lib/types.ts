@@ -17,6 +17,7 @@ import type {
   SignalSchema,
   SignalTypeSchema,
   ToolCallSchema,
+  UserProfileSchema,
   WatchlistSchema,
 } from "./schemas";
 
@@ -46,6 +47,7 @@ export type CreditUsage = z.infer<typeof CreditUsageSchema>;
 export type DashboardAggregates = z.infer<typeof DashboardAggregatesSchema>;
 export type DashboardResponse = z.infer<typeof DashboardResponseSchema>;
 export type Range = z.infer<typeof RangeSchema>;
+export type UserProfile = z.infer<typeof UserProfileSchema>;
 
 /**
  * A signal decorated with local read state.

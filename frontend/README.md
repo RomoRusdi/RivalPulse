@@ -21,6 +21,7 @@ lints.
 
 | Route | What it is |
 | --- | --- |
+| `/login` | **Sign in** — split layout with the WebGL "faulty terminal" panel |
 | `/` | **Dashboard** — new-since-last-check banner, signal pipeline, signal mix, latest signals, live agent run, AI interpretation |
 | `/signals` | Full signals list with severity / unseen filters |
 | `/signals/[id]` | **Signal detail** — evidence ledger, Sectors financial context, "why marketing should care" |
