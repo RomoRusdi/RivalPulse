@@ -134,6 +134,26 @@ export const AgentRunSchema = z.object({
   toolCalls: z.array(ToolCallSchema),
   failedTool: z.string().optional(),
   resultSummary: z.string().optional(),
+  coverageStatus: z.enum(["queued", "running", "completed", "partial", "failed"]).optional(),
+  financialBrief: z.object({
+    period: z.string().nullable(),
+    rows: z.array(z.object({
+      symbol: z.string(),
+      name: z.string(),
+      comparison_note: z.string(),
+      metrics: z.array(z.object({
+        metric: z.string(), value: z.string(), currency: z.string().nullable(),
+        unit: z.string(), period: z.string(), comparison_basis: z.string(),
+        source_url: z.string().url(), json_pointer: z.string(),
+        snapshot_id: z.string(), claim_id: z.string(),
+      })),
+    })),
+    interpretation: z.object({
+      text: z.string(), supporting_claim_ids: z.array(z.string()),
+      uncertainty: z.enum(["low", "medium", "high"]),
+    }).nullable(),
+    caveats: z.array(z.string()),
+  }).optional(),
   /** Signals the run produced. Present once status is "complete". */
   producedSignalIds: z.array(z.string()).optional(),
 });
@@ -185,8 +205,17 @@ export const DashboardAggregatesSchema = z.object({
 
 export const RangeSchema = z.enum(["week", "month"]);
 
+export const AlertStatusSchema = z.object({
+  enabled: z.boolean(),
+  provider: z.string(),
+  recipient: z.string().nullable(),
+  minimum_severity: z.enum(["medium", "high"]),
+  delivery_policy: z.string(),
+});
+
 /** Envelope for GET /dashboard. */
 export const DashboardResponseSchema = z.object({
+  mode: z.enum(["live", "yahoo", "replay"]),
   watchlist: WatchlistSchema,
   aggregates: DashboardAggregatesSchema,
   signals: z.array(SignalSchema),

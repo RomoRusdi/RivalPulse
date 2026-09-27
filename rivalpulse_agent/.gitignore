@@ -1,0 +1,13 @@
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*.egg-info/
+.venv/
+.env
+.env.*
+!.env.example
+research-result.json
+.rivalpulse/
+data/*.json
+normalized-data.schema.json
+.DS_Store

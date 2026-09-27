@@ -38,9 +38,41 @@ export const RANGE_LABEL = {
   month: "This month",
 } as const;
 
+/** ISO timestamp -> compact dashboard time; preserve already-friendly copy. */
+export function dashboardTime(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(parsed);
+}
+
+export function runFailureMessage(code?: string): string {
+  switch (code) {
+    case "LLM_INVALID_OUTPUT":
+      return "The AI response did not pass evidence validation. No unsupported findings were published; retry the investigation.";
+    case "LLM_UNAVAILABLE":
+      return "The local AI model was unavailable. Check Ollama and retry the investigation.";
+    case "CANCELLED":
+    case "cancelled by user":
+      return "This investigation was stopped. No new findings were published.";
+    case "RUN_TIMEOUT":
+      return "The investigation exceeded its time limit. Please try again.";
+    case "run stream":
+      return "The connection to the agent was interrupted. Check the run before retrying.";
+    default:
+      return "The investigation could not finish. No unsupported findings were published; you can retry.";
+  }
+}
+
 /** Seconds -> "00:42". */
 export function clock(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
+  const wholeSeconds = Math.max(0, Math.floor(seconds));
+  const m = Math.floor(wholeSeconds / 60);
+  const s = wholeSeconds % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }

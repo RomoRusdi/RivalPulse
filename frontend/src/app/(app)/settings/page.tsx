@@ -1,17 +1,30 @@
 "use client";
 
 import Link from "next/link";
-
+import { useEffect, useState } from "react";
+import { ArrowRight, BellRing, Database } from "lucide-react";
 import {
   Card,
   CardHeader,
   Disclaimer,
   PageTitle,
+  Pill,
 } from "@/components/ui/primitives";
 import { useStore } from "@/lib/store";
+import { getAlertStatus } from "@/lib/api";
+import type { AlertStatus } from "@/lib/types";
 
 export default function SettingsPage() {
-  const { watchlist } = useStore();
+  const { watchlist, aggregates, mode } = useStore();
+  const [alertStatus, setAlertStatus] = useState<AlertStatus | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getAlertStatus().then((status) => {
+      if (active) setAlertStatus(status);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   const rows: { label: string; value: string; note?: string }[] = [
     { label: "Active watchlist", value: watchlist?.name ?? "—" },
@@ -27,8 +40,8 @@ export default function SettingsPage() {
     },
     {
       label: "Notifications",
-      value: "In-app only",
-      note: "Slack and email delivery are post-MVP.",
+      value: alertStatus?.enabled ? "Important changes via Gmail" : "In-app; Gmail available when configured",
+      note: "Baseline and unchanged findings never generate email.",
     },
   ];
 
@@ -75,6 +88,64 @@ export default function SettingsPage() {
             </div>
           ))}
         </dl>
+      </Card>
+
+      <Card className="min-w-0">
+        <CardHeader
+          title="Data and notification integrations"
+          aside={<span className="text-[13px] text-muted">Server-managed</span>}
+        />
+        <div className="grid gap-3 md:grid-cols-2">
+          <Link
+            href="/alerts"
+            className="group rounded-detail border border-divider bg-subtle/50 p-4 no-underline transition-console hover:border-neutral-300 hover:bg-subtle active:scale-[0.99]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-field bg-accent-wash text-accent-ink">
+                <BellRing aria-hidden size={17} />
+              </span>
+              <Pill tone={alertStatus?.enabled ? "accent" : "quiet"}>
+                {alertStatus?.enabled ? "Active" : "Not configured"}
+              </Pill>
+            </div>
+            <h3 className="mt-3 text-[15px] font-bold">Important-change alerts</h3>
+            <p className="mt-1 text-[13px] leading-[1.5] text-muted">
+              Configure bounded Gmail digests, severity thresholds, recipient status, and anti-spam behavior.
+            </p>
+            <span className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-bold text-accent-ink transition-console group-hover:text-accent">
+              Manage alerts <ArrowRight aria-hidden size={14} />
+            </span>
+          </Link>
+
+          <Link
+            href="/sectors"
+            className="group rounded-detail border border-divider bg-subtle/50 p-4 no-underline transition-console hover:border-neutral-300 hover:bg-subtle active:scale-[0.99]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-field bg-ink-strong text-surface">
+                <Database aria-hidden size={17} />
+              </span>
+              <Pill tone={mode === "yahoo" ? "accent" : "quiet"}>
+                {mode === "yahoo"
+                  ? "Testing"
+                  : aggregates
+                    ? `${aggregates.credits.used}/${aggregates.credits.total} credits`
+                    : "Loading"}
+              </Pill>
+            </div>
+            <h3 className="mt-3 text-[15px] font-bold">
+              {mode === "yahoo" ? "Yahoo Finance test provider" : "Sectors data"}
+            </h3>
+            <p className="mt-1 text-[13px] leading-[1.5] text-muted">
+              {mode === "yahoo"
+                ? "Review the development-only financial source and the required switch to Sectors for final verification."
+                : "Review provider-credit usage, cache effectiveness, endpoint activity, and freshness policy."}
+            </p>
+            <span className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-bold text-accent-ink transition-console group-hover:text-accent">
+              View provider details <ArrowRight aria-hidden size={14} />
+            </span>
+          </Link>
+        </div>
       </Card>
 
       <Card className="min-w-0">

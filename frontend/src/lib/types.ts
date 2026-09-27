@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import type {
   AgentRunSchema,
+  AlertStatusSchema,
   CompanySchema,
   CreditUsageSchema,
   DashboardAggregatesSchema,
@@ -48,6 +49,7 @@ export type DashboardAggregates = z.infer<typeof DashboardAggregatesSchema>;
 export type DashboardResponse = z.infer<typeof DashboardResponseSchema>;
 export type Range = z.infer<typeof RangeSchema>;
 export type UserProfile = z.infer<typeof UserProfileSchema>;
+export type AlertStatus = z.infer<typeof AlertStatusSchema>;
 
 /**
  * A signal decorated with local read state.

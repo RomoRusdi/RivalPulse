@@ -1,0 +1,5 @@
+.uv-cache/
+*.egg-info/
+.coverage
+*.db
+local-results/

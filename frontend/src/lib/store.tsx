@@ -15,6 +15,7 @@ import {
   getDashboard,
   startRun as apiStartRun,
   streamRun,
+  updateWatchlist as apiUpdateWatchlist,
 } from "./api";
 import {
   MIX_COLORS,
@@ -31,6 +32,7 @@ import {
 import { readDemoSettings } from "./demo-settings";
 import { useToast } from "@/components/ui/Toast";
 import { MAX_COMPANIES } from "./catalogue";
+import { runFailureMessage } from "./format";
 import { UserProfileSchema, WatchlistSchema } from "./schemas";
 import type {
   AgentRun,
@@ -51,6 +53,7 @@ import type {
  */
 
 interface StoreValue {
+  mode: "live" | "yahoo" | "replay" | null;
   watchlist: Watchlist | null;
   signals: SignalWithState[];
   aggregates: DashboardAggregates | null;
@@ -96,6 +99,7 @@ const StoreContext = createContext<StoreValue | null>(null);
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const { push } = useToast();
 
+  const [mode, setMode] = useState<"live" | "yahoo" | "replay" | null>(null);
   const [watchlist, setWatchlist] = useState<Watchlist | null>(null);
   const [aggregates, setAggregates] = useState<DashboardAggregates | null>(
     null,
@@ -141,6 +145,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setSeenIds(local.seenIds);
         setRevealedIds(local.revealedIds);
         setLastCheckedAt(local.lastCheckedAt);
+        setMode(data.mode);
         setWatchlist(data.watchlist);
 
         // A stored watchlist is untrusted input — validate before trusting it,
@@ -240,7 +245,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   title:
                     produced.length > 0
                       ? `Run #${update.id} found ${produced.length} new signal${produced.length === 1 ? "" : "s"}`
-                      : `Run #${update.id} finished — nothing above threshold`,
+                      : update.coverageStatus === "partial"
+                        ? `Run #${update.id} finished — limited source coverage`
+                        : `Run #${update.id} finished — nothing above threshold`,
                   body: update.resultSummary,
                   action:
                     produced.length > 0
@@ -253,7 +260,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 push({
                   tone: "accent",
                   title: `Run #${update.id} failed`,
-                  body: `Tool call ${update.failedTool} did not return. No stale data was substituted.`,
+                  body: runFailureMessage(update.failedTool),
                 });
               }
             },
@@ -327,16 +334,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const editWatchlist = useCallback(
     (mutate: (current: Watchlist) => Watchlist) => {
-      setEditedWatchlist((current) => {
-        const base = current ?? watchlist;
-        if (!base) return current;
-        const next = mutate(base);
-        // Never persist a watchlist the schema would reject.
-        const parsed = WatchlistSchema.safeParse(next);
-        return parsed.success ? parsed.data : current;
-      });
+      const base = editedWatchlist ?? watchlist;
+      if (!base) return;
+      const parsed = WatchlistSchema.safeParse(mutate(base));
+      if (!parsed.success) return;
+      const previous = editedWatchlist;
+      setEditedWatchlist(parsed.data);
+      apiUpdateWatchlist(parsed.data)
+        .then((saved) => setEditedWatchlist(saved))
+        .catch((err: unknown) => {
+          setEditedWatchlist(previous);
+          push({
+            tone: "accent",
+            title: "Watchlist update was not saved",
+            body: err instanceof ApiError ? err.message : "The server rejected the workspace command.",
+          });
+        });
     },
-    [watchlist],
+    [editedWatchlist, push, watchlist],
   );
 
   const addCompany = useCallback(
@@ -456,6 +471,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<StoreValue>(
     () => ({
+      mode,
       watchlist: activeWatchlist,
       signals: visibleSignals,
       aggregates: reconciledAggregates,
@@ -484,6 +500,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       profileEdited: editedProfile !== null,
     }),
     [
+      mode,
       activeWatchlist,
       visibleSignals,
       editedWatchlist,

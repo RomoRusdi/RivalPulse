@@ -202,6 +202,90 @@ body {
   transition-timing-function: ease-in;
 }
 
+/* Route changes retain the shell and softly settle only the new content.
+   This keeps navigation responsive without making the whole app slide. */
+.rp-page-enter {
+  animation: rp-page-enter 220ms var(--ease-enter) both;
+}
+
+@keyframes rp-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Financial comparison lines draw once when their range or route mounts. */
+.rp-chart-line {
+  stroke-dasharray: 600;
+  stroke-dashoffset: 600;
+  animation: rp-chart-draw 700ms var(--ease-enter) forwards;
+}
+
+.rp-chart-point {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: rp-chart-point 380ms 480ms var(--ease-enter) both;
+}
+
+@keyframes rp-chart-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes rp-chart-point {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Agent execution uses a CI-style rail: completed stages stay solid while
+   only the active edge moves. This communicates direction without making the
+   labels themselves jump around. */
+.rp-run-progress-active {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-accent) 0%,
+    #f59a5c 45%,
+    var(--color-accent) 70%
+  );
+  background-size: 220% 100%;
+  animation: rp-progress-scan 1.5s linear infinite;
+}
+
+.rp-pipeline-flow {
+  background-image: linear-gradient(
+    180deg,
+    var(--color-accent) 0 35%,
+    var(--color-accent-wash-border) 55%,
+    var(--color-neutral-200) 78%
+  );
+  background-size: 100% 220%;
+  animation: rp-pipeline-flow 1.3s linear infinite;
+}
+
+@keyframes rp-progress-scan {
+  to {
+    background-position: -220% 0;
+  }
+}
+
+@keyframes rp-pipeline-flow {
+  to {
+    background-position: 0 220%;
+  }
+}
+
 /* A signal a run just found, settling into the top of the feed. Applied only
    to rows revealed live — never to the list on load. */
 .rp-row-new {

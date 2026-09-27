@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Menu, Plus } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { DatabaseZap, Menu, Sparkles } from "lucide-react";
 import { Sidebar } from "./Sidebar";
-import { InvestigateDialog } from "./InvestigateDialog";
 import { DebugPanel } from "./DebugPanel";
 import { SearchField } from "./SearchField";
 import { MobileDrawer } from "./MobileDrawer";
 import { UserMenu } from "./UserMenu";
-import { Button } from "@/components/ui/primitives";
+import { useStore } from "@/lib/store";
 
 /**
  * The app shell: sidebar + top bar + routed main, filling the viewport.
@@ -22,8 +22,13 @@ import { Button } from "@/components/ui/primitives";
  * drawer opened from a menu button.
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const { mode } = useStore();
+  const isAgentWorkspace = pathname === "/";
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [investigateOpen, setInvestigateOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const toggleSidebar = () => setSidebarCollapsed((current) => !current);
 
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-surface">
@@ -36,8 +41,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </a>
 
       {/* Static sidebar from lg up, scrolling independently of main */}
-      <div className="hidden h-full w-[244px] shrink-0 overflow-y-auto lg:block">
-        <Sidebar />
+      <div
+        className={`hidden h-full shrink-0 overflow-y-auto transition-[width] duration-200 ease-[var(--ease-enter)] lg:block ${
+          sidebarCollapsed ? "w-20" : "w-[244px]"
+        }`}
+      >
+        <Sidebar collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebar} />
       </div>
 
       {/* Off-canvas drawer below lg */}
@@ -56,36 +65,56 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Menu aria-hidden size={18} strokeWidth={1.5} />
           </button>
 
-          <SearchField />
+          {isAgentWorkspace ? (
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-field bg-accent-wash text-accent-ink">
+                <Sparkles aria-hidden size={16} strokeWidth={1.8} />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-extrabold text-ink">RivalPulse agent</p>
+                <p className="hidden truncate text-[11px] text-muted sm:block">Plans, investigates, compares, and cites</p>
+              </div>
+            </div>
+          ) : (
+            <SearchField />
+          )}
 
           {/* ml-auto pins the actions to the right edge. Without it they sit
               flush against the capped search field, leaving the bar looking
               unbalanced on a wide window. */}
           <div className="flex shrink-0 items-center gap-2.5 sm:ml-auto">
-            <Button
-              variant="primary"
-              onClick={() => setInvestigateOpen(true)}
-              className="min-h-11 lg:min-h-0"
-            >
-              <Plus aria-hidden size={16} strokeWidth={2} />
-              Investigate
-            </Button>
             <UserMenu />
           </div>
         </header>
 
+        {mode === "yahoo" ? (
+          <div className="flex shrink-0 items-center gap-2 border-b border-accent-wash-border bg-accent-wash px-4 py-2 text-[12px] text-ink-2 md:px-[22px]">
+            <DatabaseZap aria-hidden size={14} className="shrink-0 text-accent-ink" />
+            <span>
+              <strong className="font-extrabold text-accent-ink">Yahoo testing mode</strong>
+              {" · "}Development-only financial data is active. Verify the final investigation with Sectors before presenting it.
+            </span>
+          </div>
+        ) : mode === "replay" ? (
+          <div className="flex shrink-0 items-center gap-2 border-b border-divider bg-subtle px-4 py-2 text-[12px] text-muted md:px-[22px]">
+            <DatabaseZap aria-hidden size={14} className="shrink-0" />
+            <span><strong className="font-extrabold text-ink-2">Test fixture mode</strong>{" · "}Synthetic evidence is restricted to automated testing.</span>
+          </div>
+        ) : null}
+
         <main
           id="main"
           tabIndex={-1}
-          className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-[22px]"
+          className={`min-w-0 flex-1 ${isAgentWorkspace ? "overflow-hidden p-0" : "overflow-y-auto p-4 md:p-[22px]"}`}
         >
-          {children}
+          <div
+            key={pathname}
+            className={`rp-page-enter min-w-0 ${isAgentWorkspace ? "h-full" : "flex flex-col gap-4"}`}
+          >
+            {children}
+          </div>
         </main>
       </div>
-
-      {investigateOpen ? (
-        <InvestigateDialog onClose={() => setInvestigateOpen(false)} />
-      ) : null}
 
       <DebugPanel />
     </div>

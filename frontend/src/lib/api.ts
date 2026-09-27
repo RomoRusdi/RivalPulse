@@ -1,9 +1,12 @@
 import {
   AgentRunSchema,
+  AlertStatusSchema,
   DashboardResponseSchema,
   SignalSchema,
+  WatchlistSchema,
 } from "./schemas";
-import type { AgentRun, DashboardResponse, Range, Signal } from "./types";
+import type { AgentRun, AlertStatus, DashboardResponse, Range, Signal, Watchlist } from "./types";
+import { parseChatHistory, type ChatSession } from "./chat-history";
 import {
   ALL_SIGNALS,
   RESERVE_SIGNALS,
@@ -121,6 +124,7 @@ export async function getDashboard(
 
   // Parse the mocks too, so a malformed fixture fails here and not in a component.
   return DashboardResponseSchema.parse({
+    mode: "replay",
     watchlist: WATCHLIST,
     aggregates: aggregatesFor(range),
     signals,
@@ -137,6 +141,48 @@ export async function getSignal(id: string): Promise<Signal | null> {
   await delay(demo.latencyMs);
   const found = ALL_SIGNALS.find((s) => s.id === id);
   return found ? SignalSchema.parse(found) : null;
+}
+
+export async function getAlertStatus(): Promise<AlertStatus> {
+  if (!USE_MOCKS) return request("/api/v1/alerts/status", AlertStatusSchema);
+  return AlertStatusSchema.parse({
+    enabled: false,
+    provider: "gmail",
+    recipient: null,
+    minimum_severity: "high",
+    delivery_policy: "One digest per completed run; baseline and unchanged findings are never emailed.",
+  });
+}
+
+export async function updateWatchlist(watchlist: Watchlist): Promise<Watchlist> {
+  if (USE_MOCKS) return WatchlistSchema.parse(watchlist);
+  return request("/watchlist", WatchlistSchema, {
+    method: "PATCH",
+    body: JSON.stringify({ name: watchlist.name, tickers: watchlist.companies.map((company) => company.ticker) }),
+  });
+}
+
+/* ── Agent conversations ───────────────────────────────────────────────── */
+
+export async function getConversationHistory(): Promise<ChatSession[]> {
+  if (USE_MOCKS) return [];
+  return request("/api/v1/conversations", { parse: parseChatHistory });
+}
+
+export async function saveConversation(session: ChatSession): Promise<void> {
+  if (USE_MOCKS) return;
+  const response = await fetch(`${API_BASE}/api/v1/conversations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(session),
+  });
+  if (!response.ok) throw new ApiError(`POST /api/v1/conversations failed: ${response.status}`);
+}
+
+export async function deleteConversation(id: string): Promise<void> {
+  if (USE_MOCKS) return;
+  const response = await fetch(`${API_BASE}/api/v1/conversations/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!response.ok) throw new ApiError(`DELETE /api/v1/conversations failed: ${response.status}`);
 }
 
 /* ── Agent runs ────────────────────────────────────────────────────────── */
@@ -188,9 +234,15 @@ export function streamRun(
 ): () => void {
   if (!USE_MOCKS) {
     const source = new EventSource(`${API_BASE}/runs/${run.id}/stream`);
+    let terminal = false;
     source.onmessage = (event) => {
       try {
-        handlers.onUpdate(AgentRunSchema.parse(JSON.parse(event.data)));
+        const update = AgentRunSchema.parse(JSON.parse(event.data));
+        terminal = update.status === "complete" || update.status === "failed";
+        handlers.onUpdate(update);
+        // The backend closes SSE after the terminal event. Close locally first
+        // so EventSource does not misreport that expected EOF as a failure.
+        if (terminal) source.close();
       } catch (error) {
         handlers.onError(
           new ApiError(`Run stream sent unreadable data: ${describe(error)}`),
@@ -198,10 +250,14 @@ export function streamRun(
       }
     };
     source.onerror = () => {
+      if (terminal) return;
       handlers.onError(new ApiError("Lost connection to the run stream."));
       source.close();
     };
-    return () => source.close();
+    return () => {
+      terminal = true;
+      source.close();
+    };
   }
 
   const demo = readDemoSettings();

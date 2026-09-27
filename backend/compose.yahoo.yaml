@@ -1,0 +1,21 @@
+# Explicit development override. Financial statements come from Yahoo Finance's
+# unofficial fundamentals endpoint; production remains Sectors v2 in MODE=live.
+services:
+  api:
+    environment:
+      MODE: yahoo
+      LLM_ENABLED: "true"
+      LLM_PLAN_ENABLED: "true"
+      RUN_TIMEOUT: "360"
+  worker:
+    environment:
+      MODE: yahoo
+      LLM_ENABLED: "true"
+      LLM_PLAN_ENABLED: "true"
+      RUN_TIMEOUT: "360"
+  reconciler:
+    environment:
+      MODE: yahoo
+      LLM_ENABLED: "true"
+      LLM_PLAN_ENABLED: "true"
+      RUN_TIMEOUT: "360"
