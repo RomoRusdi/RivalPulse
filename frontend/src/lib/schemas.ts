@@ -215,7 +215,7 @@ export const AlertStatusSchema = z.object({
 
 /** Envelope for GET /dashboard. */
 export const DashboardResponseSchema = z.object({
-  mode: z.enum(["live", "yahoo", "replay"]),
+  mode: z.enum(["live", "replay"]),
   watchlist: WatchlistSchema,
   aggregates: DashboardAggregatesSchema,
   signals: z.array(SignalSchema),

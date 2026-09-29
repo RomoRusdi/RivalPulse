@@ -29,15 +29,15 @@ See [`backend/README.md`](backend/README.md) for the implemented API and operati
 
 ## Running it
 
-### Yahoo testing mode on Windows
+### Sectors v2 on Windows
 
-Start Docker Desktop and Ollama, ensure `qwen3.8:27b` is installed, then run from the repository root:
+Set a valid `SECTORS_API_KEY` in the ignored `backend/.env` (copy `backend/.env.example` if needed). Start Docker Desktop and Ollama, ensure `qwen3.8:27b` is installed, then run from the repository root:
 
 ```powershell
-.\START_YAHOO_TEST.ps1
+.\START_SECTORS.ps1
 ```
 
-This starts the real FastAPI/PostgreSQL/Redis/Ollama stack with explicit `MODE=yahoo`. Yahoo annual financials are development-only, labeled throughout the application, and never act as a fallback for Sectors. Stop it with `.\STOP_YAHOO_TEST.ps1`.
+This starts FastAPI/PostgreSQL/Redis/Ollama with Sectors v2 as the **only live financial provider**. The startup script checks for a configured key but does not spend credits or verify the key with Sectors. Research uses bounded requests and never substitutes a different provider. Stop with `.\STOP_SECTORS.ps1`; the PostgreSQL and Redis volumes remain intact.
 
 **Frontend** — works standalone against mock data, no backend required:
 
@@ -47,7 +47,7 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
-**Backend** — see [`backend/README.md`](backend/README.md). It supports explicit Yahoo development testing and live Sectors v2 research with local Ollama `qwen3.8:27b` synthesis. Synthetic replay remains restricted to automated tests.
+**Backend** — see [`backend/README.md`](backend/README.md). It uses live Sectors v2 with local Ollama `qwen3.8:27b` interpretation; synthetic replay is restricted to automated tests. Tool planning stays deterministic until live key access and credit usage are validated.
 
 To point the frontend at the private backend without exposing credentials in browser code, copy `frontend/.env.example` to `frontend/.env.local` and set:
 
@@ -56,13 +56,13 @@ NEXT_PUBLIC_USE_MOCKS=false
 NEXT_PUBLIC_API_BASE=http://localhost:8080/backend
 ```
 
-Start the frontend on port 3000, run `docker compose --profile frontend up -d` from `backend/`, then open `http://localhost:8080/backend/demo/login` and authenticate with the local `DEMO_ACCESS_TOKEN` before opening `http://localhost:8080`.
+Start the frontend on port 3000, run `docker compose --profile frontend up -d` from `backend/`, then open `http://localhost:8080/login` and enter the private `DEMO_ACCESS_TOKEN` from `backend/.env`. The backend sets an HttpOnly demo cookie and the app checks it before loading workspace data. The profile is browser-local; this is not an email/password or multi-user account system.
 
 ## Status
 
 - **Frontend** — agent-first Next.js workspace: login lands on a scrollable conversation with workspace-synced history, while dashboards and reports remain secondary agent outputs.
-- **Backend** — queued research runs, Sectors v2 production evidence, explicit Yahoo test evidence, approved public sources, immutable snapshots/revisions, and transparent signal scoring are implemented.
-- **Agent** — simple watchlist/help commands run instantly. Yahoo-mode financial questions use Qwen-planned bounded tools, return cited annual statements, and optionally add a validated qualitative interpretation. Weekly activity still requires approved public evidence. PostgreSQL stores research and conversation history; Yahoo is never a silent Sectors fallback.
+- **Backend** — queued research runs, Sectors v2 financial evidence, approved public sources, immutable snapshots/revisions, and transparent signal scoring are implemented. A valid Sectors key is still required for a live financial investigation.
+- **Agent** — simple watchlist/help commands run instantly. Financial questions return cited Sectors annual statements and may include a validated Qwen interpretation. Weekly activity still requires approved public evidence. PostgreSQL stores research and conversation history; previously collected test data stays archived and cannot become a live baseline.
 - **Decision workflow** — agent summary reports, competitor battlecards, action scenarios, a continuously refreshed signal timeline, and bounded Gmail digests connect evidence to marketing response.
 
 ## Demo controls

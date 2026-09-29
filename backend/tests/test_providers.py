@@ -9,7 +9,7 @@ from app.config import get_settings
 from app.db import session
 from app.errors import ProviderError
 from app.models import CreditAccount, CreditReservation, Run
-from app.providers import Sectors, growth, normalize_report, normalize_yahoo_report, replay_report
+from app.providers import Sectors, growth, normalize_report, replay_report
 from app.research import claim_run
 from tests.conftest import launch
 
@@ -54,6 +54,26 @@ def test_cache_explicit_sections_and_credit_cost(client, watchlist, monkeypatch)
     next_provider = Sectors(next_id, claim_run(next_id), client=provider.client, redis=LockRedis())
     third, status = next_provider.report(company)
     assert third.id == first.id and status == "cached" and len(requests) == 1
+
+
+def test_sectors_report_feeds_cited_annual_brief(client, watchlist, monkeypatch):
+    from app.research import financial_brief_for
+
+    def handler(request):
+        symbol = request.url.path.split("/")[-2]
+        return httpx.Response(200, json=replay_report(symbol, "baseline", {}))
+
+    provider, company, run_id = live_provider(client, watchlist, monkeypatch, handler)
+    snapshot, outcome = provider.report(company)
+    assert outcome == "fetched" and snapshot.provider == "sectors" and snapshot.mode == "live"
+    brief, claims = financial_brief_for(run_id)
+    row = next(row for row in brief.rows if row.symbol == company["symbol"])
+    assert {metric.metric for metric in row.metrics} == {"revenue", "earnings"}
+    assert all(metric.source_url.startswith("https://api.sectors.app/v2/company/report/")
+               and metric.snapshot_id == snapshot.id for metric in row.metrics)
+    assert len(claims) == 2
+    with session() as db:
+        assert db.get(Run, run_id).credits == 2
 
 
 def test_central_budget_atomic_reservations(client, watchlist, monkeypatch):
@@ -124,45 +144,13 @@ def test_normalization_nulls_periods_currency_and_growth():
         assert growth(a, {**b, **patch}) is None
 
 
-def test_yahoo_mode_is_explicit_labeled_and_does_not_charge_sectors(client, watchlist, monkeypatch):
+def test_retired_provider_mode_cannot_be_configured(monkeypatch):
+    from pydantic import ValidationError
     monkeypatch.setenv("MODE", "yahoo")
-    monkeypatch.setenv("SECTORS_API_KEY", "")
     get_settings.cache_clear()
-    requests = []
-
-    def handler(request):
-        requests.append(request)
-        symbol = request.url.path.rsplit("/", 1)[-1]
-        return httpx.Response(200, json={"timeseries": {"result": [{
-            "meta": {"symbol": [symbol], "type": ["annualTotalRevenue"]},
-            "annualTotalRevenue": [{"asOfDate": "2024-12-31", "periodType": "12M", "currencyCode": "IDR",
-                                    "reportedValue": {"raw": 149216000000000}}],
-        }]}})
-
-    run_id = launch(client, watchlist)
-    token = claim_run(run_id)
-    with session() as db:
-        company = db.get(Run, run_id).inputs["companies"][0]
-    provider = Sectors(run_id, token, client=httpx.Client(transport=httpx.MockTransport(handler)), redis=LockRedis())
-    snapshot, status = provider.report(company)
-    assert status == "fetched" and snapshot.provider == "yahoo" and snapshot.mode == "yahoo"
-    assert snapshot.normalized["metrics"][0]["currency"] == "IDR"
-    assert "query2.finance.yahoo.com" in snapshot.url
-    assert requests[0].url.params["symbol"] == company["symbol"] + ".JK"
-    with session() as db:
-        assert db.get(CreditAccount, "sectors").used == 0
-        assert db.get(Run, run_id).credits == 0
-        assert db.get(Run, run_id).external_calls == 1
-
-
-def test_yahoo_normalizer_rejects_wrong_company():
-    payload = {"timeseries": {"result": [{
-        "meta": {"symbol": ["ISAT.JK"], "type": ["annualTotalRevenue"]},
-        "annualTotalRevenue": [{"asOfDate": "2024-12-31", "periodType": "12M", "currencyCode": "IDR",
-                                "reportedValue": {"raw": 100}}],
-    }]}}
-    with pytest.raises(ProviderError, match="identity"):
-        normalize_yahoo_report(payload, "TLKM")
+    with pytest.raises(ValidationError):
+        get_settings()
+    get_settings.cache_clear()
 
 
 def test_news_pagination_and_symbol_filter(client, watchlist, monkeypatch):

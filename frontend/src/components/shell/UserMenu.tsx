@@ -8,6 +8,7 @@ import { LogOut, Settings as SettingsIcon, User } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { cx } from "@/components/ui/primitives";
 import { useStore } from "@/lib/store";
+import { signOutDemo } from "@/lib/api";
 
 const ITEMS: { href: Route; label: string; icon: typeof User }[] = [
   { href: "/profile", label: "Profile", icon: User },
@@ -24,6 +25,8 @@ export function UserMenu() {
   const { profile } = useStore();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const itemsRef = useRef<(HTMLAnchorElement | HTMLButtonElement | null)[]>([]);
@@ -65,9 +68,20 @@ export function UserMenu() {
     }
   };
 
-  const signOut = () => {
-    setOpen(false);
-    router.push("/login");
+  const signOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    setSignOutError(null);
+    try {
+      await signOutDemo();
+      setOpen(false);
+      router.replace("/login");
+      router.refresh();
+    } catch {
+      setSignOutError("Could not sign out. Try again.");
+    } finally {
+      setSigningOut(false);
+    }
   };
 
   return (
@@ -132,12 +146,14 @@ export function UserMenu() {
               ref={(el) => {
                 itemsRef.current[ITEMS.length] = el;
               }}
-              onClick={signOut}
-              className={cx(ITEM_CLASS, "w-full text-left")}
+              onClick={() => { void signOut(); }}
+              disabled={signingOut}
+              className={cx(ITEM_CLASS, "w-full text-left disabled:cursor-wait disabled:opacity-50")}
             >
               <LogOut aria-hidden size={16} strokeWidth={1.5} />
               Sign out
             </button>
+            {signOutError ? <p role="alert" className="px-2.5 py-2 text-xs text-accent-ink">{signOutError}</p> : null}
           </div>
         </div>
       ) : null}

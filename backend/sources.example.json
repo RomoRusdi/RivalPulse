@@ -1,5 +1,7 @@
 [
+  {"symbol": "TLKM", "url": "https://www.telkom.co.id/sites/berita/id_ID/page/news-about-telkom-122", "selector": "main", "event_type": "Product"},
   {"symbol": "TLKM", "url": "https://www.telkom.co.id/sites/about-us/en_US/page/profile-and-brief-history-24", "selector": "main", "event_type": "Product"},
   {"symbol": "ISAT", "url": "https://ioh.co.id/portal/ID/iohaboutus", "selector": "main", "event_type": "Product"},
-  {"symbol": "EXCL", "url": "https://www.xlsmart.co.id/", "selector": "main", "event_type": "Product"}
+  {"symbol": "EXCL", "url": "https://www.xlsmart.co.id/id/tentang-xlsmart/berita", "selector": "body", "event_type": "Product"},
+  {"symbol": "EXCL", "url": "https://www.xlsmart.co.id/", "selector": "body", "event_type": "Product"}
 ]

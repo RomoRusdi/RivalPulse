@@ -11,13 +11,13 @@ import {
 import { useStore } from "@/lib/store";
 
 const PROVIDER_POLICY = [
-  { stage: "Local testing", source: "Yahoo Finance", purpose: "Annual financial statements", freshness: "24 h" },
-  { stage: "Final verification", source: "Sectors v2", purpose: "Financial evidence and context", freshness: "24 h" },
+  { stage: "Financial context", source: "Sectors v2 reports", purpose: "Annual financial statements and company data", freshness: "24 h" },
+  { stage: "Structured news", source: "Sectors v2 news", purpose: "Bounded company announcements", freshness: "1 h" },
   { stage: "Competitive signals", source: "Approved company pages", purpose: "Product, price, campaign, and partnership changes", freshness: "1 h" },
 ];
 
 export default function SectorsPage() {
-  const { aggregates, mode } = useStore();
+  const { aggregates } = useStore();
   const { used, total, cacheHitRate } = aggregates?.credits ?? {
     used: 0,
     total: 1000,
@@ -33,34 +33,25 @@ export default function SectorsPage() {
       <div>
         <PageTitle>Financial data provider</PageTitle>
         <p className="mt-0.5 text-sm text-muted">
-          {mode === "yahoo"
-            ? "Yahoo Finance is active for local testing. Final evidence must be collected again through Sectors v2."
-            : "Sectors v2 is the production source for verified financial context."}
+          Sectors v2 is the sole live financial provider. Verify key access before running a credit-consuming investigation.
         </p>
       </div>
 
       <div className="flex flex-wrap justify-between gap-[22px] rounded-card bg-ink-strong p-5 text-surface md:px-[22px]">
         <div className="flex-1 basis-50">
           <p className="text-[19px] font-bold tracking-[-0.02em]">
-            {mode === "yahoo" ? "Yahoo testing mode is active" : `${used} of ${total} Sectors credits used`}
+            {used} of {total} Sectors credits used
           </p>
           <p className="mt-1 text-sm text-muted-on-dark">
-            {mode === "yahoo"
-              ? "These runs consume no Sectors credits and are stored separately from production evidence."
-              : `Caching has absorbed ${Math.round(cacheHitRate * 100)}% of requests.`}
+            Caching has absorbed {Math.round(cacheHitRate * 100)}% of requests.
           </p>
-          {mode !== "yahoo" ? (
-            <div
-              role="img"
-              aria-label={`${percent}% of credits used`}
-              className="mt-3.5 h-[22px] overflow-hidden rounded-bar bg-white/10"
-            >
-              <div
-                className="h-full rounded-bar bg-accent transition-chart"
-                style={{ width: `${percent}%` }}
-              />
-            </div>
-          ) : null}
+          <div
+            role="img"
+            aria-label={`${percent}% of credits used`}
+            className="mt-3.5 h-[22px] overflow-hidden rounded-bar bg-white/10"
+          >
+            <div className="h-full rounded-bar bg-accent transition-chart" style={{ width: `${percent}%` }} />
+          </div>
         </div>
       </div>
 
@@ -105,7 +96,7 @@ export default function SectorsPage() {
           </table>
         </div>
         <p className="mt-4 border-t border-divider pt-4 text-[13px] text-muted">
-          Yahoo and Sectors snapshots are isolated by mode. A failed Sectors request never silently switches to Yahoo.
+          Sectors keys stay on the server. Replay fixtures are for automated tests only; a failed Sectors request never substitutes another provider.
         </p>
       </Card>
 

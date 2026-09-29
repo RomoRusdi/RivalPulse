@@ -1,6 +1,7 @@
 import { StoreProvider } from "@/lib/store";
 import { ToastProvider } from "@/components/ui/Toast";
 import { AppShell } from "@/components/shell/AppShell";
+import { DemoSessionGate } from "@/components/auth/DemoSessionGate";
 
 /**
  * Everything behind the app chrome: sidebar, top bar, store and toasts.
@@ -10,10 +11,12 @@ import { AppShell } from "@/components/shell/AppShell";
  */
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
-    <ToastProvider>
-      <StoreProvider>
-        <AppShell>{children}</AppShell>
-      </StoreProvider>
-    </ToastProvider>
+    <DemoSessionGate>
+      <ToastProvider>
+        <StoreProvider>
+          <AppShell>{children}</AppShell>
+        </StoreProvider>
+      </ToastProvider>
+    </DemoSessionGate>
   );
 }

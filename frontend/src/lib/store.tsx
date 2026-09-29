@@ -11,6 +11,7 @@ import {
 } from "react";
 import {
   ApiError,
+  USE_MOCKS,
   cancelRun as apiCancelRun,
   getDashboard,
   startRun as apiStartRun,
@@ -53,7 +54,7 @@ import type {
  */
 
 interface StoreValue {
-  mode: "live" | "yahoo" | "replay" | null;
+  mode: "live" | "replay" | null;
   watchlist: Watchlist | null;
   signals: SignalWithState[];
   aggregates: DashboardAggregates | null;
@@ -96,10 +97,19 @@ interface StoreValue {
 
 const StoreContext = createContext<StoreValue | null>(null);
 
+const PRIVATE_DEMO_PROFILE: UserProfile = {
+  ...USER,
+  id: "private-demo",
+  name: "Demo researcher",
+  role: "Workspace member",
+  email: "demo@rivalpulse.test",
+  workspace: "Private demo",
+};
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const { push } = useToast();
 
-  const [mode, setMode] = useState<"live" | "yahoo" | "replay" | null>(null);
+  const [mode, setMode] = useState<"live" | "replay" | null>(null);
   const [watchlist, setWatchlist] = useState<Watchlist | null>(null);
   const [aggregates, setAggregates] = useState<DashboardAggregates | null>(
     null,
@@ -388,7 +398,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // ── Profile ─────────────────────────────────────────────────────────────
   // Same rule as the watchlist: validate before keeping, so a bad edit (or a
   // tampered localStorage entry) can never reach the rest of the app.
-  const profile = editedProfile ?? USER;
+  const profile = editedProfile ?? (USE_MOCKS ? USER : PRIVATE_DEMO_PROFILE);
 
   const updateProfile = useCallback(
     (patch: Partial<UserProfile>): string | null => {

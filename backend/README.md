@@ -2,7 +2,7 @@
 
 FastAPI, SQLAlchemy/Alembic, PostgreSQL, Redis/RQ, HTTPX, and an explicit Python research agent.
 
-Workflow: enter a chat command → route simple workspace operations without research, or queue an analytical investigation → collect financial-provider and approved public evidence → compare successful baselines → validate cited findings → publish immutable revisions. Conversation transcripts are stored per workspace in PostgreSQL. Production uses Sectors; local testing can explicitly use Yahoo Finance. Repeating identical evidence produces no new revision or alert. First observations are labeled `baseline`.
+Workflow: enter a chat command → route simple workspace operations without research, or queue an analytical investigation → collect Sectors v2 financial data and approved public evidence → compare successful baselines → validate cited findings → publish immutable revisions. Conversation transcripts are stored per workspace in PostgreSQL. Sectors is the only live financial provider; synthetic replay is restricted to automated tests. Repeating identical evidence produces no new revision or alert. First observations are labeled `baseline`.
 
 ## Start with Docker Compose
 
@@ -11,7 +11,7 @@ Run from this directory. Docker Desktop with Linux containers is required.
 ```powershell
 Copy-Item .env.example .env
 # Edit .env: set a private DEMO_ACCESS_TOKEN of at least 16 characters.
-# Keep MODE=live and configure SECTORS_API_KEY for production.
+# Set SECTORS_API_KEY in this ignored file. MODE=live is enforced by Compose.
 docker compose up --build -d
 docker compose logs -f api worker reconciler
 ```
@@ -20,24 +20,14 @@ Compose waits for PostgreSQL and Redis, runs migrations, seeds three companies a
 
 - Interactive contracts: [http://localhost:8000/docs](http://localhost:8000/docs). Use **Authorize** with the private demo token.
 - Liveness: `GET /api/v1/health/live`.
-- Readiness: `GET /api/v1/health/ready` checks migration presence, database, Redis, and access configuration.
-- `MODE=live` is the default. Live Sectors requests never fall back to Yahoo or replay.
+- Readiness: `GET /api/v1/health/ready` checks migrations, database, Redis, private-demo access, and the presence (not validity) of a Sectors key.
+- `MODE=live` is enforced by Compose. Missing Sectors credentials reject investigations before queueing; failed live requests never fall back to replay. A configured but invalid key will fail with `PROVIDER_AUTH_FAILED` when a live request is made.
 
-### Yahoo testing mode (no Sectors credential)
+### Windows startup
 
-Use the explicit development override to retrieve annual IDX financial statements from Yahoo Finance while keeping PostgreSQL, Redis/RQ, SSE progress, scoring, revisions, and Ollama active:
+From the repository root, run `./START_SECTORS.ps1` after setting a valid `SECTORS_API_KEY` in ignored `backend/.env`. The script starts the same-origin frontend proxy at `http://localhost:8080`; stop it with `./STOP_SECTORS.ps1` (volumes are retained). It checks key presence without making a billable provider request. Set `NEXT_PUBLIC_USE_MOCKS=false` and `NEXT_PUBLIC_API_BASE=http://localhost:8080/backend` in the frontend's ignored `.env.local`.
 
-```powershell
-docker compose -f compose.yaml -f compose.yahoo.yaml --profile frontend up --build -d
-```
-
-This forces `MODE=yahoo` for the API and workers. Yahoo is an unofficial, development-only source, is labeled in every result, and never substitutes for a failed live Sectors call. Use `NEXT_PUBLIC_API_BASE=http://localhost:8080/backend`.
-
-Stop it without deleting stored test runs:
-
-```powershell
-docker compose -f compose.yaml -f compose.yahoo.yaml --profile frontend down
-```
+Existing test-mode history in the database is preserved as an archive, but it cannot become a live baseline or be used for new requests.
 
 Manual migration/seed commands:
 
@@ -119,7 +109,7 @@ NEXT_PUBLIC_API_BASE=http://localhost:8080/backend
 docker compose --profile frontend up -d frontend-proxy
 ```
 
-Open [http://localhost:8080/backend/demo/login](http://localhost:8080/backend/demo/login), enter the private token, then open [http://localhost:8080](http://localhost:8080). Login establishes an HttpOnly, SameSite cookie for same-origin fetches and SSE. The `/backend/` prefix avoids collisions between frontend pages and legacy API paths. Restart the frontend after changing its environment. A browser/proxy check still requires Docker and the running frontend.
+Open [http://localhost:8080/login](http://localhost:8080/login) and enter the private access token from `backend/.env`. The frontend uses `POST /backend/demo/login` to establish an HttpOnly, SameSite cookie, checks `GET /backend/api/v1/session` before mounting the app store, and signs out through `POST /backend/demo/logout`. The original `/backend/demo/login` form still works for direct API testing. This is a shared private demo, **not** email/password accounts; the editable profile remains in browser storage. The `/backend/` prefix avoids frontend/API route collisions. Restart the frontend after changing its environment.
 
 For a separate API client, send `Authorization: Bearer <token>`. HTTP Basic is also accepted, with any username and the token as password. Do not put the token or Sectors/LLM keys into `NEXT_PUBLIC_*` variables.
 
@@ -131,9 +121,9 @@ Durable cache keys include version, endpoint, sorted parameters, schema and mode
 
 Reports retain original payloads locally for JSON-pointer resolution, decimal strings, reporting years, currency/unit metadata and retrieval dates. The documented report example does not specify currency or unit: absent metadata stays unknown, produces a coverage warning, and disables monetary growth calculations. Do not infer IDR merely from an IDX ticker. Growth requires adjacent annual periods, identical known currency, unit and reporting scope, and a positive denominator.
 
-With `LLM_ENABLED=false`, the agent uses a deterministic plan and conservative, labeled interpretations. The Yahoo testing override explicitly enables `LLM_PLAN_ENABLED=true`: local Qwen selects typed, bounded tools, while code still requires financial coverage for every watchlist company (and approved public sources for activity investigations). Multi-company tool requests are split into single-company calls. An invalid model plan receives one repair attempt before a visibly recorded, validated deterministic fallback; model outages still fail explicitly. The Yahoo override allows a longer bounded run deadline for local Qwen latency. Production Sectors planning remains configurable; enable it after validating credit use. Start Ollama with `qwen3.8:27b`; Docker Compose routes worker calls to host Ollama through `host.docker.internal`. Annual financial questions now receive a cited statement brief even without public-page events. Qwen adds an optional claim-linked, nonnumeric interpretation; if it cannot be validated, the cited figures are still returned with a caveat. Weekly activity questions still require verifiable public evidence. The model cannot supply numeric metrics, URLs, arbitrary tools, or database writes.
+With `LLM_ENABLED=false`, the agent uses a deterministic plan and conservative, labeled interpretations. Live Sectors tool planning starts deterministic (`LLM_PLAN_ENABLED=false`) to protect credits; Qwen `qwen3.8:27b` can still interpret bounded, cited evidence. After a valid key and credit/latency usage are verified, bounded Qwen planning may be enabled explicitly. Multi-company tool requests are split into single-company calls. An invalid model plan receives one repair attempt before a visibly recorded, validated deterministic fallback; model outages still fail explicitly. Docker Compose routes worker calls to host Ollama through `host.docker.internal`. Annual financial questions receive a cited Sectors statement brief even without public-page events. Qwen adds an optional claim-linked, nonnumeric interpretation; if it cannot be validated, cited figures remain available with a caveat. Weekly activity questions still require verifiable public evidence. The model cannot supply numeric metrics, URLs, arbitrary tools, or database writes.
 
-An investigation has a 180-second deadline, 12 external requests and a per-run credit cap. Tools execute sequentially for simple MVP budgeting/recovery. Claims and final writes use lease tokens; cross-watchlist publication uses a PostgreSQL advisory lock. Duplicate queue delivery is harmless. The reconciler requeues stranded submissions and fences runs past their execution window, with at most three attempts. Persisted snapshots survive interruption. PostgreSQL is authoritative. A provider call interrupted before durable storage may need a new paid request; its original reservation stays charged.
+A live Compose investigation has a 360-second deadline, 12 external requests and a per-run credit cap. Tools execute sequentially for simple MVP budgeting/recovery. Claims and final writes use lease tokens; cross-watchlist publication uses a PostgreSQL advisory lock. Duplicate queue delivery is harmless. The reconciler requeues stranded submissions and fences runs past their execution window, with at most three attempts. Persisted snapshots survive interruption. PostgreSQL is authoritative. A provider call interrupted before durable storage may need a new paid request; its original reservation stays charged.
 
 Snapshot, evidence, revision and terminal-result history is protected by database triggers. Failed fetches never become baselines. Stable event identities suppress duplicate revisions; matching company/category/normalized subject/publication date can combine cross-source citations. Matching is conservative, not fuzzy semantic entity resolution. Publication and discovery dates remain separate. Baseline and unchanged findings are not counted as newly produced alerts.
 

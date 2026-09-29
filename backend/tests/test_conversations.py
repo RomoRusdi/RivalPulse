@@ -1,4 +1,8 @@
+from datetime import datetime, timezone
 from uuid import uuid4
+
+from app.db import session
+from app.models import Conversation, Run
 
 
 def test_conversation_history_upsert_and_delete(client):
@@ -43,6 +47,45 @@ def test_conversation_history_upsert_and_delete(client):
 
     assert client.delete(f"/api/v1/conversations/{conversation_id}").status_code == 204
     assert client.get("/api/v1/conversations").json() == []
+
+
+def test_clear_all_conversations_is_workspace_scoped_and_preserves_runs(client, watchlist):
+    created = datetime.now(timezone.utc)
+    for name in ("first", "second"):
+        assert client.post("/api/v1/conversations", json={
+            "id": str(uuid4()), "title": name, "createdAt": created.isoformat(),
+            "updatedAt": created.isoformat(), "messages": [],
+        }).status_code == 200
+    other_id = str(uuid4())
+    with session() as db, db.begin():
+        db.add(Conversation(id=other_id, workspace_id="someone-else", title="Keep mine",
+                            messages=[], created_at=created, updated_at=created))
+    run = client.post("/api/v1/research-runs", json={
+        "watchlist_id": watchlist["id"], "query": "What changed?",
+    })
+    assert run.status_code == 202
+
+    assert client.delete("/api/v1/conversations").status_code == 204
+    assert client.get("/api/v1/conversations").json() == []
+    with session() as db:
+        assert db.get(Conversation, other_id).title == "Keep mine"
+        assert db.get(Run, run.json()["id"]) is not None
+    assert client.delete("/api/v1/conversations").status_code == 204
+
+
+def test_private_demo_login_session_and_sign_out(client):
+    no_bearer = {"Authorization": ""}
+    assert client.get("/api/v1/session", headers=no_bearer).status_code == 401
+    assert client.post("/demo/login", json={"token": "wrong-access-token"}).status_code == 401
+    signed_in = client.post("/demo/login", json={"token": "test-private-access-token"})
+    assert signed_in.status_code == 204
+    assert signed_in.cookies.get("rivalpulse_demo") is not None
+    assert client.get("/api/v1/session", headers=no_bearer).json() == {
+        "authenticated": True, "mode": "private-demo"}
+    assert client.post("/demo/logout", headers={"Origin": "https://attacker.example"}).status_code == 403
+    assert client.get("/api/v1/session", headers=no_bearer).status_code == 200
+    assert client.post("/demo/logout").status_code == 204
+    assert client.get("/api/v1/session", headers=no_bearer).status_code == 401
 
 
 def test_agent_watchlist_command_is_durable(client):

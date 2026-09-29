@@ -67,6 +67,8 @@ def create_run(db, body, key):
 
     if key and (prior := prior_request()):
         return prior
+    if settings.mode == "live" and not settings.sectors_api_key.get_secret_value().strip():
+        raise AppError("PROVIDER_CREDENTIALS_MISSING", "Configure a private Sectors API key before starting research", 503)
     watchlist = owned(db, Watchlist, body.watchlist_id)
     # Serialize input freezing with membership edits on PostgreSQL.
     db.refresh(watchlist, with_for_update=True)
@@ -78,7 +80,11 @@ def create_run(db, body, key):
             raise AppError("INVALID_PARENT_SIGNAL", "Parent signal must belong to the selected competitors and mode", 422)
     frozen = []
     for c in companies:
-        sources = db.scalars(select(Source).where(Source.company_id == c.id, Source.enabled.is_(True)).order_by(Source.id)).all()
+        # Oldest first, then by URL. Ordering by the random UUID alone made "the
+        # first two approved pages" vary between runs; the clock can tie on
+        # coarse-resolution platforms, so the unique URL is the final tiebreak.
+        sources = db.scalars(select(Source).where(Source.company_id == c.id, Source.enabled.is_(True))
+                             .order_by(Source.created_at, Source.url)).all()
         frozen.append({**company_json(c), "sources": [dict(id=s.id, url=s.url, domain=s.domain,
                                                         kind=s.kind, extraction=s.extraction) for s in sources]})
     baseline = db.scalar(select(Run).where(Run.watchlist_id == watchlist.id, Run.mode == settings.mode,

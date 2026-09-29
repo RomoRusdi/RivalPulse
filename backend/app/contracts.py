@@ -85,10 +85,13 @@ class LegacyWatchlistUpdate(Strict):
 
 class ToolCall(Strict):
     name: Literal["get_company_profile", "get_company_metrics", "get_industry_context",
-                  "get_recent_signals", "get_previous_state"]
+                  "get_recent_signals", "get_company_news", "get_previous_state"]
     company_ids: list[str] = Field(min_length=1, max_length=5)
     requested_periods: list[int] = Field(default_factory=list, max_length=5)
     comparable_period: int | None = Field(None, ge=2000, le=2100)
+    # Recovery rounds re-read a company's remaining approved pages rather than
+    # repeating the two the first pass already tried.
+    source_offset: int = Field(0, ge=0, le=8)
     reason: str = Field(min_length=1, max_length=300)
 
 

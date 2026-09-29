@@ -15,7 +15,7 @@ import { getAlertStatus } from "@/lib/api";
 import type { AlertStatus } from "@/lib/types";
 
 export default function SettingsPage() {
-  const { watchlist, aggregates, mode } = useStore();
+  const { watchlist, aggregates } = useStore();
   const [alertStatus, setAlertStatus] = useState<AlertStatus | null>(null);
 
   useEffect(() => {
@@ -125,21 +125,13 @@ export default function SettingsPage() {
               <span className="flex h-9 w-9 items-center justify-center rounded-field bg-ink-strong text-surface">
                 <Database aria-hidden size={17} />
               </span>
-              <Pill tone={mode === "yahoo" ? "accent" : "quiet"}>
-                {mode === "yahoo"
-                  ? "Testing"
-                  : aggregates
-                    ? `${aggregates.credits.used}/${aggregates.credits.total} credits`
-                    : "Loading"}
+              <Pill tone="quiet">
+                {aggregates ? `${aggregates.credits.used}/${aggregates.credits.total} credits` : "Loading"}
               </Pill>
             </div>
-            <h3 className="mt-3 text-[15px] font-bold">
-              {mode === "yahoo" ? "Yahoo Finance test provider" : "Sectors data"}
-            </h3>
+            <h3 className="mt-3 text-[15px] font-bold">Sectors data</h3>
             <p className="mt-1 text-[13px] leading-[1.5] text-muted">
-              {mode === "yahoo"
-                ? "Review the development-only financial source and the required switch to Sectors for final verification."
-                : "Review provider-credit usage, cache effectiveness, endpoint activity, and freshness policy."}
+              Review provider-credit usage, cache effectiveness, endpoint activity, and freshness policy.
             </p>
             <span className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-bold text-accent-ink transition-console group-hover:text-accent">
               View provider details <ArrowRight aria-hidden size={14} />

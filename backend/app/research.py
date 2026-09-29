@@ -9,7 +9,7 @@ from sqlalchemy import select, text, update
 from app.agent import Agent, Tools, is_financial_question
 from app.alerts import send_digest
 from app.config import get_settings
-from app.contracts import FinancialBrief, ResearchResult, SignalCard
+from app.contracts import FinancialBrief, ResearchResult, SignalCard, ToolCall
 from app.db import iso, session, uid, utcnow
 from app.errors import ProviderError
 from app.models import Evidence, Revision, Run, RunSnapshot, RunStep, Signal, Snapshot
@@ -17,7 +17,77 @@ from app.providers import digest, ensure_active, growth
 from app.public_sources import normalized_text
 
 log = logging.getLogger("rivalpulse.research")
-STAGES = ["validate", "plan", "collect", "compare", "analyze", "validate_output", "persist"]
+STAGES = ["validate", "plan", "collect", "recover", "compare", "analyze", "validate_output", "persist"]
+# Providers whose snapshots carry classified competitive events.
+EVENT_PROVIDERS = ("public", "sectors_news")
+# Tools that sweep for competitive events, in coverage records.
+SWEEP_TOOLS = ("get_recent_signals", "get_company_news")
+
+
+def diagnose(run_id, coverage, financial_only=False):
+    """Name the evidence each company is still missing, and whether another
+    bounded request could realistically close it. A gap that cannot be closed is
+    reported with its reason instead of being retried into the run deadline.
+
+    Coverage, not stored snapshots, decides what was attempted: a source that
+    failed to load leaves no snapshot but must not look like an unread page."""
+    sweeps = {}
+    for entry in coverage:
+        if entry["tool"] == "get_recent_signals":
+            for company_id in entry["company_ids"]:
+                sweeps[company_id] = sweeps.get(company_id, 0) + 1
+    with session() as db:
+        run = db.get(Run, run_id)
+        snapshots = db.scalars(select(Snapshot).join(RunSnapshot).where(RunSnapshot.run_id == run_id)).all()
+        read = {s.company_id for s in snapshots if s.provider in EVENT_PROVIDERS}
+        financial = {s.company_id for s in snapshots
+                     if s.provider == "sectors" and s.normalized.get("metrics")}
+        empty_financial = {s.company_id for s in snapshots
+                           if s.provider == "sectors" and not s.normalized.get("metrics")}
+        events = {s.company_id for s in snapshots if s.provider in EVENT_PROVIDERS and s.normalized.get("events")}
+        gaps = []
+        for company in run.inputs["companies"]:
+            company_id, sources = company["id"], company.get("sources", [])
+            if company_id not in financial:
+                gaps.append({
+                    "symbol": company["symbol"], "company_id": company_id, "missing": "financial",
+                    # A stored report with no metrics means the provider has no
+                    # statements for this company; asking again returns the cache.
+                    "recoverable": company_id not in empty_financial,
+                    "reason": ("Provider returned a report without financial statements"
+                               if company_id in empty_financial else "No financial report was retrieved"),
+                })
+            # A statement-only investigation never sweeps public pages, so their
+            # absence is the requested scope rather than a gap.
+            if company_id not in events and not financial_only:
+                # Each sweep consumes at most two approved pages.
+                consumed = 2 * sweeps.get(company_id, 0)
+                unread = len(sources) > consumed
+                gaps.append({
+                    "symbol": company["symbol"], "company_id": company_id, "missing": "public_events",
+                    "recoverable": bool(sources) and unread,
+                    "reason": ("No approved source is configured" if not sources else
+                               "Approved pages remain unread" if unread else
+                               "All approved pages were read and contained no announcement"
+                               if company_id in read else "Every approved page failed to load"),
+                })
+        return gaps
+
+
+def recovery_plan(gaps, inputs):
+    """A second evidence plan derived from what the first pass actually returned,
+    rather than from the query alone."""
+    companies = {c["id"]: c for c in inputs["companies"]}
+    actions = []
+    for gap in (g for g in gaps if g["recoverable"]):
+        company = companies[gap["company_id"]]
+        if gap["missing"] == "financial":
+            actions.append(ToolCall(name="get_company_metrics", company_ids=[company["id"]],
+                                    reason=f"Retry unretrieved financial statements for {company['symbol']}"))
+        else:
+            actions.append(ToolCall(name="get_recent_signals", company_ids=[company["id"]], source_offset=2,
+                                    reason=f"Read the remaining approved pages for {company['symbol']}"))
+    return actions
 
 
 def claim_run(run_id):
@@ -62,10 +132,11 @@ def candidates_for(run_id, coverage):
         companies = {c["id"]: c for c in run.inputs["companies"]}
         financials = {}
         for snapshot, outcome in links:
-            if snapshot.provider in {"sectors", "yahoo"} and snapshot.normalized.get("metrics"):
+            if snapshot.provider == "sectors" and snapshot.normalized.get("metrics"):
                 financials[snapshot.company_id] = (snapshot, outcome)
         for snapshot, outcome in links:
-            if snapshot.provider != "public":
+            # Approved pages and structured provider news are both event evidence.
+            if snapshot.provider not in EVENT_PROVIDERS:
                 continue
             previous = successful_source_baseline(db, run, snapshot)
             old_subjects = {e["subject"] for e in previous.normalized.get("events", [])} if previous else set()
@@ -100,7 +171,7 @@ def financial_brief_for(run_id):
         run = db.get(Run, run_id)
         snapshots = {s.company_id: s for s in db.scalars(select(Snapshot).join(RunSnapshot).where(
             RunSnapshot.run_id == run_id, Snapshot.mode == run.mode,
-            Snapshot.provider == ("yahoo" if run.mode == "yahoo" else "sectors"),
+            Snapshot.provider == "sectors",
         )) if s.normalized.get("metrics")}
         common = None
         if all(c["id"] in snapshots for c in run.inputs["companies"]):
@@ -131,8 +202,6 @@ def financial_brief_for(run_id):
                          "comparison_note": company["comparison_note"], "metrics": metrics})
         if not common:
             caveats.append("No common annual revenue period was available for all companies; do not rank unlike periods.")
-        if run.mode == "yahoo":
-            caveats.append("Yahoo Finance is an unofficial development source. Verify financials with Sectors before final use.")
         return FinancialBrief(period=common, rows=rows, caveats=caveats), claims
 
 
@@ -228,13 +297,15 @@ def validate_card(card, snapshots):
         snapshot = snapshots.get(e.snapshot_id)
         if snapshot is None or snapshot.company_id != parsed.company["id"] or snapshot.mode != parsed.mode:
             raise ValueError("Evidence is outside company/run/mode")
-        if snapshot.provider == "public":
+        if snapshot.provider in EVENT_PROVIDERS:
             if not any(e.excerpt_or_json_pointer in event["text"] for event in snapshot.normalized.get("events", [])):
                 raise ValueError("Unverifiable excerpt")
     for metric in parsed.financial_context:
         if not set(metric.evidence_ids) <= evidence.keys():
             raise ValueError("Unresolved financial citation")
         cited = [snapshots[evidence[i].snapshot_id] for i in metric.evidence_ids]
+        # Existing archived test cards retain their original citation checks;
+        # the retired test provider cannot be selected for any new run.
         allowed_financial_provider = "yahoo" if parsed.mode == "yahoo" else "sectors"
         if any(s.provider != allowed_financial_provider for s in cited):
             raise ValueError(f"Financial metrics require {allowed_financial_provider} evidence in {parsed.mode} mode")
@@ -318,10 +389,22 @@ def persist(run_id, token, candidates, analysis, coverage, warnings, financial_b
                        f"{len(run.inputs['companies'])} competitors. "
                        "See the cited figures below; annual statements do not establish weekly competitor moves.")
         else:
-            partial = bool(warnings) or not cards or any(c["analysis_status"] != "complete" for c in cards)
-            summary = (f"{changes} new or updated findings; "
-                       f"{sum(c['change_status'] == 'baseline' for c in cards)} baseline observations; "
-                       f"{sum(c['change_status'] == 'unchanged' for c in cards)} previously observed findings unchanged.")
+            # An approved page that was read successfully and contained no announcement
+            # is a verified quiet result, not missing evidence. Only unread sources
+            # leave real coverage gaps.
+            sweeps = [entry for entry in coverage if entry["tool"] in SWEEP_TOOLS]
+            verified_quiet = bool(sweeps) and all(
+                entry["status"] == "ok" and not entry.get("warnings") for entry in sweeps)
+            partial = bool(warnings) or (not cards and not verified_quiet) or any(
+                c["analysis_status"] != "complete" for c in cards)
+            if not cards and verified_quiet:
+                summary = (f"No competitive announcements were found on the approved pages for all "
+                           f"{len(run.inputs['companies'])} competitors. Every page was read successfully; "
+                           "this is a verified quiet period, not missing evidence.")
+            else:
+                summary = (f"{changes} new or updated findings; "
+                           f"{sum(c['change_status'] == 'baseline' for c in cards)} baseline observations; "
+                           f"{sum(c['change_status'] == 'unchanged' for c in cards)} previously observed findings unchanged.")
             if warnings:
                 summary += " Some sources were unavailable; this does not establish that nothing changed."
         run.status = "partial" if partial else "completed"
@@ -350,6 +433,7 @@ def execute_run(run_id, adapter=None):
             inputs = run.inputs
         agent = Agent(run_id, token, adapter)
         financial_only = is_financial_question(inputs["query"])
+        route = "financial_statements" if financial_only else "competitive_activity"
         stage(run_id, token, "plan", "Selecting approved evidence tools")
         plan = agent.plan(inputs)
         with session() as db, db.begin():
@@ -357,12 +441,19 @@ def execute_run(run_id, adapter=None):
             active.plan = plan.model_dump()
             plan_step = db.scalar(select(RunStep).where(
                 RunStep.run_id == run_id, RunStep.attempt == active.attempts, RunStep.stage == "plan"))
-            plan_step.details = {"planner": agent.plan_source}
+            # The route decides which evidence is required, so it belongs in the
+            # audit trail next to the plan it produced.
+            plan_step.details = {"planner": agent.plan_source, "route": route,
+                                 "route_reason": ("Statement question: annual financials only, no page sweep"
+                                                  if financial_only else
+                                                  "Activity question: approved pages plus financial context"),
+                                 "required_tools": sorted({t.name for t in plan.tools})}
             if agent.plan_source == "validated_fallback":
                 plan_step.message = "Qwen plan rejected; using the reviewed bounded evidence plan"
         stage(run_id, token, "collect", "Collecting provider evidence", {"tools": plan.model_dump()["tools"]})
         tools, coverage, warnings = Tools(run_id, token, inputs), [], []
-        for tool in plan.tools:
+
+        def run_tool(tool, into_stage):
             with session() as db, db.begin():
                 active = ensure_active(db, run_id, token)
                 active.heartbeat_at = utcnow()
@@ -371,6 +462,7 @@ def execute_run(run_id, adapter=None):
             try:
                 output = tools.execute(tool)
                 outcome = {"tool": tool.name, "company_ids": tool.company_ids, "status": "ok",
+                           "stage": into_stage,
                            "cache_status": output.get("cache_status") if isinstance(output, dict) else None,
                            "duration_ms": int((time.monotonic() - started) * 1000)}
                 if isinstance(output, dict) and output.get("warnings"):
@@ -385,17 +477,44 @@ def execute_run(run_id, adapter=None):
                 if exc.code in ("RUN_INTERRUPTED", "RUN_TIMEOUT"):
                     raise
                 warnings.append(f"{tool.name}: {exc.code}")
-                coverage.append({"tool": tool.name, "company_ids": tool.company_ids, "status": "failed", "code": exc.code})
+                coverage.append({"tool": tool.name, "company_ids": tool.company_ids, "status": "failed",
+                                 "stage": into_stage, "code": exc.code})
             with session() as db, db.begin():
                 active = ensure_active(db, run_id, token)
                 coverage[-1]["estimated_credits"] = active.credits - credits_before
                 step = db.scalar(select(RunStep).where(RunStep.run_id == run_id, RunStep.attempt == active.attempts,
-                                                       RunStep.stage == "collect"))
-                step.details = {"coverage": coverage}
+                                                       RunStep.stage == into_stage))
+                step.details = {**(step.details or {}), "coverage": [c for c in coverage
+                                                                     if c.get("stage") == into_stage]}
             log.info("tool_finished", extra={"run_id": run_id, "stage": tool.name,
                      "estimated_credits": coverage[-1]["estimated_credits"],
                      "cache_status": coverage[-1].get("cache_status"),
                      "duration_ms": coverage[-1].get("duration_ms")})
+
+        for tool in plan.tools:
+            run_tool(tool, "collect")
+
+        # Re-plan against what the first pass actually returned. This is the only
+        # point where the agent's plan responds to observed evidence rather than
+        # to the query, so gaps and their reasons are recorded either way.
+        gaps = diagnose(run_id, coverage, financial_only)
+        if gaps:
+            actions = recovery_plan(gaps, inputs)
+            stage(run_id, token, "recover",
+                  f"Closing {sum(g['recoverable'] for g in gaps)} of {len(gaps)} evidence gaps",
+                  {"gaps": gaps, "actions": [a.model_dump() for a in actions]})
+            for tool in actions:
+                run_tool(tool, "recover")
+            remaining = diagnose(run_id, coverage, financial_only)
+            with session() as db, db.begin():
+                active = ensure_active(db, run_id, token)
+                step = db.scalar(select(RunStep).where(RunStep.run_id == run_id, RunStep.attempt == active.attempts,
+                                                       RunStep.stage == "recover"))
+                closed = len(gaps) - len(remaining)
+                step.details = {**(step.details or {}), "remaining_gaps": remaining, "gaps_closed": closed}
+                step.message = (f"Recovered {closed} of {len(gaps)} evidence gaps" if closed else
+                                f"{len(gaps)} evidence gaps could not be closed; reasons recorded")
+            log.info("recovery_finished", extra={"run_id": run_id, "gaps": len(gaps), "closed": closed})
         stage(run_id, token, "compare", "Comparing collected evidence")
         candidates = [] if financial_only else candidates_for(run_id, coverage)
         brief, claims = financial_brief_for(run_id) if financial_only else (None, [])

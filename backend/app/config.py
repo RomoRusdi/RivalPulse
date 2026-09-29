@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     workspace_id: str = "private-demo"
     demo_access_token: SecretStr = SecretStr("")
     cors_origins: list[str] = ["http://localhost:3000"]
-    mode: Literal["live", "yahoo", "replay"] = "live"
+    # Replay is reserved for automated tests; the deployed provider is Sectors.
+    mode: Literal["live", "replay"] = "live"
     sectors_api_key: SecretStr = SecretStr("")
     llm_enabled: bool = False
     llm_plan_enabled: bool = False

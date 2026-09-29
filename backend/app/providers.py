@@ -13,20 +13,13 @@ from redis import Redis
 from redis.exceptions import LockError, RedisError
 from sqlalchemy import select, update
 
+from app.classify import as_event
 from app.config import get_settings
 from app.db import session, utcnow
 from app.errors import ProviderError
 from app.models import CreditAccount, CreditReservation, ProviderCache, Run, RunSnapshot, Snapshot
 
 SECTORS_BASE = "https://api.sectors.app/v2"
-YAHOO_BASE = "https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries"
-YAHOO_TYPES = {
-    "annualTotalRevenue": "revenue",
-    "annualNetIncome": "earnings",
-    "annualTotalAssets": "total_assets",
-    "annualStockholdersEquity": "total_equity",
-    "annualNormalizedEBITDA": "ebitda",
-}
 
 
 def digest(value):
@@ -76,50 +69,6 @@ def normalize_report(payload, symbol):
     return {"schema_version": 1, "symbol": symbol, "name": payload.get("company_name"),
             "overview": payload.get("overview") or {}, "metrics": metrics, "peers": payload.get("peers") or [],
             "warnings": ([] if currency else ["Provider did not specify currency; monetary comparisons are disabled."])}
-
-
-def normalize_yahoo_report(payload, symbol):
-    """Normalize Yahoo's undocumented fundamentals response for development runs only."""
-    timeseries = payload.get("timeseries") if isinstance(payload, dict) else None
-    results = timeseries.get("result") if isinstance(timeseries, dict) else None
-    if not isinstance(results, list):
-        raise ProviderError("PROVIDER_INVALID_RESPONSE", "Invalid Yahoo Finance response", False)
-    metrics = []
-    for series_index, series in enumerate(results):
-        if not isinstance(series, dict):
-            continue
-        meta = series.get("meta") or {}
-        returned_symbols = meta.get("symbol") or []
-        if returned_symbols and symbol + ".JK" not in returned_symbols:
-            raise ProviderError("PROVIDER_INVALID_RESPONSE", "Yahoo company identity did not match", False)
-        provider_types = meta.get("type") or []
-        provider_type = provider_types[0] if provider_types else None
-        metric = YAHOO_TYPES.get(provider_type)
-        rows = series.get(provider_type) if provider_type else None
-        if not metric or not isinstance(rows, list):
-            continue
-        for row_index, row in enumerate(rows):
-            if not isinstance(row, dict) or row.get("periodType") != "12M":
-                continue
-            value = number((row.get("reportedValue") or {}).get("raw"))
-            date = str(row.get("asOfDate") or "")
-            currency = row.get("currencyCode")
-            if value is None or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
-                continue
-            if not isinstance(currency, str) or not re.fullmatch(r"[A-Z]{3}", currency):
-                currency = None
-            metrics.append({
-                "metric": metric, "value": value, "period": date[:4], "currency": currency,
-                "unit": "raw_currency_units", "comparison_basis": "Yahoo Finance annual 12M reported value",
-                "pointer": f"/timeseries/result/{series_index}/{provider_type}/{row_index}/reportedValue/raw",
-            })
-    if not metrics:
-        raise ProviderError("PROVIDER_INVALID_RESPONSE", "Yahoo returned no annual financial metrics", False)
-    return {
-        "schema_version": 1, "symbol": symbol, "name": symbol, "overview": {"provider": "Yahoo Finance"},
-        "metrics": metrics, "peers": [],
-        "warnings": ["Development-only data from an unofficial Yahoo Finance endpoint; verify with Sectors before final use."],
-    }
 
 
 def growth(current, previous):
@@ -213,43 +162,6 @@ class Sectors:
                 time.sleep(2 ** attempt + random.uniform(0, .2))
         raise ProviderError()
 
-    def _reserve_external_call(self):
-        with session() as db, db.begin():
-            run = ensure_active(db, self.run_id, self.token)
-            result = db.execute(update(Run).where(
-                Run.id == run.id, Run.lease_token == self.token, Run.status == "running",
-                Run.external_calls < self.settings.max_tool_calls,
-            ).values(external_calls=Run.external_calls + 1))
-            if not result.rowcount:
-                raise ProviderError("REQUEST_BUDGET_EXCEEDED", "Run request budget exhausted", False)
-
-    def _yahoo_http(self, symbol, params):
-        url = f"{YAHOO_BASE}/{symbol}.JK"
-        for attempt in range(3):
-            self._reserve_external_call()
-            try:
-                client = self.client or httpx.Client(timeout=self.settings.provider_timeout, trust_env=False)
-                try:
-                    response = client.get(url, params=params, headers={"User-Agent": "RivalPulse development adapter/1.0"})
-                    if response.status_code == 429 or response.status_code >= 500:
-                        if attempt < 2:
-                            time.sleep(2 ** attempt + random.uniform(0, .2))
-                            continue
-                        raise ProviderError("PROVIDER_UNAVAILABLE", "Yahoo Finance is temporarily unavailable")
-                    if response.status_code != 200:
-                        raise ProviderError("PROVIDER_REQUEST_REJECTED", "Yahoo Finance request was rejected", False)
-                    if len(response.content) > 2_000_000:
-                        raise ProviderError("RESPONSE_TOO_LARGE", "Provider response exceeded limit", False)
-                    return response.json()
-                finally:
-                    if self.client is None:
-                        client.close()
-            except (httpx.HTTPError, ValueError):
-                if attempt == 2:
-                    raise ProviderError("PROVIDER_UNAVAILABLE", "Yahoo Finance is unavailable") from None
-                time.sleep(2 ** attempt + random.uniform(0, .2))
-        raise ProviderError("PROVIDER_UNAVAILABLE", "Yahoo Finance is unavailable")
-
     def _cached(self, key):
         with session() as db:
             run = ensure_active(db, self.run_id, self.token)
@@ -270,12 +182,14 @@ class Sectors:
                 db.add(RunSnapshot(run_id=self.run_id, snapshot_id=snapshot.id, outcome=outcome))
         return snapshot, outcome
 
-    def request(self, company, endpoint, params, cost, normalize, ttl=None):
+    def request(self, company, endpoint, params, cost, normalize, ttl=None, provider=None):
         with session() as db:
             run = ensure_active(db, self.run_id, self.token)
             mode, scenario = run.mode, run.inputs["replay_scenario"]
-        provider_name = "yahoo" if mode == "yahoo" else "sectors"
-        key = digest({"v": 1, "provider": "yahoo-finance" if mode == "yahoo" else "sectors-v2",
+        if mode not in ("live", "replay"):
+            raise ProviderError("UNSUPPORTED_MODE", "Archived provider mode cannot execute new requests", False)
+        provider_name = provider or "sectors"
+        key = digest({"v": 1, "provider": "sectors-v2",
                       "endpoint": endpoint, "params": params, "mode": mode,
                       "scenario": scenario if mode == "replay" else None})
         hit = self._cached(key)
@@ -290,12 +204,10 @@ class Sectors:
                 return self._link(*hit)
             if mode == "replay":
                 payload = replay_report(company["symbol"], scenario, params)
-            elif mode == "yahoo":
-                payload = self._yahoo_http(company["symbol"], params)
             else:
                 payload = self._http(endpoint, params, key, cost)
             normalized = normalize(payload)
-            base_url = f"{YAHOO_BASE}/{company['symbol']}.JK" if mode == "yahoo" else SECTORS_BASE + endpoint
+            base_url = SECTORS_BASE + endpoint
             snapshot = Snapshot(company_id=company["id"], mode=mode, provider=provider_name,
                                 request_key=key, content_hash=digest(normalized), normalized=normalized,
                                 raw_payload=payload, url=base_url + "?" + str(httpx.QueryParams(params)))
@@ -325,18 +237,6 @@ class Sectors:
     def report(self, company, sections=("overview", "financials")):
         if not sections or not set(sections) <= {"overview", "financials", "peers"}:
             raise ValueError("Unsupported report sections")
-        with session() as db:
-            mode = ensure_active(db, self.run_id, self.token).mode
-        if mode == "yahoo":
-            now = int(utcnow().timestamp()) // 86400 * 86400
-            params = {
-                "symbol": company["symbol"] + ".JK",
-                "type": ",".join(YAHOO_TYPES),
-                "period1": now - 86400 * 365 * 6,
-                "period2": now,
-            }
-            return self.request(company, f"/{company['symbol']}.JK", params, 0,
-                                lambda value: normalize_yahoo_report(value, company["symbol"]))
         return self.request(company, f"/company/report/{company['symbol']}/",
                             {"sections": ",".join(sorted(set(sections)))}, len(set(sections)),
                             lambda value: normalize_report(value, company["symbol"]),
@@ -371,7 +271,7 @@ class Sectors:
         for page in range(pages):
             snapshot, outcome = self.request(company, "/news/", {
                 "extension": "idx", "symbols": company["symbol"], "limit": 30, "offset": page * 30,
-            }, 1, normalize_news, ttl=3600)
+            }, 1, normalize_news, ttl=3600, provider="sectors_news")
             results.append((snapshot, outcome))
             if not snapshot.normalized["has_next"]:
                 break
@@ -381,11 +281,17 @@ class Sectors:
 def normalize_news(payload):
     if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
         raise ProviderError("PROVIDER_INVALID_RESPONSE", "Invalid news response", False)
-    return {"schema_version": 1, "articles": [{
+    articles = [{
         "title": str(row.get("title", ""))[:500], "text": str(row.get("body", ""))[:4000],
         "url": row.get("source"), "published_at": row.get("timestamp"), "symbols": row.get("symbols") or [],
-    } for row in payload["results"][:30] if isinstance(row, dict)],
-        "has_next": bool((payload.get("pagination") or {}).get("has_next"))}
+    } for row in payload["results"][:30] if isinstance(row, dict)]
+    # Structured provider news is classified by the same rules as approved pages,
+    # so the comparison stage consumes one event shape regardless of origin.
+    events = [event for event in (
+        as_event(article["title"], article["text"], article["url"], article["published_at"])
+        for article in articles) if event]
+    return {"schema_version": 1, "articles": articles, "events": events,
+            "has_next": bool((payload.get("pagination") or {}).get("has_next"))}
 
 
 def replay_report(symbol, scenario, params):

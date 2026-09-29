@@ -32,7 +32,7 @@ import {
   saveChatHistory,
 } from "@/lib/chat-history";
 import type { AgentRun } from "@/lib/types";
-import { deleteConversation, getConversationHistory, saveConversation } from "@/lib/api";
+import { clearConversationHistory, deleteConversation, getConversationHistory, saveConversation } from "@/lib/api";
 
 const STARTERS = [
   {
@@ -75,10 +75,14 @@ export function AgentWorkspace() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyReady, setHistoryReady] = useState(false);
+  const [clearingHistory, setClearingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [showJump, setShowJump] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stayAtBottom = useRef(true);
   const pendingRun = useRef<PendingRun | null>(null);
+  const pendingSync = useRef<Promise<unknown>>(Promise.resolve());
+  const clearingRef = useRef(false);
 
   const busy = activeRun?.status === "queued" || activeRun?.status === "running";
   const selectedSession = useMemo(
@@ -103,10 +107,10 @@ export function AgentWorkspace() {
   }, []);
 
   useEffect(() => {
-    if (!historyReady) return;
+    if (!historyReady || clearingRef.current) return;
     saveChatHistory(sessions);
     const timer = window.setTimeout(() => {
-      void Promise.allSettled(sessions.map(saveConversation));
+      if (!clearingRef.current) pendingSync.current = Promise.allSettled(sessions.map(saveConversation));
     }, 600);
     return () => window.clearTimeout(timer);
   }, [historyReady, sessions]);
@@ -153,7 +157,7 @@ export function AgentWorkspace() {
 
   const launch = (query: string) => {
     const clean = query.trim();
-    if (!clean || busy) return;
+    if (!clean || busy || clearingRef.current) return;
 
     stayAtBottom.current = true;
     setShowJump(false);
@@ -205,7 +209,7 @@ export function AgentWorkspace() {
   };
 
   const startNewChat = () => {
-    if (busy) return;
+    if (busy || clearingRef.current) return;
     dismissRun();
     setSelectedSessionId(null);
     setDraft("");
@@ -221,11 +225,46 @@ export function AgentWorkspace() {
     setShowJump(false);
   };
 
-  const deleteSession = (id: string) => {
-    if (busy && sessions.find((session) => session.id === id)?.messages.some((message) => message.run?.id === activeRun?.id)) return;
-    setSessions((current) => current.filter((session) => session.id !== id));
-    void deleteConversation(id).catch(() => undefined);
-    if (selectedSessionId === id) setSelectedSessionId(null);
+  const deleteSession = async (id: string) => {
+    if (clearingRef.current || busy) return;
+    clearingRef.current = true;
+    setClearingHistory(true);
+    setHistoryError(null);
+    try {
+      await pendingSync.current;
+      await deleteConversation(id);
+      setSessions((current) => current.filter((session) => session.id !== id));
+      if (selectedSessionId === id) setSelectedSessionId(null);
+    } catch {
+      setHistoryError("Could not delete this conversation. Please retry.");
+    } finally {
+      clearingRef.current = false;
+      setClearingHistory(false);
+    }
+  };
+
+  const clearAllSessions = async () => {
+    if (!historyReady || clearingRef.current || busy || !sessions.length) return;
+    clearingRef.current = true;
+    setClearingHistory(true);
+    setHistoryError(null);
+    try {
+      // A previously started autosave must finish before the workspace-wide
+      // delete, or its late POST could recreate a cleared conversation.
+      await pendingSync.current;
+      await clearConversationHistory();
+      saveChatHistory([]);
+      setSessions([]);
+      setSelectedSessionId(null);
+      pendingRun.current = null;
+      if (activeRun) dismissRun();
+      setHistoryOpen(false);
+    } catch {
+      setHistoryError("Could not clear conversations. Nothing was deleted locally; please retry.");
+    } finally {
+      clearingRef.current = false;
+      setClearingHistory(false);
+    }
   };
 
   const stopCurrentRun = () => {
@@ -268,7 +307,7 @@ export function AgentWorkspace() {
             <button
               type="button"
               onClick={startNewChat}
-              disabled={busy}
+              disabled={busy || clearingHistory}
               className="inline-flex cursor-pointer items-center gap-1.5 rounded-field px-2.5 py-1.5 text-xs font-bold text-ink-2 transition-console hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-45"
             >
               <Plus aria-hidden size={14} /> New chat
@@ -335,13 +374,13 @@ export function AgentWorkspace() {
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={handleKeyDown}
-              disabled={busy}
+              disabled={busy || clearingHistory}
               rows={2}
               placeholder={busy ? "RivalPulse is investigating…" : "Ask a question or give a command…"}
               aria-label="Ask RivalPulse"
               className="max-h-36 min-h-13 flex-1 resize-none bg-transparent px-2.5 py-2 text-[14px] leading-[1.55] text-ink outline-none placeholder:text-muted disabled:cursor-not-allowed"
             />
-            <Button type="submit" variant="primary" size="sm" disabled={!draft.trim() || busy} aria-label="Send message">
+            <Button type="submit" variant="primary" size="sm" disabled={!draft.trim() || busy || clearingHistory} aria-label="Send message">
               <Send aria-hidden size={15} strokeWidth={2.2} />
               <span className="hidden sm:inline">Send</span>
             </Button>
@@ -360,6 +399,9 @@ export function AgentWorkspace() {
           onClose={() => setHistoryOpen(false)}
           onSelect={selectSession}
           onDelete={deleteSession}
+          onClearAll={clearAllSessions}
+          clearing={clearingHistory}
+          clearError={historyError}
           onNew={startNewChat}
         />
       ) : null}
@@ -558,7 +600,7 @@ function FinancialEvidence({ brief }: { brief: NonNullable<AgentRun["financialBr
                   {formatFinancialValue(metric.value, metric.currency)}
                 </p>
                 <a href={metric.source_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block font-bold text-accent-ink hover:text-accent" title={metric.json_pointer}>
-                  {metric.source_url.includes("sectors.app") ? "Sectors source" : "Yahoo source"} ↗
+                  {metric.source_url.includes("sectors.app") ? "Sectors report" : "Archived source"} ↗
                 </a>
               </div>
             )) : <p className="mt-2 text-xs text-muted">No comparable annual figures available.</p>}
@@ -585,7 +627,8 @@ function formatFinancialValue(value: string, currency: string | null): string {
   return `${unit} ${value}`;
 }
 
-function HistoryDrawer({ sessions, selectedId, busyRunId, onClose, onSelect, onDelete, onNew }: { sessions: ChatSession[]; selectedId: string | null; busyRunId?: string; onClose: () => void; onSelect: (id: string) => void; onDelete: (id: string) => void; onNew: () => void }) {
+function HistoryDrawer({ sessions, selectedId, busyRunId, onClose, onSelect, onDelete, onClearAll, clearing, clearError, onNew }: { sessions: ChatSession[]; selectedId: string | null; busyRunId?: string; onClose: () => void; onSelect: (id: string) => void; onDelete: (id: string) => void; onClearAll: () => Promise<void>; clearing: boolean; clearError: string | null; onNew: () => void }) {
+  const [confirmClear, setConfirmClear] = useState(false);
   return (
     <div className="absolute inset-0 z-40 flex justify-end bg-ink/15" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <aside className="rp-drawer flex h-full w-full max-w-[340px] flex-col border-l border-border bg-sidebar shadow-[-20px_0_50px_-38px_rgba(26,26,26,0.5)]" aria-label="Chat history">
@@ -598,20 +641,36 @@ function HistoryDrawer({ sessions, selectedId, busyRunId, onClose, onSelect, onD
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
           {sessions.length ? sessions.map((session) => {
-            const hasBusyRun = session.messages.some((message) => message.run?.id === busyRunId);
             return (
               <div key={session.id} className={cx("group flex items-start gap-1 rounded-field p-1", selectedId === session.id && "bg-card")}>
                 <button type="button" onClick={() => onSelect(session.id)} className="min-w-0 flex-1 cursor-pointer rounded-[8px] px-2.5 py-2 text-left transition-console hover:bg-card">
                   <span className="block truncate text-xs font-bold text-ink-2">{session.title}</span>
                   <span className="mt-1 flex items-center gap-1.5 text-[10px] text-muted"><MessageSquareText size={11} /> {session.messages.length} messages · {formatHistoryTime(session.updatedAt)}</span>
                 </button>
-                <button type="button" onClick={() => onDelete(session.id)} disabled={hasBusyRun} aria-label={`Delete ${session.title}`} className="mt-1 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-[7px] text-muted opacity-0 transition-console hover:bg-accent-wash hover:text-accent-ink disabled:cursor-not-allowed group-hover:opacity-100 focus:opacity-100"><Trash2 size={13} /></button>
+                <button type="button" onClick={() => { void onDelete(session.id); }} disabled={Boolean(busyRunId) || clearing} aria-label={`Delete conversation: ${session.title}`} title="Delete conversation" className="mt-1 flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-[7px] text-muted transition-console hover:bg-accent-wash hover:text-accent-ink disabled:cursor-not-allowed disabled:opacity-40"><Trash2 size={14} /></button>
               </div>
             );
           }) : (
             <div className="px-4 py-10 text-center"><History size={20} className="mx-auto text-neutral-300" /><p className="mt-2 text-xs font-bold text-ink-2">No conversations yet</p><p className="mt-1 text-[11px] leading-[1.5] text-muted">Your commands and investigations will appear here.</p></div>
           )}
         </div>
+        {sessions.length ? (
+          <div className="shrink-0 border-t border-border p-3">
+            {confirmClear ? (
+              <div className="rounded-field border border-accent-wash-border bg-accent-wash p-3">
+                <p className="text-xs font-bold text-ink">Clear all {sessions.length} conversations?</p>
+                <p className="mt-1 text-[11px] leading-[1.5] text-ink-2">This removes chat transcripts from this workspace and browser. Stored investigations and evidence remain.</p>
+                <div className="mt-3 flex gap-2">
+                  <button type="button" onClick={() => { void onClearAll(); }} disabled={Boolean(busyRunId) || clearing} className="cursor-pointer rounded-field bg-accent px-3 py-2 text-xs font-bold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50">{clearing ? "Clearing…" : "Yes, clear all"}</button>
+                  <button type="button" onClick={() => setConfirmClear(false)} disabled={clearing} className="cursor-pointer rounded-field px-3 py-2 text-xs font-bold text-ink-2 hover:bg-card disabled:cursor-not-allowed">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setConfirmClear(true)} disabled={Boolean(busyRunId) || clearing} className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-field px-3 py-2 text-xs font-bold text-muted transition-console hover:bg-accent-wash hover:text-accent-ink disabled:cursor-not-allowed disabled:opacity-40"><Trash2 size={14} /> Clear all conversations</button>
+            )}
+            {clearError ? <p role="alert" className="mt-2 text-xs text-accent-ink">{clearError}</p> : null}
+          </div>
+        ) : null}
       </aside>
     </div>
   );

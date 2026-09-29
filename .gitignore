@@ -8,10 +8,20 @@ Thumbs.db
 .idea/
 .vscode/
 
-# Secrets — anywhere in the tree
+# Secrets — anywhere in the tree. Only redacted templates may be committed.
 .env
 .env.*
+*.env
+*.env.*
 !.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets.json
+secrets.yaml
+secrets.yml
 
 # Python / backend (ready for whoever starts it)
 __pycache__/

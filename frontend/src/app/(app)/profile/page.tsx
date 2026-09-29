@@ -17,6 +17,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { useStore } from "@/lib/store";
 import { longDate } from "@/lib/format";
 import type { UserProfile } from "@/lib/types";
+import { signOutDemo, USE_MOCKS } from "@/lib/api";
 
 const TIMEZONES = [
   { id: "Asia/Jakarta", label: "Asia/Jakarta (WIB)" },
@@ -195,8 +196,8 @@ export default function ProfilePage() {
                   }
                 />
                 <Row
-                  label="Member since"
-                  value={longDate(profile.joinedAt)}
+                  label={USE_MOCKS ? "Member since" : "Profile storage"}
+                  value={USE_MOCKS ? longDate(profile.joinedAt) : "This browser only"}
                   last
                 />
               </dl>
@@ -229,9 +230,8 @@ export default function ProfilePage() {
       <Card className="min-w-0">
         <CardHeader title="Session" />
         <p className="max-w-[60ch] text-sm leading-[1.55] text-ink-2">
-          Profile changes are saved in this browser only, until the backend owns
-          accounts. Signing out clears nothing on the server, because there is
-          no server session yet.
+          Your display profile is saved in this browser, not as a server account.
+          Signing out ends the private demo session; stored investigations remain.
         </p>
         <div className="mt-4 flex flex-wrap gap-2.5 border-t border-divider pt-4">
           <SignOutButton />
@@ -248,10 +248,27 @@ export default function ProfilePage() {
 
 function SignOutButton() {
   const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const signOut = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await signOutDemo();
+      router.replace("/login");
+      router.refresh();
+    } catch {
+      setError("Could not sign out. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
-    <Button variant="dark" onClick={() => router.push("/login")}>
-      Sign out
-    </Button>
+    <div className="flex flex-col gap-2">
+      <Button variant="dark" onClick={() => { void signOut(); }} disabled={busy}>Sign out</Button>
+      {error ? <p role="alert" className="text-xs text-accent-ink">{error}</p> : null}
+    </div>
   );
 }
 

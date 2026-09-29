@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "RivalPulse",
-    "description": "Private competitive intelligence. Production uses Sectors; Yahoo is explicitly development-only.",
+    "description": "Private competitive intelligence backed by Sectors v2. Replay data is for tests only.",
     "version": "0.1.0"
   },
   "paths": {
@@ -20,6 +20,67 @@
           },
           "required": true
         },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/demo/logout": {
+      "post": {
+        "summary": "Logout",
+        "operationId": "logout_demo_logout_post",
         "responses": {
           "204": {
             "description": "Successful Response"
@@ -291,6 +352,80 @@
         ]
       }
     },
+    "/api/v1/session": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Current Session",
+        "operationId": "current_session_api_v1_session_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/conversations": {
       "get": {
         "tags": [
@@ -388,6 +523,73 @@
                 "schema": {}
               }
             }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Clear Conversations",
+        "operationId": "clear_conversations_api_v1_conversations_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "400": {
             "description": "Bad Request",
@@ -1387,7 +1589,6 @@
                 {
                   "enum": [
                     "live",
-                    "yahoo",
                     "replay"
                   ],
                   "type": "string"
@@ -3500,6 +3701,7 @@
               "get_company_metrics",
               "get_industry_context",
               "get_recent_signals",
+              "get_company_news",
               "get_previous_state"
             ],
             "title": "Name"
@@ -3533,6 +3735,13 @@
               }
             ],
             "title": "Comparable Period"
+          },
+          "source_offset": {
+            "type": "integer",
+            "maximum": 8.0,
+            "minimum": 0.0,
+            "title": "Source Offset",
+            "default": 0
           },
           "reason": {
             "type": "string",

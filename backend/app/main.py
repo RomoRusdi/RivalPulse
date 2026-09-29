@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.security import HTTPBearer
 from pydantic import Field
-from sqlalchemy import exists, func, or_, select, text
+from sqlalchemy import delete, exists, func, or_, select, text
 from starlette.exceptions import HTTPException
 
 from app import jobs
@@ -37,11 +37,11 @@ async def lifespan(app):
 
 settings = get_settings()
 app = FastAPI(title="RivalPulse", version="0.1.0", lifespan=lifespan,
-              description="Private competitive intelligence. Production uses Sectors; Yahoo is explicitly development-only.",
+              description="Private competitive intelligence backed by Sectors v2. Replay data is for tests only.",
               responses={400: {"model": ErrorBody}, 401: {"model": ErrorBody}, 409: {"model": ErrorBody},
                          422: {"model": ErrorBody}, 503: {"model": ErrorBody}})
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_credentials=True,
-                   allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+                   allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
                    allow_headers=["Authorization", "Content-Type", "Idempotency-Key"], expose_headers=["X-Request-ID"])
 
 
@@ -150,6 +150,17 @@ def login(body: Login, request: Request):
     return response
 
 
+@app.post("/demo/logout", status_code=204)
+def logout(request: Request):
+    # A cross-site POST must not clear another site's demo cookie.
+    origin = request.headers.get("origin")
+    if origin and origin != str(request.base_url).rstrip("/"):
+        raise AppError("ORIGIN_REJECTED", "Request origin not allowed", 403)
+    response = Response(status_code=204)
+    response.delete_cookie("rivalpulse_demo", path="/", samesite="strict")
+    return response
+
+
 router = APIRouter(prefix="/api/v1", dependencies=[Depends(access)])
 DB = Annotated[object, Depends(get_db)]
 Limit = Annotated[int, Query(ge=1, le=100)]
@@ -172,6 +183,8 @@ def ready(db: DB):
             raise ValueError()
     except Exception:
         raise AppError("NOT_READY", "Database, migration, Redis or access configuration is not ready", 503, True) from None
+    if get_settings().mode == "live" and not get_settings().sectors_api_key.get_secret_value().strip():
+        raise AppError("PROVIDER_CREDENTIALS_MISSING", "Configure a private Sectors API key before live research", 503)
     return {"status": "ready", "mode": get_settings().mode}
 
 
@@ -183,6 +196,11 @@ def alerts_status():
 def conversation_json(row):
     return {"id": row.id, "title": row.title, "createdAt": iso(row.created_at),
             "updatedAt": iso(row.updated_at), "messages": row.messages}
+
+
+@router.get("/session", tags=["auth"])
+def current_session():
+    return {"authenticated": True, "mode": "private-demo"}
 
 
 @router.get("/conversations", tags=["agent"])
@@ -206,6 +224,15 @@ def sync_conversation(body: ConversationSync, db: DB):
         db.add(row)
     db.commit()
     return conversation_json(row)
+
+
+@router.delete("/conversations", tags=["agent"], status_code=204)
+def clear_conversations(db: DB):
+    # Chat transcripts only; stored investigations and immutable evidence are
+    # not removed. Workspace scoping is enforced by the database predicate.
+    db.execute(delete(Conversation).where(Conversation.workspace_id == get_settings().workspace_id))
+    db.commit()
+    return Response(status_code=204)
 
 
 @router.delete("/conversations/{conversation_id}", tags=["agent"], status_code=204)
@@ -316,7 +343,7 @@ def signal_query(db, watchlist_id=None, severity=None, mode=None):
 
 @router.get("/signals", tags=["signals"], response_model=Page[SignalCard])
 def signals(db: DB, watchlist_id: UUID | None = None, severity: Literal["low", "medium", "high"] | None = None,
-            mode: Literal["live", "yahoo", "replay"] | None = None, cursor: str | None = None, limit: Limit = 20):
+            mode: Literal["live", "replay"] | None = None, cursor: str | None = None, limit: Limit = 20):
     rows, next_cursor = page(db, signal_query(db, watchlist_id, severity, mode), Signal, cursor, limit)
     return {"items": [latest_revision(db, s).card for s in rows], "next_cursor": next_cursor}
 

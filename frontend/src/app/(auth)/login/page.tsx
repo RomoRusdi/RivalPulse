@@ -16,7 +16,7 @@ export const metadata: Metadata = {
  * sidebar, no top bar and no store fetching data for a visitor who has not
  * signed in.
  *
- * Everything in the right-hand panel is marketing copy with sample data.
+ * Everything in the right-hand panel is marketing copy with labeled sample data.
  * Never hydrate it from a real workspace before authentication.
  */
 export default function LoginPage() {
@@ -58,7 +58,7 @@ export default function LoginPage() {
 
           <div className="relative">
             <p className="mb-2.5 text-xs font-bold tracking-[0.1em] text-accent uppercase">
-              While you were away
+              Illustrative example · not live evidence
             </p>
             <p className="max-w-[18ch] text-[26px] leading-[1.2] font-extrabold tracking-[-0.03em]">
               Competitor moves, explained with verified financials.

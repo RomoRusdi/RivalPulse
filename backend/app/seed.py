@@ -7,20 +7,29 @@ from app.config import get_settings
 from app.db import session
 from app.models import Company, CreditAccount, Membership, Source, Watchlist
 
+# The identity reference names the company; the source is where announcements are
+# published. They are not the same page: a corporate profile carries no events,
+# so seeding it as the only source guarantees empty investigations.
 CATALOG = [
     ("TLKM", "PT Telkom Indonesia (Persero) Tbk", ["Telkom Indonesia"], "www.telkom.co.id",
-     "https://www.telkom.co.id/sites/about-us/en_US/page/profile-and-brief-history-24"),
+     "https://www.telkom.co.id/sites/about-us/en_US/page/profile-and-brief-history-24",
+     [("https://www.telkom.co.id/sites/berita/id_ID/page/news-about-telkom-122", "main"),
+      ("https://www.telkom.co.id/sites/about-us/en_US/page/profile-and-brief-history-24", "main")]),
     ("ISAT", "PT Indosat Tbk", ["Indosat Ooredoo Hutchison"], "ioh.co.id",
-     "https://ioh.co.id/portal/ID/iohaboutus"),
+     "https://ioh.co.id/portal/ID/iohaboutus",
+     [("https://ioh.co.id/portal/ID/iohaboutus", "main")]),
     ("EXCL", "PT XLSMART Telecom Sejahtera Tbk", ["XLSMART", "XL Axiata"], "www.xlsmart.co.id",
-     "https://www.xlsmart.co.id/"),
+     "https://www.xlsmart.co.id/",
+     # XLSMART's pages have no <main> element; "main" silently yields no coverage.
+     [("https://www.xlsmart.co.id/id/tentang-xlsmart/berita", "body"),
+      ("https://www.xlsmart.co.id/", "body")]),
 ]
 
 
 def seed():
     with session() as db, db.begin():
         companies = []
-        for symbol, name, aliases, domain, reference in CATALOG:
+        for symbol, name, aliases, domain, reference, sources in CATALOG:
             company = db.scalar(select(Company).where(Company.symbol == symbol))
             if not company:
                 company = Company(symbol=symbol, name=name, industry="Telecommunications", aliases=aliases,
@@ -31,9 +40,14 @@ def seed():
                 db.add(company)
                 db.flush()
             companies.append(company)
-            if not db.scalar(select(Source).where(Source.company_id == company.id)):
-                db.add(Source(company_id=company.id, url=reference, domain=domain,
-                              extraction={"selector": "main", "event_type": "Product"}))
+            for url, selector in sources:
+                source = db.scalar(select(Source).where(Source.url == url))
+                if not source:
+                    source = Source(company_id=company.id, url=url, domain=domain)
+                    db.add(source)
+                # Repair selectors on re-seed: an approved page that never matched
+                # its selector produced silent gaps rather than a visible error.
+                source.extraction = {"selector": selector, "event_type": "Product"}
         if not db.get(CreditAccount, "sectors"):
             db.add(CreditAccount(id="sectors", used=0))
         settings = get_settings()

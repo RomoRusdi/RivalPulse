@@ -183,9 +183,14 @@ class Agent:
                 logging.getLogger("rivalpulse.agent").warning(
                     "llm_plan_rejected", extra={"run_id": self.run_id, "error_code": exc.code})
                 self.plan_source = "validated_fallback"
-        names = (("get_company_metrics", "Retrieve financial statements"),) if financial_only else (
-            ("get_company_metrics", "Retrieve financial statements"),
-            ("get_recent_signals", "Compare approved public evidence"))
+        names = [("get_company_metrics", "Retrieve financial statements")]
+        if not financial_only:
+            names.append(("get_recent_signals", "Compare approved public evidence"))
+            # Sectors company news is the primary competitive-event source where it
+            # is available: structured, dated, and independent of a competitor's
+            # HTML staying stable. Approved pages remain the corroborating source.
+            if get_settings().mode == "live":
+                names.append(("get_company_news", "Retrieve bounded Sectors company news"))
         plan = AgentPlan(tools=[dict(name=name, company_ids=[c["id"]], reason=reason)
                                 for c in inputs["companies"] for name, reason in names])
         validate(plan)
@@ -268,17 +273,28 @@ class Tools:
         output["warnings"] = output["warnings"] + ["Peer periods/scopes are retained as returned; no unverified comparison is computed."]
         return output
 
-    def get_recent_signals(self, company_id):
+    def get_recent_signals(self, company_id, source_offset=0):
         company = self.companies[company_id]
+        selected = company["sources"][source_offset:source_offset + 2]
         output, warnings = [], []
-        for source in company["sources"][:2]:
+        for source in selected:
             try:
                 output.append(self.envelope(*collect_public(self.run_id, self.token, company, source)))
             except ProviderError as exc:
                 warnings.append({"source": source["url"], "code": exc.code})
         if not company["sources"]:
             warnings.append({"code": "NO_APPROVED_SOURCES"})
+        elif not selected:
+            warnings.append({"code": "NO_REMAINING_SOURCES"})
         return {"sources": output, "warnings": warnings}
+
+    def get_company_news(self, company_id):
+        """Bounded Sectors company news: structured evidence that does not depend
+        on a competitor's HTML staying stable."""
+        company = self.companies[company_id]
+        results = self.sectors.news(company)
+        return {"sources": [self.envelope(snapshot, outcome) for snapshot, outcome in results],
+                "warnings": [] if results else [{"code": "NO_PROVIDER_NEWS"}]}
 
     def get_previous_state(self, company_id):
         with session() as db:
@@ -306,4 +322,6 @@ class Tools:
             return self.get_industry_context(tool.company_ids, tool.comparable_period)
         if tool.name == "get_company_metrics":
             return self.get_company_metrics(tool.company_ids[0], tool.requested_periods)
+        if tool.name == "get_recent_signals":
+            return self.get_recent_signals(tool.company_ids[0], tool.source_offset)
         return getattr(self, tool.name)(tool.company_ids[0])

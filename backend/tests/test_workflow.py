@@ -118,12 +118,11 @@ def test_live_replay_isolation_no_silent_fallback(client, watchlist, monkeypatch
     monkeypatch.setenv("MODE", "live")
     monkeypatch.setenv("SECTORS_API_KEY", "")
     get_settings.cache_clear()
-    # Avoid external public traffic while testing a live missing-credentials failure.
-    from app.errors import ProviderError
-    monkeypatch.setattr("app.agent.collect_public", lambda *a: (_ for _ in ()).throw(ProviderError()))
-    result = execute(client, watchlist)
-    assert result["mode"] == "live" and result["status"] == "partial"
-    assert result["result"]["signals"] == []
+    # Reject before queueing any tools, provider requests, or credit reservations.
+    response = client.post("/api/v1/research-runs", json={"watchlist_id": watchlist["id"]})
+    assert response.status_code == 503
+    assert response.json()["code"] == "PROVIDER_CREDENTIALS_MISSING"
+    assert client.get("/api/v1/health/ready").status_code == 503
     assert client.get("/api/v1/signals").json()["items"] == []
     assert len(client.get("/api/v1/signals?mode=replay").json()["items"]) == 3
 

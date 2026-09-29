@@ -162,6 +162,35 @@ export async function updateWatchlist(watchlist: Watchlist): Promise<Watchlist> 
   });
 }
 
+/* ── Private demo session (not email/password accounts) ──────────────── */
+
+export async function checkDemoSession(): Promise<"authenticated" | "unauthorized" | "unavailable"> {
+  if (USE_MOCKS) return "authenticated";
+  try {
+    const response = await fetch(`${API_BASE}/api/v1/session`, { cache: "no-store" });
+    if (response.ok) return "authenticated";
+    return response.status === 401 ? "unauthorized" : "unavailable";
+  } catch {
+    return "unavailable";
+  }
+}
+
+export async function signInDemo(token: string): Promise<void> {
+  if (USE_MOCKS) return;
+  const response = await fetch(`${API_BASE}/demo/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  if (!response.ok) throw new ApiError(response.status === 401 ? "Invalid access token." : "Sign-in is unavailable. Please try again.");
+}
+
+export async function signOutDemo(): Promise<void> {
+  if (USE_MOCKS) return;
+  const response = await fetch(`${API_BASE}/demo/logout`, { method: "POST" });
+  if (!response.ok) throw new ApiError("Could not sign out. Please try again.");
+}
+
 /* ── Agent conversations ───────────────────────────────────────────────── */
 
 export async function getConversationHistory(): Promise<ChatSession[]> {
@@ -177,6 +206,12 @@ export async function saveConversation(session: ChatSession): Promise<void> {
     body: JSON.stringify(session),
   });
   if (!response.ok) throw new ApiError(`POST /api/v1/conversations failed: ${response.status}`);
+}
+
+export async function clearConversationHistory(): Promise<void> {
+  if (USE_MOCKS) return;
+  const response = await fetch(`${API_BASE}/api/v1/conversations`, { method: "DELETE" });
+  if (!response.ok) throw new ApiError(`DELETE /api/v1/conversations failed: ${response.status}`);
 }
 
 export async function deleteConversation(id: string): Promise<void> {

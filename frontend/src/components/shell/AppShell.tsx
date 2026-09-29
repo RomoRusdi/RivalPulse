@@ -87,15 +87,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        {mode === "yahoo" ? (
-          <div className="flex shrink-0 items-center gap-2 border-b border-accent-wash-border bg-accent-wash px-4 py-2 text-[12px] text-ink-2 md:px-[22px]">
-            <DatabaseZap aria-hidden size={14} className="shrink-0 text-accent-ink" />
-            <span>
-              <strong className="font-extrabold text-accent-ink">Yahoo testing mode</strong>
-              {" · "}Development-only financial data is active. Verify the final investigation with Sectors before presenting it.
-            </span>
-          </div>
-        ) : mode === "replay" ? (
+        {mode === "replay" ? (
           <div className="flex shrink-0 items-center gap-2 border-b border-divider bg-subtle px-4 py-2 text-[12px] text-muted md:px-[22px]">
             <DatabaseZap aria-hidden size={14} className="shrink-0" />
             <span><strong className="font-extrabold text-ink-2">Test fixture mode</strong>{" · "}Synthetic evidence is restricted to automated testing.</span>

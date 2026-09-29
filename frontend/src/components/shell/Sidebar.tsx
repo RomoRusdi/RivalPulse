@@ -65,7 +65,7 @@ export function Sidebar({
   onToggleCollapsed?: () => void;
 }) {
   const pathname = usePathname();
-  const { newSinceLastCheck, aggregates, mode, profile } = useStore();
+  const { newSinceLastCheck, aggregates, profile } = useStore();
 
   return (
     // min-h-full so the footer card sits at the bottom, but the nav can still
@@ -194,7 +194,7 @@ export function Sidebar({
         <Link
           href="/sectors"
           onClick={onNavigate}
-          title={collapsed ? (mode === "yahoo" ? "Yahoo testing provider" : "Sectors credit usage") : undefined}
+          title={collapsed ? "Sectors credit usage" : undefined}
           className={cx(
             "rounded-user border border-border bg-surface no-underline transition-console hover:border-neutral-300 hover:bg-[#EBE8E2] active:scale-[0.98]",
             collapsed ? "flex h-11 items-center justify-center p-0" : "block p-2.5",
@@ -206,25 +206,21 @@ export function Sidebar({
             <>
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-strong">
-                  {mode === "yahoo" ? "Yahoo test data" : "Sectors credits"}
+                  Sectors credits
                 </span>
                 <span className="text-[13px] font-bold text-ink-2">
-                  {mode === "yahoo" ? (
-                    "Active"
-                  ) : (
-                    <>{aggregates.credits.used}<span className="font-semibold text-muted">/{aggregates.credits.total}</span></>
-                  )}
+                  {aggregates.credits.used}<span className="font-semibold text-muted">/{aggregates.credits.total}</span>
                 </span>
               </div>
               <div
                 role="img"
-                aria-label={mode === "yahoo" ? "Yahoo testing provider active" : `${aggregates.credits.used} of ${aggregates.credits.total} Sectors API credits used`}
+                aria-label={`${aggregates.credits.used} of ${aggregates.credits.total} Sectors API credits used`}
                 className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-subtle"
               >
                 <div
                   className="h-full rounded-full bg-accent transition-chart"
                   style={{
-                    width: mode === "yahoo" ? "100%" : `${Math.round((aggregates.credits.used / aggregates.credits.total) * 100)}%`,
+                    width: `${Math.round((aggregates.credits.used / aggregates.credits.total) * 100)}%`,
                   }}
                 />
               </div>
