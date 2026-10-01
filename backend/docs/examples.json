@@ -1,13 +1,13 @@
 {
   "notice": "Synthetic replay only. IDs are generated, metrics are fictional XTS test values.",
   "watchlist": {
-    "id": "a26f1fae-7226-4090-9c37-f68663f75287",
+    "id": "e066ef54-6eb6-434c-b698-5442fed019a4",
     "name": "Indonesian telecoms",
     "objective": "Monitor product, pricing and partnership developments",
     "user_company": null,
     "companies": [
       {
-        "id": "0fedcb73-84f8-43d1-bc5a-ff849589c574",
+        "id": "a173273b-16e0-4b55-b06a-4e9e4ea62a29",
         "symbol": "EXCL",
         "ticker": "EXCL",
         "name": "PT XLSMART Telecom Sejahtera Tbk",
@@ -24,7 +24,7 @@
         "comparison_note": "2025 merger changed scope; do not compare pre/post-merger growth."
       },
       {
-        "id": "0551dc2d-d6ab-44f7-8c73-6baa2e2083a8",
+        "id": "082fc89f-c016-4710-8598-9056ab5dfb47",
         "symbol": "ISAT",
         "ticker": "ISAT",
         "name": "PT Indosat Tbk",
@@ -40,7 +40,7 @@
         "comparison_note": "Reporting scope must be verified before growth comparisons."
       },
       {
-        "id": "e6ade681-a8e9-41c9-816c-e8b529045d38",
+        "id": "f5e8ee30-c0c9-4976-9c79-2bab4e96d953",
         "symbol": "TLKM",
         "ticker": "TLKM",
         "name": "PT Telkom Indonesia (Persero) Tbk",
@@ -56,26 +56,26 @@
         "comparison_note": "Reporting scope must be verified before growth comparisons."
       }
     ],
-    "created_at": "2026-09-27T13:29:52.057222+00:00",
-    "updated_at": "2026-09-27T13:29:52.057222+00:00"
+    "created_at": "2026-10-01T15:43:07.179438+00:00",
+    "updated_at": "2026-10-01T15:43:07.179438+00:00"
   },
   "accepted": {
-    "id": "4101fe91-0f7b-4b2a-885b-50ea89bf0259",
+    "id": "b63e2a14-ffc2-49e8-b447-37800817295d",
     "status": "queued",
     "mode": "replay",
-    "status_url": "/api/v1/research-runs/4101fe91-0f7b-4b2a-885b-50ea89bf0259"
+    "status_url": "/api/v1/research-runs/b63e2a14-ffc2-49e8-b447-37800817295d"
   },
   "completed_run": {
-    "id": "4101fe91-0f7b-4b2a-885b-50ea89bf0259",
-    "watchlist_id": "a26f1fae-7226-4090-9c37-f68663f75287",
+    "id": "b63e2a14-ffc2-49e8-b447-37800817295d",
+    "watchlist_id": "e066ef54-6eb6-434c-b698-5442fed019a4",
     "mode": "replay",
     "status": "completed",
     "stage": "persist",
     "query": "Monitor product, pricing and partnership developments",
-    "created_at": "2026-09-27T13:29:52.394163+00:00",
-    "started_at": "2026-09-27T13:29:52.397667+00:00",
-    "finished_at": "2026-09-27T13:29:52.505707+00:00",
-    "heartbeat_at": "2026-09-27T13:29:52.505707+00:00",
+    "created_at": "2026-10-01T15:43:07.611669+00:00",
+    "started_at": "2026-10-01T15:43:07.614679+00:00",
+    "finished_at": "2026-10-01T15:43:07.787770+00:00",
+    "heartbeat_at": "2026-10-01T15:43:07.787770+00:00",
     "attempts": 1,
     "estimated_credits": 0,
     "external_calls": 0,
@@ -84,7 +84,7 @@
       "schema_version": 1,
       "companies": [
         {
-          "id": "0fedcb73-84f8-43d1-bc5a-ff849589c574",
+          "id": "a173273b-16e0-4b55-b06a-4e9e4ea62a29",
           "symbol": "EXCL",
           "ticker": "EXCL",
           "name": "PT XLSMART Telecom Sejahtera Tbk",
@@ -101,19 +101,29 @@
           "comparison_note": "2025 merger changed scope; do not compare pre/post-merger growth.",
           "sources": [
             {
-              "id": "c3eea779-a5ea-49b0-aedb-8de28db60353",
+              "id": "07862134-4386-4fb1-9030-5cfe20982355",
+              "url": "https://www.xlsmart.co.id/id/tentang-xlsmart/berita",
+              "domain": "www.xlsmart.co.id",
+              "kind": "html",
+              "extraction": {
+                "selector": "body",
+                "event_type": "Product"
+              }
+            },
+            {
+              "id": "7c3a6f78-7187-45aa-83ca-64615347724e",
               "url": "https://www.xlsmart.co.id/",
               "domain": "www.xlsmart.co.id",
               "kind": "html",
               "extraction": {
-                "selector": "main",
+                "selector": "body",
                 "event_type": "Product"
               }
             }
           ]
         },
         {
-          "id": "0551dc2d-d6ab-44f7-8c73-6baa2e2083a8",
+          "id": "082fc89f-c016-4710-8598-9056ab5dfb47",
           "symbol": "ISAT",
           "ticker": "ISAT",
           "name": "PT Indosat Tbk",
@@ -129,7 +139,7 @@
           "comparison_note": "Reporting scope must be verified before growth comparisons.",
           "sources": [
             {
-              "id": "4440fe73-fc9e-4cbe-b78b-9182f18d8e99",
+              "id": "e478d59f-386a-446a-acd6-8d63d8b91501",
               "url": "https://ioh.co.id/portal/ID/iohaboutus",
               "domain": "ioh.co.id",
               "kind": "html",
@@ -141,7 +151,7 @@
           ]
         },
         {
-          "id": "e6ade681-a8e9-41c9-816c-e8b529045d38",
+          "id": "f5e8ee30-c0c9-4976-9c79-2bab4e96d953",
           "symbol": "TLKM",
           "ticker": "TLKM",
           "name": "PT Telkom Indonesia (Persero) Tbk",
@@ -157,7 +167,17 @@
           "comparison_note": "Reporting scope must be verified before growth comparisons.",
           "sources": [
             {
-              "id": "8cd526e3-4e64-42ed-bc97-a21216e31827",
+              "id": "65b41615-e3a4-4701-9019-ba6c12bf5fcf",
+              "url": "https://www.telkom.co.id/sites/berita/id_ID/page/news-about-telkom-122",
+              "domain": "www.telkom.co.id",
+              "kind": "html",
+              "extraction": {
+                "selector": "main",
+                "event_type": "Product"
+              }
+            },
+            {
+              "id": "ce635c3a-3fa8-45af-af43-1081b859e9ec",
               "url": "https://www.telkom.co.id/sites/about-us/en_US/page/profile-and-brief-history-24",
               "domain": "www.telkom.co.id",
               "kind": "html",
@@ -179,55 +199,61 @@
         {
           "name": "get_company_metrics",
           "company_ids": [
-            "0fedcb73-84f8-43d1-bc5a-ff849589c574"
+            "a173273b-16e0-4b55-b06a-4e9e4ea62a29"
           ],
           "requested_periods": [],
           "comparable_period": null,
+          "source_offset": 0,
           "reason": "Retrieve financial statements"
         },
         {
           "name": "get_recent_signals",
           "company_ids": [
-            "0fedcb73-84f8-43d1-bc5a-ff849589c574"
+            "a173273b-16e0-4b55-b06a-4e9e4ea62a29"
           ],
           "requested_periods": [],
           "comparable_period": null,
+          "source_offset": 0,
           "reason": "Compare approved public evidence"
         },
         {
           "name": "get_company_metrics",
           "company_ids": [
-            "0551dc2d-d6ab-44f7-8c73-6baa2e2083a8"
+            "082fc89f-c016-4710-8598-9056ab5dfb47"
           ],
           "requested_periods": [],
           "comparable_period": null,
+          "source_offset": 0,
           "reason": "Retrieve financial statements"
         },
         {
           "name": "get_recent_signals",
           "company_ids": [
-            "0551dc2d-d6ab-44f7-8c73-6baa2e2083a8"
+            "082fc89f-c016-4710-8598-9056ab5dfb47"
           ],
           "requested_periods": [],
           "comparable_period": null,
+          "source_offset": 0,
           "reason": "Compare approved public evidence"
         },
         {
           "name": "get_company_metrics",
           "company_ids": [
-            "e6ade681-a8e9-41c9-816c-e8b529045d38"
+            "f5e8ee30-c0c9-4976-9c79-2bab4e96d953"
           ],
           "requested_periods": [],
           "comparable_period": null,
+          "source_offset": 0,
           "reason": "Retrieve financial statements"
         },
         {
           "name": "get_recent_signals",
           "company_ids": [
-            "e6ade681-a8e9-41c9-816c-e8b529045d38"
+            "f5e8ee30-c0c9-4976-9c79-2bab4e96d953"
           ],
           "requested_periods": [],
           "comparable_period": null,
+          "source_offset": 0,
           "reason": "Compare approved public evidence"
         }
       ]
@@ -235,18 +261,19 @@
     "error_code": null,
     "result": {
       "schema_version": 1,
-      "run_id": "4101fe91-0f7b-4b2a-885b-50ea89bf0259",
+      "run_id": "b63e2a14-ffc2-49e8-b447-37800817295d",
       "mode": "replay",
       "status": "completed",
-      "generated_at": "2026-09-27T13:29:52.505707+00:00",
-      "summary": "0 new or updated findings; 3 baseline observations.",
+      "generated_at": "2026-10-01T15:43:07.787770+00:00",
+      "summary": "0 new or updated findings; 3 baseline observations; 0 previously observed findings unchanged.",
       "coverage": [
         {
           "tool": "get_company_metrics",
           "company_ids": [
-            "0fedcb73-84f8-43d1-bc5a-ff849589c574"
+            "a173273b-16e0-4b55-b06a-4e9e4ea62a29"
           ],
           "status": "ok",
+          "stage": "collect",
           "cache_status": "fetched",
           "duration_ms": 16,
           "estimated_credits": 0
@@ -254,51 +281,56 @@
         {
           "tool": "get_recent_signals",
           "company_ids": [
-            "0fedcb73-84f8-43d1-bc5a-ff849589c574"
+            "a173273b-16e0-4b55-b06a-4e9e4ea62a29"
           ],
           "status": "ok",
+          "stage": "collect",
+          "cache_status": null,
+          "duration_ms": 30,
+          "estimated_credits": 0
+        },
+        {
+          "tool": "get_company_metrics",
+          "company_ids": [
+            "082fc89f-c016-4710-8598-9056ab5dfb47"
+          ],
+          "status": "ok",
+          "stage": "collect",
+          "cache_status": "fetched",
+          "duration_ms": 0,
+          "estimated_credits": 0
+        },
+        {
+          "tool": "get_recent_signals",
+          "company_ids": [
+            "082fc89f-c016-4710-8598-9056ab5dfb47"
+          ],
+          "status": "ok",
+          "stage": "collect",
+          "cache_status": null,
+          "duration_ms": 0,
+          "estimated_credits": 0
+        },
+        {
+          "tool": "get_company_metrics",
+          "company_ids": [
+            "f5e8ee30-c0c9-4976-9c79-2bab4e96d953"
+          ],
+          "status": "ok",
+          "stage": "collect",
+          "cache_status": "fetched",
+          "duration_ms": 0,
+          "estimated_credits": 0
+        },
+        {
+          "tool": "get_recent_signals",
+          "company_ids": [
+            "f5e8ee30-c0c9-4976-9c79-2bab4e96d953"
+          ],
+          "status": "ok",
+          "stage": "collect",
           "cache_status": null,
           "duration_ms": 15,
-          "estimated_credits": 0
-        },
-        {
-          "tool": "get_company_metrics",
-          "company_ids": [
-            "0551dc2d-d6ab-44f7-8c73-6baa2e2083a8"
-          ],
-          "status": "ok",
-          "cache_status": "fetched",
-          "duration_ms": 0,
-          "estimated_credits": 0
-        },
-        {
-          "tool": "get_recent_signals",
-          "company_ids": [
-            "0551dc2d-d6ab-44f7-8c73-6baa2e2083a8"
-          ],
-          "status": "ok",
-          "cache_status": null,
-          "duration_ms": 0,
-          "estimated_credits": 0
-        },
-        {
-          "tool": "get_company_metrics",
-          "company_ids": [
-            "e6ade681-a8e9-41c9-816c-e8b529045d38"
-          ],
-          "status": "ok",
-          "cache_status": "fetched",
-          "duration_ms": 16,
-          "estimated_credits": 0
-        },
-        {
-          "tool": "get_recent_signals",
-          "company_ids": [
-            "e6ade681-a8e9-41c9-816c-e8b529045d38"
-          ],
-          "status": "ok",
-          "cache_status": null,
-          "duration_ms": 0,
           "estimated_credits": 0
         }
       ],
@@ -306,74 +338,81 @@
       "signals": [
         {
           "schema_version": 1,
-          "signal_id": "abe7e305-ec91-4379-8dcf-e8dd2bdb0507",
-          "revision_id": "971603e4-ce75-4854-884c-666c6e47776c",
+          "signal_id": "319b9ecf-14d8-4999-b4ae-a477a5a7e62b",
+          "revision_id": "0f8d9bf0-fb0b-4839-99be-6d32ca3fe2ea",
           "company": {
-            "id": "0fedcb73-84f8-43d1-bc5a-ff849589c574",
-            "symbol": "EXCL",
-            "name": "PT XLSMART Telecom Sejahtera Tbk",
+            "id": "f5e8ee30-c0c9-4976-9c79-2bab4e96d953",
+            "symbol": "TLKM",
+            "name": "PT Telkom Indonesia (Persero) Tbk",
             "industry": "Telecommunications"
           },
           "mode": "replay",
-          "type": "Product",
-          "title": "Synthetic product launch",
+          "type": "Partnership",
+          "title": "Synthetic enterprise partnership announcement",
           "change_status": "baseline",
           "analysis_status": "complete",
           "severity": "medium",
           "score_components": {
             "materiality": 2,
-            "relevance": 3,
-            "evidence_strength": 2,
+            "relevance": 2,
+            "evidence_strength": 3,
             "novelty": 0,
-            "confidence": 0.8,
+            "confidence": 0.9,
             "total": 7,
             "rubric_version": 2
           },
-          "severity_reason": "Positioning-impact rubric v2: materiality 2, relevance 3, evidence strength 2, novelty 0.",
+          "severity_reason": "Positioning-impact rubric v2: materiality 2, relevance 2, evidence strength 3, novelty 0.",
           "facts": [
             {
               "claim_id": "financial-0",
               "text": "revenue for 2024: 1000.00 XTS (synthetic_currency_units).",
               "evidence_ids": [
-                "0db9668c-0f46-4291-82b5-18b27b571534"
+                "ba96d9e0-51bb-49a3-84eb-4bfb0459868b"
               ]
             },
             {
               "claim_id": "financial-1",
               "text": "earnings for 2024: 100.00 XTS (synthetic_currency_units).",
               "evidence_ids": [
-                "4aec9fb6-b04a-416e-b516-61fbb7c319fc"
+                "945792aa-39d2-4a18-8fb3-82d52649b253"
               ]
             },
             {
               "claim_id": "financial-2",
               "text": "revenue for 2025: 1200.00 XTS (synthetic_currency_units).",
               "evidence_ids": [
-                "c849c6d6-83b7-446e-b50f-83ebd94347a7"
+                "2723fd02-0cd3-4a2d-a9e5-b8cdc181c124"
               ]
             },
             {
               "claim_id": "financial-3",
               "text": "earnings for 2025: 150.00 XTS (synthetic_currency_units).",
               "evidence_ids": [
-                "46a962f9-dc5b-4786-bbd0-2b7d47d5259d"
+                "21b749c0-d7a1-4e25-97f2-c5ea95d23983"
               ]
             },
             {
               "claim_id": "revenue-growth",
               "text": "Calculated revenue growth: 20.00%.",
               "evidence_ids": [
-                "c849c6d6-83b7-446e-b50f-83ebd94347a7",
-                "0db9668c-0f46-4291-82b5-18b27b571534"
+                "2723fd02-0cd3-4a2d-a9e5-b8cdc181c124",
+                "ba96d9e0-51bb-49a3-84eb-4bfb0459868b"
               ]
             }
           ],
           "observed_signals": [
             {
               "claim_id": "observation-0",
-              "text": "SYNTHETIC REPLAY: a sample product is introduced.",
+              "text": "SYNTHETIC REPLAY: a sample enterprise partnership is announced.",
               "evidence_ids": [
-                "e41a9e6d-306d-48ec-b62f-8d145c0b2a34"
+                "4e39b27a-2110-4604-9a2e-e9efd1a462b9"
+              ]
+            },
+            {
+              "claim_id": "observation-1",
+              "text": "SYNTHETIC REPLAY: a sample enterprise partnership is announced.",
+              "evidence_ids": [
+                "75ec21e3-1673-4a46-a775-93a752f5b49c"
               ]
             }
           ],
@@ -381,7 +420,8 @@
             {
               "text": "This observation may affect competitive positioning; intent is unverified.",
               "supporting_claim_ids": [
-                "observation-0"
+                "observation-0",
+                "observation-1"
               ],
               "uncertainty": "high"
             }
@@ -395,7 +435,7 @@
               "period": "2024",
               "comparison_basis": "synthetic_same_scope",
               "evidence_ids": [
-                "0db9668c-0f46-4291-82b5-18b27b571534"
+                "ba96d9e0-51bb-49a3-84eb-4bfb0459868b"
               ]
             },
             {
@@ -406,7 +446,7 @@
               "period": "2024",
               "comparison_basis": "synthetic_same_scope",
               "evidence_ids": [
-                "4aec9fb6-b04a-416e-b516-61fbb7c319fc"
+                "945792aa-39d2-4a18-8fb3-82d52649b253"
               ]
             },
             {
@@ -417,7 +457,7 @@
               "period": "2025",
               "comparison_basis": "synthetic_same_scope",
               "evidence_ids": [
-                "c849c6d6-83b7-446e-b50f-83ebd94347a7"
+                "2723fd02-0cd3-4a2d-a9e5-b8cdc181c124"
               ]
             },
             {
@@ -428,7 +468,7 @@
               "period": "2025",
               "comparison_basis": "synthetic_same_scope",
               "evidence_ids": [
-                "46a962f9-dc5b-4786-bbd0-2b7d47d5259d"
+                "21b749c0-d7a1-4e25-97f2-c5ea95d23983"
               ]
             },
             {
@@ -439,82 +479,317 @@
               "period": "2025",
               "comparison_basis": "adjacent annual periods; synthetic_same_scope",
               "evidence_ids": [
-                "c849c6d6-83b7-446e-b50f-83ebd94347a7",
-                "0db9668c-0f46-4291-82b5-18b27b571534"
+                "2723fd02-0cd3-4a2d-a9e5-b8cdc181c124",
+                "ba96d9e0-51bb-49a3-84eb-4bfb0459868b"
               ]
             }
           ],
           "why_marketing_should_care": {
             "text": "Hypothesis: review this evidence when assessing messaging; it does not establish business impact.",
             "supporting_claim_ids": [
-              "observation-0"
+              "observation-0",
+              "observation-1"
             ],
             "uncertainty": "high"
           },
           "evidence": [
             {
-              "id": "e41a9e6d-306d-48ec-b62f-8d145c0b2a34",
-              "snapshot_id": "9d6cecc0-bc81-42ce-9439-d5416a189a90",
+              "id": "4e39b27a-2110-4604-9a2e-e9efd1a462b9",
+              "snapshot_id": "3549af72-6c33-460c-8586-2b63cb31d0c7",
+              "source": "public",
+              "url_or_endpoint": "https://replay.invalid/TLKM",
+              "excerpt_or_json_pointer": "SYNTHETIC REPLAY: a sample enterprise partnership is announced.",
+              "published_at": "2025-01-15",
+              "fetched_at": "2026-10-01T15:43:07.723933+00:00",
+              "cache_status": "fetched"
+            },
+            {
+              "id": "75ec21e3-1673-4a46-a775-93a752f5b49c",
+              "snapshot_id": "e29fa588-c0d3-4778-a280-7651f42cd136",
+              "source": "public",
+              "url_or_endpoint": "https://replay.invalid/TLKM",
+              "excerpt_or_json_pointer": "SYNTHETIC REPLAY: a sample enterprise partnership is announced.",
+              "published_at": "2025-01-15",
+              "fetched_at": "2026-10-01T15:43:07.721414+00:00",
+              "cache_status": "fetched"
+            },
+            {
+              "id": "ba96d9e0-51bb-49a3-84eb-4bfb0459868b",
+              "snapshot_id": "5d073901-7239-4863-8e6c-a80974d0a2cd",
+              "source": "sectors",
+              "url_or_endpoint": "https://api.sectors.app/v2/company/report/TLKM/?sections=financials%2Coverview",
+              "excerpt_or_json_pointer": "/financials/historical_financials/0/revenue",
+              "published_at": null,
+              "fetched_at": "2026-10-01T15:43:07.711465+00:00",
+              "cache_status": "fetched"
+            },
+            {
+              "id": "945792aa-39d2-4a18-8fb3-82d52649b253",
+              "snapshot_id": "5d073901-7239-4863-8e6c-a80974d0a2cd",
+              "source": "sectors",
+              "url_or_endpoint": "https://api.sectors.app/v2/company/report/TLKM/?sections=financials%2Coverview",
+              "excerpt_or_json_pointer": "/financials/historical_financials/0/earnings",
+              "published_at": null,
+              "fetched_at": "2026-10-01T15:43:07.711465+00:00",
+              "cache_status": "fetched"
+            },
+            {
+              "id": "2723fd02-0cd3-4a2d-a9e5-b8cdc181c124",
+              "snapshot_id": "5d073901-7239-4863-8e6c-a80974d0a2cd",
+              "source": "sectors",
+              "url_or_endpoint": "https://api.sectors.app/v2/company/report/TLKM/?sections=financials%2Coverview",
+              "excerpt_or_json_pointer": "/financials/historical_financials/1/revenue",
+              "published_at": null,
+              "fetched_at": "2026-10-01T15:43:07.711465+00:00",
+              "cache_status": "fetched"
+            },
+            {
+              "id": "21b749c0-d7a1-4e25-97f2-c5ea95d23983",
+              "snapshot_id": "5d073901-7239-4863-8e6c-a80974d0a2cd",
+              "source": "sectors",
+              "url_or_endpoint": "https://api.sectors.app/v2/company/report/TLKM/?sections=financials%2Coverview",
+              "excerpt_or_json_pointer": "/financials/historical_financials/1/earnings",
+              "published_at": null,
+              "fetched_at": "2026-10-01T15:43:07.711465+00:00",
+              "cache_status": "fetched"
+            }
+          ],
+          "run_id": "b63e2a14-ffc2-49e8-b447-37800817295d",
+          "compared_against_run_id": null,
+          "first_seen_at": "2026-10-01T15:43:07.777078+00:00",
+          "published_at": "2025-01-15",
+          "stored_at": "2026-10-01T15:43:07.779589+00:00"
+        },
+        {
+          "schema_version": 1,
+          "signal_id": "f91d7f99-2332-4aa6-b055-a1704a8a983f",
+          "revision_id": "24e56caa-3165-44b1-9ad2-4124fa5f31c3",
+          "company": {
+            "id": "a173273b-16e0-4b55-b06a-4e9e4ea62a29",
+            "symbol": "EXCL",
+            "name": "PT XLSMART Telecom Sejahtera Tbk",
+            "industry": "Telecommunications"
+          },
+          "mode": "replay",
+          "type": "Product",
+          "title": "Synthetic product launch",
+          "change_status": "baseline",
+          "analysis_status": "complete",
+          "severity": "medium",
+          "score_components": {
+            "materiality": 2,
+            "relevance": 3,
+            "evidence_strength": 3,
+            "novelty": 0,
+            "confidence": 0.9,
+            "total": 8,
+            "rubric_version": 2
+          },
+          "severity_reason": "Positioning-impact rubric v2: materiality 2, relevance 3, evidence strength 3, novelty 0.",
+          "facts": [
+            {
+              "claim_id": "financial-0",
+              "text": "revenue for 2024: 1000.00 XTS (synthetic_currency_units).",
+              "evidence_ids": [
+                "9dbd8259-dd96-47f0-9afd-745c4c9984e5"
+              ]
+            },
+            {
+              "claim_id": "financial-1",
+              "text": "earnings for 2024: 100.00 XTS (synthetic_currency_units).",
+              "evidence_ids": [
+                "baa52c89-8d00-40c2-8321-7ff7ad89290b"
+              ]
+            },
+            {
+              "claim_id": "financial-2",
+              "text": "revenue for 2025: 1200.00 XTS (synthetic_currency_units).",
+              "evidence_ids": [
+                "2b54b181-3ebc-4677-b5a9-8cb1205d6474"
+              ]
+            },
+            {
+              "claim_id": "financial-3",
+              "text": "earnings for 2025: 150.00 XTS (synthetic_currency_units).",
+              "evidence_ids": [
+                "039fc853-30b2-48e7-9de8-e4d112930b01"
+              ]
+            },
+            {
+              "claim_id": "revenue-growth",
+              "text": "Calculated revenue growth: 20.00%.",
+              "evidence_ids": [
+                "2b54b181-3ebc-4677-b5a9-8cb1205d6474",
+                "9dbd8259-dd96-47f0-9afd-745c4c9984e5"
+              ]
+            }
+          ],
+          "observed_signals": [
+            {
+              "claim_id": "observation-0",
+              "text": "SYNTHETIC REPLAY: a sample product is introduced.",
+              "evidence_ids": [
+                "8b1cb26f-46ac-4da3-b832-fe8b83b9fe70"
+              ]
+            },
+            {
+              "claim_id": "observation-1",
+              "text": "SYNTHETIC REPLAY: a sample product is introduced.",
+              "evidence_ids": [
+                "fffeb6b1-5b7f-460b-832a-af43569e582c"
+              ]
+            }
+          ],
+          "hypotheses": [
+            {
+              "text": "This observation may affect competitive positioning; intent is unverified.",
+              "supporting_claim_ids": [
+                "observation-0",
+                "observation-1"
+              ],
+              "uncertainty": "high"
+            }
+          ],
+          "financial_context": [
+            {
+              "metric": "revenue",
+              "value": "1000.00",
+              "unit": "synthetic_currency_units",
+              "currency": "XTS",
+              "period": "2024",
+              "comparison_basis": "synthetic_same_scope",
+              "evidence_ids": [
+                "9dbd8259-dd96-47f0-9afd-745c4c9984e5"
+              ]
+            },
+            {
+              "metric": "earnings",
+              "value": "100.00",
+              "unit": "synthetic_currency_units",
+              "currency": "XTS",
+              "period": "2024",
+              "comparison_basis": "synthetic_same_scope",
+              "evidence_ids": [
+                "baa52c89-8d00-40c2-8321-7ff7ad89290b"
+              ]
+            },
+            {
+              "metric": "revenue",
+              "value": "1200.00",
+              "unit": "synthetic_currency_units",
+              "currency": "XTS",
+              "period": "2025",
+              "comparison_basis": "synthetic_same_scope",
+              "evidence_ids": [
+                "2b54b181-3ebc-4677-b5a9-8cb1205d6474"
+              ]
+            },
+            {
+              "metric": "earnings",
+              "value": "150.00",
+              "unit": "synthetic_currency_units",
+              "currency": "XTS",
+              "period": "2025",
+              "comparison_basis": "synthetic_same_scope",
+              "evidence_ids": [
+                "039fc853-30b2-48e7-9de8-e4d112930b01"
+              ]
+            },
+            {
+              "metric": "revenue_growth_percent",
+              "value": "20.00",
+              "unit": "percent",
+              "currency": null,
+              "period": "2025",
+              "comparison_basis": "adjacent annual periods; synthetic_same_scope",
+              "evidence_ids": [
+                "2b54b181-3ebc-4677-b5a9-8cb1205d6474",
+                "9dbd8259-dd96-47f0-9afd-745c4c9984e5"
+              ]
+            }
+          ],
+          "why_marketing_should_care": {
+            "text": "Hypothesis: review this evidence when assessing messaging; it does not establish business impact.",
+            "supporting_claim_ids": [
+              "observation-0",
+              "observation-1"
+            ],
+            "uncertainty": "high"
+          },
+          "evidence": [
+            {
+              "id": "8b1cb26f-46ac-4da3-b832-fe8b83b9fe70",
+              "snapshot_id": "a67d2bb7-056d-4d9d-8d6c-d1fa07a04066",
               "source": "public",
               "url_or_endpoint": "https://replay.invalid/EXCL",
               "excerpt_or_json_pointer": "SYNTHETIC REPLAY: a sample product is introduced.",
               "published_at": "2025-01-17",
-              "fetched_at": "2026-09-27T13:29:52.437849+00:00",
+              "fetched_at": "2026-10-01T15:43:07.655187+00:00",
               "cache_status": "fetched"
             },
             {
-              "id": "0db9668c-0f46-4291-82b5-18b27b571534",
-              "snapshot_id": "38630981-2417-4d82-8397-1c36fb33b36c",
+              "id": "fffeb6b1-5b7f-460b-832a-af43569e582c",
+              "snapshot_id": "a70fea6f-b198-4295-8a78-e8c5166a23d4",
+              "source": "public",
+              "url_or_endpoint": "https://replay.invalid/EXCL",
+              "excerpt_or_json_pointer": "SYNTHETIC REPLAY: a sample product is introduced.",
+              "published_at": "2025-01-17",
+              "fetched_at": "2026-10-01T15:43:07.683266+00:00",
+              "cache_status": "fetched"
+            },
+            {
+              "id": "9dbd8259-dd96-47f0-9afd-745c4c9984e5",
+              "snapshot_id": "b46dabe6-bcb4-465a-9ec7-d765b226d154",
               "source": "sectors",
               "url_or_endpoint": "https://api.sectors.app/v2/company/report/EXCL/?sections=financials%2Coverview",
               "excerpt_or_json_pointer": "/financials/historical_financials/0/revenue",
               "published_at": null,
-              "fetched_at": "2026-09-27T13:29:52.426320+00:00",
+              "fetched_at": "2026-10-01T15:43:07.645070+00:00",
               "cache_status": "fetched"
             },
             {
-              "id": "4aec9fb6-b04a-416e-b516-61fbb7c319fc",
-              "snapshot_id": "38630981-2417-4d82-8397-1c36fb33b36c",
+              "id": "baa52c89-8d00-40c2-8321-7ff7ad89290b",
+              "snapshot_id": "b46dabe6-bcb4-465a-9ec7-d765b226d154",
               "source": "sectors",
               "url_or_endpoint": "https://api.sectors.app/v2/company/report/EXCL/?sections=financials%2Coverview",
               "excerpt_or_json_pointer": "/financials/historical_financials/0/earnings",
               "published_at": null,
-              "fetched_at": "2026-09-27T13:29:52.426320+00:00",
+              "fetched_at": "2026-10-01T15:43:07.645070+00:00",
               "cache_status": "fetched"
             },
             {
-              "id": "c849c6d6-83b7-446e-b50f-83ebd94347a7",
-              "snapshot_id": "38630981-2417-4d82-8397-1c36fb33b36c",
+              "id": "2b54b181-3ebc-4677-b5a9-8cb1205d6474",
+              "snapshot_id": "b46dabe6-bcb4-465a-9ec7-d765b226d154",
               "source": "sectors",
               "url_or_endpoint": "https://api.sectors.app/v2/company/report/EXCL/?sections=financials%2Coverview",
               "excerpt_or_json_pointer": "/financials/historical_financials/1/revenue",
               "published_at": null,
-              "fetched_at": "2026-09-27T13:29:52.426320+00:00",
+              "fetched_at": "2026-10-01T15:43:07.645070+00:00",
               "cache_status": "fetched"
             },
             {
-              "id": "46a962f9-dc5b-4786-bbd0-2b7d47d5259d",
-              "snapshot_id": "38630981-2417-4d82-8397-1c36fb33b36c",
+              "id": "039fc853-30b2-48e7-9de8-e4d112930b01",
+              "snapshot_id": "b46dabe6-bcb4-465a-9ec7-d765b226d154",
               "source": "sectors",
               "url_or_endpoint": "https://api.sectors.app/v2/company/report/EXCL/?sections=financials%2Coverview",
               "excerpt_or_json_pointer": "/financials/historical_financials/1/earnings",
               "published_at": null,
-              "fetched_at": "2026-09-27T13:29:52.426320+00:00",
+              "fetched_at": "2026-10-01T15:43:07.645070+00:00",
               "cache_status": "fetched"
             }
           ],
-          "run_id": "4101fe91-0f7b-4b2a-885b-50ea89bf0259",
+          "run_id": "b63e2a14-ffc2-49e8-b447-37800817295d",
           "compared_against_run_id": null,
-          "first_seen_at": "2026-09-27T13:29:52.495930+00:00",
+          "first_seen_at": "2026-10-01T15:43:07.782694+00:00",
           "published_at": "2025-01-17",
-          "stored_at": "2026-09-27T13:29:52.497435+00:00"
+          "stored_at": "2026-10-01T15:43:07.784200+00:00"
         },
         {
           "schema_version": 1,
-          "signal_id": "d7bdc733-55ce-4ea4-9c67-39b949e8dcc6",
-          "revision_id": "9e0c8563-8246-4ba9-810c-f1d7049d9b5d",
+          "signal_id": "c092e13e-11eb-4078-82da-eed73891ebb5",
+          "revision_id": "f845ab11-2fea-4fce-84ce-cc37b288e8db",
           "company": {
-            "id": "0551dc2d-d6ab-44f7-8c73-6baa2e2083a8",
+            "id": "082fc89f-c016-4710-8598-9056ab5dfb47",
             "symbol": "ISAT",
             "name": "PT Indosat Tbk",
             "industry": "Telecommunications"
@@ -540,36 +815,36 @@
               "claim_id": "financial-0",
               "text": "revenue for 2024: 1000.00 XTS (synthetic_currency_units).",
               "evidence_ids": [
-                "3d0ea9bd-ce77-4f54-86cf-eaab949f591c"
+                "dbde71ce-50c6-4820-ba3b-c8ca64132e1f"
               ]
             },
             {
               "claim_id": "financial-1",
               "text": "earnings for 2024: 100.00 XTS (synthetic_currency_units).",
               "evidence_ids": [
-                "c85769f2-027b-4980-85d3-570be0f8de46"
+                "fcba70ec-162b-44d5-bc90-43fc23dd257f"
               ]
             },
             {
               "claim_id": "financial-2",
               "text": "revenue for 2025: 1200.00 XTS (synthetic_currency_units).",
               "evidence_ids": [
-                "c73027dd-94d8-4126-9a28-78f660423e88"
+                "b2d28c0b-1402-4d4b-8ab6-0fcff099287b"
               ]
             },
             {
               "claim_id": "financial-3",
               "text": "earnings for 2025: 150.00 XTS (synthetic_currency_units).",
               "evidence_ids": [
-                "d9a3108f-c2c5-4f57-bf76-205bbeeb4d4d"
+                "0b35ee27-4030-4bce-80fb-9fa56e81576f"
               ]
             },
             {
               "claim_id": "revenue-growth",
               "text": "Calculated revenue growth: 20.00%.",
               "evidence_ids": [
-                "c73027dd-94d8-4126-9a28-78f660423e88",
-                "3d0ea9bd-ce77-4f54-86cf-eaab949f591c"
+                "b2d28c0b-1402-4d4b-8ab6-0fcff099287b",
+                "dbde71ce-50c6-4820-ba3b-c8ca64132e1f"
               ]
             }
           ],
@@ -578,7 +853,7 @@
               "claim_id": "observation-0",
               "text": "SYNTHETIC REPLAY: sample package costs 100 XTS per month for 10 units, all customers.",
               "evidence_ids": [
-                "2680b3d6-d6bc-436c-a35d-9bc1831e89a6"
+                "d7459af2-fc24-47ca-a304-24974735655f"
               ]
             }
           ],
@@ -600,7 +875,7 @@
               "period": "2024",
               "comparison_basis": "synthetic_same_scope",
               "evidence_ids": [
-                "3d0ea9bd-ce77-4f54-86cf-eaab949f591c"
+                "dbde71ce-50c6-4820-ba3b-c8ca64132e1f"
               ]
             },
             {
@@ -611,7 +886,7 @@
               "period": "2024",
               "comparison_basis": "synthetic_same_scope",
               "evidence_ids": [
-                "c85769f2-027b-4980-85d3-570be0f8de46"
+                "fcba70ec-162b-44d5-bc90-43fc23dd257f"
               ]
             },
             {
@@ -622,7 +897,7 @@
               "period": "2025",
               "comparison_basis": "synthetic_same_scope",
               "evidence_ids": [
-                "c73027dd-94d8-4126-9a28-78f660423e88"
+                "b2d28c0b-1402-4d4b-8ab6-0fcff099287b"
               ]
             },
             {
@@ -633,7 +908,7 @@
               "period": "2025",
               "comparison_basis": "synthetic_same_scope",
               "evidence_ids": [
-                "d9a3108f-c2c5-4f57-bf76-205bbeeb4d4d"
+                "0b35ee27-4030-4bce-80fb-9fa56e81576f"
               ]
             },
             {
@@ -644,8 +919,8 @@
               "period": "2025",
               "comparison_basis": "adjacent annual periods; synthetic_same_scope",
               "evidence_ids": [
-                "c73027dd-94d8-4126-9a28-78f660423e88",
-                "3d0ea9bd-ce77-4f54-86cf-eaab949f591c"
+                "b2d28c0b-1402-4d4b-8ab6-0fcff099287b",
+                "dbde71ce-50c6-4820-ba3b-c8ca64132e1f"
               ]
             }
           ],
@@ -658,266 +933,61 @@
           },
           "evidence": [
             {
-              "id": "2680b3d6-d6bc-436c-a35d-9bc1831e89a6",
-              "snapshot_id": "a97ac325-da1e-4657-b637-f8fb5e3d2dc0",
+              "id": "d7459af2-fc24-47ca-a304-24974735655f",
+              "snapshot_id": "cf8f72a9-8543-4b1e-b3d0-2a99f6de9972",
               "source": "public",
               "url_or_endpoint": "https://replay.invalid/ISAT",
               "excerpt_or_json_pointer": "SYNTHETIC REPLAY: sample package costs 100 XTS per month for 10 units, all customers.",
               "published_at": "2025-01-16",
-              "fetched_at": "2026-09-27T13:29:52.456680+00:00",
+              "fetched_at": "2026-10-01T15:43:07.702267+00:00",
               "cache_status": "fetched"
             },
             {
-              "id": "3d0ea9bd-ce77-4f54-86cf-eaab949f591c",
-              "snapshot_id": "d5f4bda4-3f4d-4c11-a4b3-751d0691227b",
+              "id": "dbde71ce-50c6-4820-ba3b-c8ca64132e1f",
+              "snapshot_id": "cc10e2f8-06d2-4d5d-b0a3-843d7257466c",
               "source": "sectors",
               "url_or_endpoint": "https://api.sectors.app/v2/company/report/ISAT/?sections=financials%2Coverview",
               "excerpt_or_json_pointer": "/financials/historical_financials/0/revenue",
               "published_at": null,
-              "fetched_at": "2026-09-27T13:29:52.448389+00:00",
+              "fetched_at": "2026-10-01T15:43:07.694370+00:00",
               "cache_status": "fetched"
             },
             {
-              "id": "c85769f2-027b-4980-85d3-570be0f8de46",
-              "snapshot_id": "d5f4bda4-3f4d-4c11-a4b3-751d0691227b",
+              "id": "fcba70ec-162b-44d5-bc90-43fc23dd257f",
+              "snapshot_id": "cc10e2f8-06d2-4d5d-b0a3-843d7257466c",
               "source": "sectors",
               "url_or_endpoint": "https://api.sectors.app/v2/company/report/ISAT/?sections=financials%2Coverview",
               "excerpt_or_json_pointer": "/financials/historical_financials/0/earnings",
               "published_at": null,
-              "fetched_at": "2026-09-27T13:29:52.448389+00:00",
+              "fetched_at": "2026-10-01T15:43:07.694370+00:00",
               "cache_status": "fetched"
             },
             {
-              "id": "c73027dd-94d8-4126-9a28-78f660423e88",
-              "snapshot_id": "d5f4bda4-3f4d-4c11-a4b3-751d0691227b",
+              "id": "b2d28c0b-1402-4d4b-8ab6-0fcff099287b",
+              "snapshot_id": "cc10e2f8-06d2-4d5d-b0a3-843d7257466c",
               "source": "sectors",
               "url_or_endpoint": "https://api.sectors.app/v2/company/report/ISAT/?sections=financials%2Coverview",
               "excerpt_or_json_pointer": "/financials/historical_financials/1/revenue",
               "published_at": null,
-              "fetched_at": "2026-09-27T13:29:52.448389+00:00",
+              "fetched_at": "2026-10-01T15:43:07.694370+00:00",
               "cache_status": "fetched"
             },
             {
-              "id": "d9a3108f-c2c5-4f57-bf76-205bbeeb4d4d",
-              "snapshot_id": "d5f4bda4-3f4d-4c11-a4b3-751d0691227b",
+              "id": "0b35ee27-4030-4bce-80fb-9fa56e81576f",
+              "snapshot_id": "cc10e2f8-06d2-4d5d-b0a3-843d7257466c",
               "source": "sectors",
               "url_or_endpoint": "https://api.sectors.app/v2/company/report/ISAT/?sections=financials%2Coverview",
               "excerpt_or_json_pointer": "/financials/historical_financials/1/earnings",
               "published_at": null,
-              "fetched_at": "2026-09-27T13:29:52.448389+00:00",
+              "fetched_at": "2026-10-01T15:43:07.694370+00:00",
               "cache_status": "fetched"
             }
           ],
-          "run_id": "4101fe91-0f7b-4b2a-885b-50ea89bf0259",
+          "run_id": "b63e2a14-ffc2-49e8-b447-37800817295d",
           "compared_against_run_id": null,
-          "first_seen_at": "2026-09-27T13:29:52.501991+00:00",
+          "first_seen_at": "2026-10-01T15:43:07.786246+00:00",
           "published_at": "2025-01-16",
-          "stored_at": "2026-09-27T13:29:52.501991+00:00"
-        },
-        {
-          "schema_version": 1,
-          "signal_id": "e8126113-ef83-4a6b-b768-6d5a351a3708",
-          "revision_id": "002e022d-8795-4345-b421-b3d7b046f1ea",
-          "company": {
-            "id": "e6ade681-a8e9-41c9-816c-e8b529045d38",
-            "symbol": "TLKM",
-            "name": "PT Telkom Indonesia (Persero) Tbk",
-            "industry": "Telecommunications"
-          },
-          "mode": "replay",
-          "type": "Partnership",
-          "title": "Synthetic enterprise partnership announcement",
-          "change_status": "baseline",
-          "analysis_status": "complete",
-          "severity": "medium",
-          "score_components": {
-            "materiality": 2,
-            "relevance": 2,
-            "evidence_strength": 2,
-            "novelty": 0,
-            "confidence": 0.8,
-            "total": 6,
-            "rubric_version": 2
-          },
-          "severity_reason": "Positioning-impact rubric v2: materiality 2, relevance 2, evidence strength 2, novelty 0.",
-          "facts": [
-            {
-              "claim_id": "financial-0",
-              "text": "revenue for 2024: 1000.00 XTS (synthetic_currency_units).",
-              "evidence_ids": [
-                "1269a33f-d1a1-4531-8ecd-7a98079b26f5"
-              ]
-            },
-            {
-              "claim_id": "financial-1",
-              "text": "earnings for 2024: 100.00 XTS (synthetic_currency_units).",
-              "evidence_ids": [
-                "72b4a9c3-f80d-407b-b35d-93fb7e4c714c"
-              ]
-            },
-            {
-              "claim_id": "financial-2",
-              "text": "revenue for 2025: 1200.00 XTS (synthetic_currency_units).",
-              "evidence_ids": [
-                "bd8e498e-6c07-41a4-ad40-e1bfaba7bae6"
-              ]
-            },
-            {
-              "claim_id": "financial-3",
-              "text": "earnings for 2025: 150.00 XTS (synthetic_currency_units).",
-              "evidence_ids": [
-                "cc569a5c-9497-433f-b8ef-bbe721bbbfc1"
-              ]
-            },
-            {
-              "claim_id": "revenue-growth",
-              "text": "Calculated revenue growth: 20.00%.",
-              "evidence_ids": [
-                "bd8e498e-6c07-41a4-ad40-e1bfaba7bae6",
-                "1269a33f-d1a1-4531-8ecd-7a98079b26f5"
-              ]
-            }
-          ],
-          "observed_signals": [
-            {
-              "claim_id": "observation-0",
-              "text": "SYNTHETIC REPLAY: a sample enterprise partnership is announced.",
-              "evidence_ids": [
-                "0120ee2c-8b27-4666-b020-553e2f96b3a5"
-              ]
-            }
-          ],
-          "hypotheses": [
-            {
-              "text": "This observation may affect competitive positioning; intent is unverified.",
-              "supporting_claim_ids": [
-                "observation-0"
-              ],
-              "uncertainty": "high"
-            }
-          ],
-          "financial_context": [
-            {
-              "metric": "revenue",
-              "value": "1000.00",
-              "unit": "synthetic_currency_units",
-              "currency": "XTS",
-              "period": "2024",
-              "comparison_basis": "synthetic_same_scope",
-              "evidence_ids": [
-                "1269a33f-d1a1-4531-8ecd-7a98079b26f5"
-              ]
-            },
-            {
-              "metric": "earnings",
-              "value": "100.00",
-              "unit": "synthetic_currency_units",
-              "currency": "XTS",
-              "period": "2024",
-              "comparison_basis": "synthetic_same_scope",
-              "evidence_ids": [
-                "72b4a9c3-f80d-407b-b35d-93fb7e4c714c"
-              ]
-            },
-            {
-              "metric": "revenue",
-              "value": "1200.00",
-              "unit": "synthetic_currency_units",
-              "currency": "XTS",
-              "period": "2025",
-              "comparison_basis": "synthetic_same_scope",
-              "evidence_ids": [
-                "bd8e498e-6c07-41a4-ad40-e1bfaba7bae6"
-              ]
-            },
-            {
-              "metric": "earnings",
-              "value": "150.00",
-              "unit": "synthetic_currency_units",
-              "currency": "XTS",
-              "period": "2025",
-              "comparison_basis": "synthetic_same_scope",
-              "evidence_ids": [
-                "cc569a5c-9497-433f-b8ef-bbe721bbbfc1"
-              ]
-            },
-            {
-              "metric": "revenue_growth_percent",
-              "value": "20.00",
-              "unit": "percent",
-              "currency": null,
-              "period": "2025",
-              "comparison_basis": "adjacent annual periods; synthetic_same_scope",
-              "evidence_ids": [
-                "bd8e498e-6c07-41a4-ad40-e1bfaba7bae6",
-                "1269a33f-d1a1-4531-8ecd-7a98079b26f5"
-              ]
-            }
-          ],
-          "why_marketing_should_care": {
-            "text": "Hypothesis: review this evidence when assessing messaging; it does not establish business impact.",
-            "supporting_claim_ids": [
-              "observation-0"
-            ],
-            "uncertainty": "high"
-          },
-          "evidence": [
-            {
-              "id": "0120ee2c-8b27-4666-b020-553e2f96b3a5",
-              "snapshot_id": "cb9d0873-b1e1-4e3b-b45c-65c869cd447e",
-              "source": "public",
-              "url_or_endpoint": "https://replay.invalid/TLKM",
-              "excerpt_or_json_pointer": "SYNTHETIC REPLAY: a sample enterprise partnership is announced.",
-              "published_at": "2025-01-15",
-              "fetched_at": "2026-09-27T13:29:52.475088+00:00",
-              "cache_status": "fetched"
-            },
-            {
-              "id": "1269a33f-d1a1-4531-8ecd-7a98079b26f5",
-              "snapshot_id": "4ccc4bc3-02da-4f12-b23c-724e641d12e7",
-              "source": "sectors",
-              "url_or_endpoint": "https://api.sectors.app/v2/company/report/TLKM/?sections=financials%2Coverview",
-              "excerpt_or_json_pointer": "/financials/historical_financials/0/revenue",
-              "published_at": null,
-              "fetched_at": "2026-09-27T13:29:52.466318+00:00",
-              "cache_status": "fetched"
-            },
-            {
-              "id": "72b4a9c3-f80d-407b-b35d-93fb7e4c714c",
-              "snapshot_id": "4ccc4bc3-02da-4f12-b23c-724e641d12e7",
-              "source": "sectors",
-              "url_or_endpoint": "https://api.sectors.app/v2/company/report/TLKM/?sections=financials%2Coverview",
-              "excerpt_or_json_pointer": "/financials/historical_financials/0/earnings",
-              "published_at": null,
-              "fetched_at": "2026-09-27T13:29:52.466318+00:00",
-              "cache_status": "fetched"
-            },
-            {
-              "id": "bd8e498e-6c07-41a4-ad40-e1bfaba7bae6",
-              "snapshot_id": "4ccc4bc3-02da-4f12-b23c-724e641d12e7",
-              "source": "sectors",
-              "url_or_endpoint": "https://api.sectors.app/v2/company/report/TLKM/?sections=financials%2Coverview",
-              "excerpt_or_json_pointer": "/financials/historical_financials/1/revenue",
-              "published_at": null,
-              "fetched_at": "2026-09-27T13:29:52.466318+00:00",
-              "cache_status": "fetched"
-            },
-            {
-              "id": "cc569a5c-9497-433f-b8ef-bbe721bbbfc1",
-              "snapshot_id": "4ccc4bc3-02da-4f12-b23c-724e641d12e7",
-              "source": "sectors",
-              "url_or_endpoint": "https://api.sectors.app/v2/company/report/TLKM/?sections=financials%2Coverview",
-              "excerpt_or_json_pointer": "/financials/historical_financials/1/earnings",
-              "published_at": null,
-              "fetched_at": "2026-09-27T13:29:52.466318+00:00",
-              "cache_status": "fetched"
-            }
-          ],
-          "run_id": "4101fe91-0f7b-4b2a-885b-50ea89bf0259",
-          "compared_against_run_id": null,
-          "first_seen_at": "2026-09-27T13:29:52.503500+00:00",
-          "published_at": "2025-01-15",
-          "stored_at": "2026-09-27T13:29:52.503500+00:00"
+          "stored_at": "2026-10-01T15:43:07.786763+00:00"
         }
       ],
       "financial_brief": null,
@@ -939,8 +1009,16 @@
         "attempt": 1,
         "status": "completed",
         "message": "Selecting approved evidence tools",
-        "details": {},
-        "duration_ms": 5
+        "details": {
+          "planner": "deterministic",
+          "route": "competitive_activity",
+          "route_reason": "Activity question: approved pages plus financial context",
+          "required_tools": [
+            "get_company_metrics",
+            "get_recent_signals"
+          ]
+        },
+        "duration_ms": 6
       },
       {
         "stage": "collect",
@@ -949,13 +1027,76 @@
         "status": "completed",
         "message": "Collecting provider evidence",
         "details": {
+          "tools": [
+            {
+              "name": "get_company_metrics",
+              "company_ids": [
+                "a173273b-16e0-4b55-b06a-4e9e4ea62a29"
+              ],
+              "requested_periods": [],
+              "comparable_period": null,
+              "source_offset": 0,
+              "reason": "Retrieve financial statements"
+            },
+            {
+              "name": "get_recent_signals",
+              "company_ids": [
+                "a173273b-16e0-4b55-b06a-4e9e4ea62a29"
+              ],
+              "requested_periods": [],
+              "comparable_period": null,
+              "source_offset": 0,
+              "reason": "Compare approved public evidence"
+            },
+            {
+              "name": "get_company_metrics",
+              "company_ids": [
+                "082fc89f-c016-4710-8598-9056ab5dfb47"
+              ],
+              "requested_periods": [],
+              "comparable_period": null,
+              "source_offset": 0,
+              "reason": "Retrieve financial statements"
+            },
+            {
+              "name": "get_recent_signals",
+              "company_ids": [
+                "082fc89f-c016-4710-8598-9056ab5dfb47"
+              ],
+              "requested_periods": [],
+              "comparable_period": null,
+              "source_offset": 0,
+              "reason": "Compare approved public evidence"
+            },
+            {
+              "name": "get_company_metrics",
+              "company_ids": [
+                "f5e8ee30-c0c9-4976-9c79-2bab4e96d953"
+              ],
+              "requested_periods": [],
+              "comparable_period": null,
+              "source_offset": 0,
+              "reason": "Retrieve financial statements"
+            },
+            {
+              "name": "get_recent_signals",
+              "company_ids": [
+                "f5e8ee30-c0c9-4976-9c79-2bab4e96d953"
+              ],
+              "requested_periods": [],
+              "comparable_period": null,
+              "source_offset": 0,
+              "reason": "Compare approved public evidence"
+            }
+          ],
           "coverage": [
             {
               "tool": "get_company_metrics",
               "company_ids": [
-                "0fedcb73-84f8-43d1-bc5a-ff849589c574"
+                "a173273b-16e0-4b55-b06a-4e9e4ea62a29"
               ],
               "status": "ok",
+              "stage": "collect",
               "cache_status": "fetched",
               "duration_ms": 16,
               "estimated_credits": 0
@@ -963,107 +1104,113 @@
             {
               "tool": "get_recent_signals",
               "company_ids": [
-                "0fedcb73-84f8-43d1-bc5a-ff849589c574"
+                "a173273b-16e0-4b55-b06a-4e9e4ea62a29"
               ],
               "status": "ok",
+              "stage": "collect",
+              "cache_status": null,
+              "duration_ms": 30,
+              "estimated_credits": 0
+            },
+            {
+              "tool": "get_company_metrics",
+              "company_ids": [
+                "082fc89f-c016-4710-8598-9056ab5dfb47"
+              ],
+              "status": "ok",
+              "stage": "collect",
+              "cache_status": "fetched",
+              "duration_ms": 0,
+              "estimated_credits": 0
+            },
+            {
+              "tool": "get_recent_signals",
+              "company_ids": [
+                "082fc89f-c016-4710-8598-9056ab5dfb47"
+              ],
+              "status": "ok",
+              "stage": "collect",
+              "cache_status": null,
+              "duration_ms": 0,
+              "estimated_credits": 0
+            },
+            {
+              "tool": "get_company_metrics",
+              "company_ids": [
+                "f5e8ee30-c0c9-4976-9c79-2bab4e96d953"
+              ],
+              "status": "ok",
+              "stage": "collect",
+              "cache_status": "fetched",
+              "duration_ms": 0,
+              "estimated_credits": 0
+            },
+            {
+              "tool": "get_recent_signals",
+              "company_ids": [
+                "f5e8ee30-c0c9-4976-9c79-2bab4e96d953"
+              ],
+              "status": "ok",
+              "stage": "collect",
               "cache_status": null,
               "duration_ms": 15,
-              "estimated_credits": 0
-            },
-            {
-              "tool": "get_company_metrics",
-              "company_ids": [
-                "0551dc2d-d6ab-44f7-8c73-6baa2e2083a8"
-              ],
-              "status": "ok",
-              "cache_status": "fetched",
-              "duration_ms": 0,
-              "estimated_credits": 0
-            },
-            {
-              "tool": "get_recent_signals",
-              "company_ids": [
-                "0551dc2d-d6ab-44f7-8c73-6baa2e2083a8"
-              ],
-              "status": "ok",
-              "cache_status": null,
-              "duration_ms": 0,
-              "estimated_credits": 0
-            },
-            {
-              "tool": "get_company_metrics",
-              "company_ids": [
-                "e6ade681-a8e9-41c9-816c-e8b529045d38"
-              ],
-              "status": "ok",
-              "cache_status": "fetched",
-              "duration_ms": 16,
-              "estimated_credits": 0
-            },
-            {
-              "tool": "get_recent_signals",
-              "company_ids": [
-                "e6ade681-a8e9-41c9-816c-e8b529045d38"
-              ],
-              "status": "ok",
-              "cache_status": null,
-              "duration_ms": 0,
               "estimated_credits": 0
             }
           ]
         },
-        "duration_ms": 63
+        "duration_ms": 98
       },
       {
         "stage": "compare",
-        "sequence": 3,
+        "sequence": 4,
         "attempt": 1,
         "status": "completed",
         "message": "Comparing collected evidence",
         "details": {},
-        "duration_ms": 4
+        "duration_ms": 6
       },
       {
         "stage": "analyze",
-        "sequence": 4,
+        "sequence": 5,
         "attempt": 1,
         "status": "completed",
         "message": "Generating evidence-linked interpretation",
         "details": {
           "adapter": "deterministic",
-          "candidates": 3
+          "candidates": 3,
+          "interpreter": "deterministic"
         },
-        "duration_ms": 2
+        "duration_ms": 27
       },
       {
         "stage": "validate_output",
-        "sequence": 5,
+        "sequence": 6,
         "attempt": 1,
         "status": "completed",
         "message": "Schema and supporting claims validated",
         "details": {},
-        "duration_ms": 1
+        "duration_ms": 3
       },
       {
         "stage": "persist",
-        "sequence": 6,
+        "sequence": 7,
         "attempt": 1,
         "status": "completed",
         "message": "Storing cited investigation",
         "details": {},
-        "duration_ms": 15
+        "duration_ms": 17
       }
     ]
   },
   "dashboard": {
     "watchlist": {
-      "id": "a26f1fae-7226-4090-9c37-f68663f75287",
+      "id": "e066ef54-6eb6-434c-b698-5442fed019a4",
       "name": "Indonesian telecoms",
       "objective": "Monitor product, pricing and partnership developments",
       "user_company": null,
       "companies": [
         {
-          "id": "0fedcb73-84f8-43d1-bc5a-ff849589c574",
+          "id": "a173273b-16e0-4b55-b06a-4e9e4ea62a29",
           "symbol": "EXCL",
           "ticker": "EXCL",
           "name": "PT XLSMART Telecom Sejahtera Tbk",
@@ -1080,7 +1227,7 @@
           "comparison_note": "2025 merger changed scope; do not compare pre/post-merger growth."
         },
         {
-          "id": "0551dc2d-d6ab-44f7-8c73-6baa2e2083a8",
+          "id": "082fc89f-c016-4710-8598-9056ab5dfb47",
           "symbol": "ISAT",
           "ticker": "ISAT",
           "name": "PT Indosat Tbk",
@@ -1096,7 +1243,7 @@
           "comparison_note": "Reporting scope must be verified before growth comparisons."
         },
         {
-          "id": "e6ade681-a8e9-41c9-816c-e8b529045d38",
+          "id": "f5e8ee30-c0c9-4976-9c79-2bab4e96d953",
           "symbol": "TLKM",
           "ticker": "TLKM",
           "name": "PT Telkom Indonesia (Persero) Tbk",
@@ -1112,101 +1259,12 @@
           "comparison_note": "Reporting scope must be verified before growth comparisons."
         }
       ],
-      "created_at": "2026-09-27T13:29:52.057222+00:00",
-      "updated_at": "2026-09-27T13:29:52.057222+00:00"
+      "created_at": "2026-10-01T15:43:07.179438+00:00",
+      "updated_at": "2026-10-01T15:43:07.179438+00:00"
     },
     "signals": [
       {
-        "id": "e8126113-ef83-4a6b-b768-6d5a351a3708",
-        "company": "TLKM",
-        "companyName": "PT Telkom Indonesia (Persero) Tbk",
-        "type": "Partnership",
-        "title": "[REPLAY] Synthetic enterprise partnership announcement",
-        "subline": "replay · baseline · complete",
-        "headline": "SYNTHETIC REPLAY: a sample enterprise partnership is announced.",
-        "severity": "medium",
-        "detectedAt": "2026-09-27",
-        "runId": "4101fe91-0f7b-4b2a-885b-50ea89bf0259",
-        "storedAt": "2026-09-27T13:29:52.503500+00:00",
-        "comparedAgainstRunId": "",
-        "evidence": [
-          {
-            "kind": "fact",
-            "source": "Stored evidence",
-            "text": "revenue for 2024: 1000.00 XTS (synthetic_currency_units)."
-          },
-          {
-            "kind": "fact",
-            "source": "Stored evidence",
-            "text": "earnings for 2024: 100.00 XTS (synthetic_currency_units)."
-          },
-          {
-            "kind": "fact",
-            "source": "Stored evidence",
-            "text": "revenue for 2025: 1200.00 XTS (synthetic_currency_units)."
-          },
-          {
-            "kind": "fact",
-            "source": "Stored evidence",
-            "text": "earnings for 2025: 150.00 XTS (synthetic_currency_units)."
-          },
-          {
-            "kind": "fact",
-            "source": "Stored evidence",
-            "text": "Calculated revenue growth: 20.00%."
-          },
-          {
-            "kind": "observed_signal",
-            "source": "Stored evidence",
-            "text": "SYNTHETIC REPLAY: a sample enterprise partnership is announced."
-          },
-          {
-            "kind": "hypothesis",
-            "source": "AI interpretation",
-            "text": "This observation may affect competitive positioning; intent is unverified."
-          }
-        ],
-        "financialContext": {
-          "seriesCaption": "Sectors annual revenue; source currency and unit shown in metrics",
-          "series": [
-            {
-              "label": "2024",
-              "value": 1000.0
-            },
-            {
-              "label": "2025",
-              "value": 1200.0
-            }
-          ],
-          "metrics": [
-            {
-              "label": "revenue · 2024",
-              "value": "1000.00 XTS synthetic_currency_units"
-            },
-            {
-              "label": "earnings · 2024",
-              "value": "100.00 XTS synthetic_currency_units"
-            },
-            {
-              "label": "revenue · 2025",
-              "value": "1200.00 XTS synthetic_currency_units"
-            },
-            {
-              "label": "earnings · 2025",
-              "value": "150.00 XTS synthetic_currency_units"
-            },
-            {
-              "label": "revenue_growth_percent · 2025",
-              "value": "20.00  percent"
-            }
-          ],
-          "whyItMatters": "Hypothesis: Hypothesis: review this evidence when assessing messaging; it does not establish business impact."
-        },
-        "mode": "replay",
-        "change_status": "baseline"
-      },
-      {
-        "id": "d7bdc733-55ce-4ea4-9c67-39b949e8dcc6",
+        "id": "c092e13e-11eb-4078-82da-eed73891ebb5",
         "company": "ISAT",
         "companyName": "PT Indosat Tbk",
         "type": "Pricing",
@@ -1214,9 +1272,9 @@
         "subline": "replay · baseline · complete",
         "headline": "SYNTHETIC REPLAY: sample package costs 100 XTS per month for 10 units, all customers.",
         "severity": "medium",
-        "detectedAt": "2026-09-27",
-        "runId": "4101fe91-0f7b-4b2a-885b-50ea89bf0259",
-        "storedAt": "2026-09-27T13:29:52.501991+00:00",
+        "detectedAt": "2026-10-01",
+        "runId": "b63e2a14-ffc2-49e8-b447-37800817295d",
+        "storedAt": "2026-10-01T15:43:07.786763+00:00",
         "comparedAgainstRunId": "",
         "evidence": [
           {
@@ -1295,7 +1353,7 @@
         "change_status": "baseline"
       },
       {
-        "id": "abe7e305-ec91-4379-8dcf-e8dd2bdb0507",
+        "id": "f91d7f99-2332-4aa6-b055-a1704a8a983f",
         "company": "EXCL",
         "companyName": "PT XLSMART Telecom Sejahtera Tbk",
         "type": "Product",
@@ -1303,9 +1361,9 @@
         "subline": "replay · baseline · complete",
         "headline": "SYNTHETIC REPLAY: a sample product is introduced.",
         "severity": "medium",
-        "detectedAt": "2026-09-27",
-        "runId": "4101fe91-0f7b-4b2a-885b-50ea89bf0259",
-        "storedAt": "2026-09-27T13:29:52.497435+00:00",
+        "detectedAt": "2026-10-01",
+        "runId": "b63e2a14-ffc2-49e8-b447-37800817295d",
+        "storedAt": "2026-10-01T15:43:07.784200+00:00",
         "comparedAgainstRunId": "",
         "evidence": [
           {
@@ -1337,6 +1395,105 @@
             "kind": "observed_signal",
             "source": "Stored evidence",
             "text": "SYNTHETIC REPLAY: a sample product is introduced."
+          },
+          {
+            "kind": "observed_signal",
+            "source": "Stored evidence",
+            "text": "SYNTHETIC REPLAY: a sample product is introduced."
+          },
+          {
+            "kind": "hypothesis",
+            "source": "AI interpretation",
+            "text": "This observation may affect competitive positioning; intent is unverified."
+          }
+        ],
+        "financialContext": {
+          "seriesCaption": "Sectors annual revenue; source currency and unit shown in metrics",
+          "series": [
+            {
+              "label": "2024",
+              "value": 1000.0
+            },
+            {
+              "label": "2025",
+              "value": 1200.0
+            }
+          ],
+          "metrics": [
+            {
+              "label": "revenue · 2024",
+              "value": "1000.00 XTS synthetic_currency_units"
+            },
+            {
+              "label": "earnings · 2024",
+              "value": "100.00 XTS synthetic_currency_units"
+            },
+            {
+              "label": "revenue · 2025",
+              "value": "1200.00 XTS synthetic_currency_units"
+            },
+            {
+              "label": "earnings · 2025",
+              "value": "150.00 XTS synthetic_currency_units"
+            },
+            {
+              "label": "revenue_growth_percent · 2025",
+              "value": "20.00  percent"
+            }
+          ],
+          "whyItMatters": "Hypothesis: Hypothesis: review this evidence when assessing messaging; it does not establish business impact."
+        },
+        "mode": "replay",
+        "change_status": "baseline"
+      },
+      {
+        "id": "319b9ecf-14d8-4999-b4ae-a477a5a7e62b",
+        "company": "TLKM",
+        "companyName": "PT Telkom Indonesia (Persero) Tbk",
+        "type": "Partnership",
+        "title": "[REPLAY] Synthetic enterprise partnership announcement",
+        "subline": "replay · baseline · complete",
+        "headline": "SYNTHETIC REPLAY: a sample enterprise partnership is announced.",
+        "severity": "medium",
+        "detectedAt": "2026-10-01",
+        "runId": "b63e2a14-ffc2-49e8-b447-37800817295d",
+        "storedAt": "2026-10-01T15:43:07.779589+00:00",
+        "comparedAgainstRunId": "",
+        "evidence": [
+          {
+            "kind": "fact",
+            "source": "Stored evidence",
+            "text": "revenue for 2024: 1000.00 XTS (synthetic_currency_units)."
+          },
+          {
+            "kind": "fact",
+            "source": "Stored evidence",
+            "text": "earnings for 2024: 100.00 XTS (synthetic_currency_units)."
+          },
+          {
+            "kind": "fact",
+            "source": "Stored evidence",
+            "text": "revenue for 2025: 1200.00 XTS (synthetic_currency_units)."
+          },
+          {
+            "kind": "fact",
+            "source": "Stored evidence",
+            "text": "earnings for 2025: 150.00 XTS (synthetic_currency_units)."
+          },
+          {
+            "kind": "fact",
+            "source": "Stored evidence",
+            "text": "Calculated revenue growth: 20.00%."
+          },
+          {
+            "kind": "observed_signal",
+            "source": "Stored evidence",
+            "text": "SYNTHETIC REPLAY: a sample enterprise partnership is announced."
+          },
+          {
+            "kind": "observed_signal",
+            "source": "Stored evidence",
+            "text": "SYNTHETIC REPLAY: a sample enterprise partnership is announced."
           },
           {
             "kind": "hypothesis",
@@ -1433,84 +1590,91 @@
         "body": "Cited observations and explicitly uncertain interpretations.",
         "counts": {
           "facts": 15,
-          "observedSignals": 3,
+          "observedSignals": 5,
           "hypotheses": 3
         }
       },
-      "lastRunAt": "2026-09-27T13:29:52.394163+00:00"
+      "lastRunAt": "2026-10-01T15:43:07.611669+00:00"
     }
   },
   "signal_detail": {
     "signal": {
       "schema_version": 1,
-      "signal_id": "abe7e305-ec91-4379-8dcf-e8dd2bdb0507",
-      "revision_id": "971603e4-ce75-4854-884c-666c6e47776c",
+      "signal_id": "319b9ecf-14d8-4999-b4ae-a477a5a7e62b",
+      "revision_id": "0f8d9bf0-fb0b-4839-99be-6d32ca3fe2ea",
       "company": {
-        "id": "0fedcb73-84f8-43d1-bc5a-ff849589c574",
-        "symbol": "EXCL",
-        "name": "PT XLSMART Telecom Sejahtera Tbk",
+        "id": "f5e8ee30-c0c9-4976-9c79-2bab4e96d953",
+        "symbol": "TLKM",
+        "name": "PT Telkom Indonesia (Persero) Tbk",
         "industry": "Telecommunications"
       },
       "mode": "replay",
-      "type": "Product",
-      "title": "Synthetic product launch",
+      "type": "Partnership",
+      "title": "Synthetic enterprise partnership announcement",
       "change_status": "baseline",
       "analysis_status": "complete",
       "severity": "medium",
       "score_components": {
         "materiality": 2,
-        "relevance": 3,
-        "evidence_strength": 2,
+        "relevance": 2,
+        "evidence_strength": 3,
         "novelty": 0,
-        "confidence": 0.8,
+        "confidence": 0.9,
         "total": 7,
         "rubric_version": 2
       },
-      "severity_reason": "Positioning-impact rubric v2: materiality 2, relevance 3, evidence strength 2, novelty 0.",
+      "severity_reason": "Positioning-impact rubric v2: materiality 2, relevance 2, evidence strength 3, novelty 0.",
       "facts": [
         {
           "claim_id": "financial-0",
           "text": "revenue for 2024: 1000.00 XTS (synthetic_currency_units).",
           "evidence_ids": [
-            "0db9668c-0f46-4291-82b5-18b27b571534"
+            "ba96d9e0-51bb-49a3-84eb-4bfb0459868b"
           ]
         },
         {
           "claim_id": "financial-1",
           "text": "earnings for 2024: 100.00 XTS (synthetic_currency_units).",
           "evidence_ids": [
-            "4aec9fb6-b04a-416e-b516-61fbb7c319fc"
+            "945792aa-39d2-4a18-8fb3-82d52649b253"
           ]
         },
         {
           "claim_id": "financial-2",
           "text": "revenue for 2025: 1200.00 XTS (synthetic_currency_units).",
           "evidence_ids": [
-            "c849c6d6-83b7-446e-b50f-83ebd94347a7"
+            "2723fd02-0cd3-4a2d-a9e5-b8cdc181c124"
           ]
         },
         {
           "claim_id": "financial-3",
           "text": "earnings for 2025: 150.00 XTS (synthetic_currency_units).",
           "evidence_ids": [
-            "46a962f9-dc5b-4786-bbd0-2b7d47d5259d"
+            "21b749c0-d7a1-4e25-97f2-c5ea95d23983"
           ]
         },
         {
           "claim_id": "revenue-growth",
           "text": "Calculated revenue growth: 20.00%.",
           "evidence_ids": [
-            "c849c6d6-83b7-446e-b50f-83ebd94347a7",
-            "0db9668c-0f46-4291-82b5-18b27b571534"
+            "2723fd02-0cd3-4a2d-a9e5-b8cdc181c124",
+            "ba96d9e0-51bb-49a3-84eb-4bfb0459868b"
           ]
         }
       ],
       "observed_signals": [
         {
           "claim_id": "observation-0",
-          "text": "SYNTHETIC REPLAY: a sample product is introduced.",
+          "text": "SYNTHETIC REPLAY: a sample enterprise partnership is announced.",
           "evidence_ids": [
-            "e41a9e6d-306d-48ec-b62f-8d145c0b2a34"
+            "4e39b27a-2110-4604-9a2e-e9efd1a462b9"
+          ]
+        },
+        {
+          "claim_id": "observation-1",
+          "text": "SYNTHETIC REPLAY: a sample enterprise partnership is announced.",
+          "evidence_ids": [
+            "75ec21e3-1673-4a46-a775-93a752f5b49c"
           ]
         }
       ],
@@ -1518,7 +1682,8 @@
         {
           "text": "This observation may affect competitive positioning; intent is unverified.",
           "supporting_claim_ids": [
-            "observation-0"
+            "observation-0",
+            "observation-1"
           ],
           "uncertainty": "high"
         }
@@ -1532,7 +1697,7 @@
           "period": "2024",
           "comparison_basis": "synthetic_same_scope",
           "evidence_ids": [
-            "0db9668c-0f46-4291-82b5-18b27b571534"
+            "ba96d9e0-51bb-49a3-84eb-4bfb0459868b"
           ]
         },
         {
@@ -1543,7 +1708,7 @@
           "period": "2024",
           "comparison_basis": "synthetic_same_scope",
           "evidence_ids": [
-            "4aec9fb6-b04a-416e-b516-61fbb7c319fc"
+            "945792aa-39d2-4a18-8fb3-82d52649b253"
           ]
         },
         {
@@ -1554,7 +1719,7 @@
           "period": "2025",
           "comparison_basis": "synthetic_same_scope",
           "evidence_ids": [
-            "c849c6d6-83b7-446e-b50f-83ebd94347a7"
+            "2723fd02-0cd3-4a2d-a9e5-b8cdc181c124"
           ]
         },
         {
@@ -1565,7 +1730,7 @@
           "period": "2025",
           "comparison_basis": "synthetic_same_scope",
           "evidence_ids": [
-            "46a962f9-dc5b-4786-bbd0-2b7d47d5259d"
+            "21b749c0-d7a1-4e25-97f2-c5ea95d23983"
           ]
         },
         {
@@ -1576,147 +1741,165 @@
           "period": "2025",
           "comparison_basis": "adjacent annual periods; synthetic_same_scope",
           "evidence_ids": [
-            "c849c6d6-83b7-446e-b50f-83ebd94347a7",
-            "0db9668c-0f46-4291-82b5-18b27b571534"
+            "2723fd02-0cd3-4a2d-a9e5-b8cdc181c124",
+            "ba96d9e0-51bb-49a3-84eb-4bfb0459868b"
           ]
         }
       ],
       "why_marketing_should_care": {
         "text": "Hypothesis: review this evidence when assessing messaging; it does not establish business impact.",
         "supporting_claim_ids": [
-          "observation-0"
+          "observation-0",
+          "observation-1"
         ],
         "uncertainty": "high"
       },
       "evidence": [
         {
-          "id": "e41a9e6d-306d-48ec-b62f-8d145c0b2a34",
-          "snapshot_id": "9d6cecc0-bc81-42ce-9439-d5416a189a90",
+          "id": "4e39b27a-2110-4604-9a2e-e9efd1a462b9",
+          "snapshot_id": "3549af72-6c33-460c-8586-2b63cb31d0c7",
           "source": "public",
-          "url_or_endpoint": "https://replay.invalid/EXCL",
-          "excerpt_or_json_pointer": "SYNTHETIC REPLAY: a sample product is introduced.",
-          "published_at": "2025-01-17",
-          "fetched_at": "2026-09-27T13:29:52.437849+00:00",
+          "url_or_endpoint": "https://replay.invalid/TLKM",
+          "excerpt_or_json_pointer": "SYNTHETIC REPLAY: a sample enterprise partnership is announced.",
+          "published_at": "2025-01-15",
+          "fetched_at": "2026-10-01T15:43:07.723933+00:00",
           "cache_status": "fetched"
         },
         {
-          "id": "0db9668c-0f46-4291-82b5-18b27b571534",
-          "snapshot_id": "38630981-2417-4d82-8397-1c36fb33b36c",
+          "id": "75ec21e3-1673-4a46-a775-93a752f5b49c",
+          "snapshot_id": "e29fa588-c0d3-4778-a280-7651f42cd136",
+          "source": "public",
+          "url_or_endpoint": "https://replay.invalid/TLKM",
+          "excerpt_or_json_pointer": "SYNTHETIC REPLAY: a sample enterprise partnership is announced.",
+          "published_at": "2025-01-15",
+          "fetched_at": "2026-10-01T15:43:07.721414+00:00",
+          "cache_status": "fetched"
+        },
+        {
+          "id": "ba96d9e0-51bb-49a3-84eb-4bfb0459868b",
+          "snapshot_id": "5d073901-7239-4863-8e6c-a80974d0a2cd",
           "source": "sectors",
-          "url_or_endpoint": "https://api.sectors.app/v2/company/report/EXCL/?sections=financials%2Coverview",
+          "url_or_endpoint": "https://api.sectors.app/v2/company/report/TLKM/?sections=financials%2Coverview",
           "excerpt_or_json_pointer": "/financials/historical_financials/0/revenue",
           "published_at": null,
-          "fetched_at": "2026-09-27T13:29:52.426320+00:00",
+          "fetched_at": "2026-10-01T15:43:07.711465+00:00",
           "cache_status": "fetched"
         },
         {
-          "id": "4aec9fb6-b04a-416e-b516-61fbb7c319fc",
-          "snapshot_id": "38630981-2417-4d82-8397-1c36fb33b36c",
+          "id": "945792aa-39d2-4a18-8fb3-82d52649b253",
+          "snapshot_id": "5d073901-7239-4863-8e6c-a80974d0a2cd",
           "source": "sectors",
-          "url_or_endpoint": "https://api.sectors.app/v2/company/report/EXCL/?sections=financials%2Coverview",
+          "url_or_endpoint": "https://api.sectors.app/v2/company/report/TLKM/?sections=financials%2Coverview",
           "excerpt_or_json_pointer": "/financials/historical_financials/0/earnings",
           "published_at": null,
-          "fetched_at": "2026-09-27T13:29:52.426320+00:00",
+          "fetched_at": "2026-10-01T15:43:07.711465+00:00",
           "cache_status": "fetched"
         },
         {
-          "id": "c849c6d6-83b7-446e-b50f-83ebd94347a7",
-          "snapshot_id": "38630981-2417-4d82-8397-1c36fb33b36c",
+          "id": "2723fd02-0cd3-4a2d-a9e5-b8cdc181c124",
+          "snapshot_id": "5d073901-7239-4863-8e6c-a80974d0a2cd",
           "source": "sectors",
-          "url_or_endpoint": "https://api.sectors.app/v2/company/report/EXCL/?sections=financials%2Coverview",
+          "url_or_endpoint": "https://api.sectors.app/v2/company/report/TLKM/?sections=financials%2Coverview",
           "excerpt_or_json_pointer": "/financials/historical_financials/1/revenue",
           "published_at": null,
-          "fetched_at": "2026-09-27T13:29:52.426320+00:00",
+          "fetched_at": "2026-10-01T15:43:07.711465+00:00",
           "cache_status": "fetched"
         },
         {
-          "id": "46a962f9-dc5b-4786-bbd0-2b7d47d5259d",
-          "snapshot_id": "38630981-2417-4d82-8397-1c36fb33b36c",
+          "id": "21b749c0-d7a1-4e25-97f2-c5ea95d23983",
+          "snapshot_id": "5d073901-7239-4863-8e6c-a80974d0a2cd",
           "source": "sectors",
-          "url_or_endpoint": "https://api.sectors.app/v2/company/report/EXCL/?sections=financials%2Coverview",
+          "url_or_endpoint": "https://api.sectors.app/v2/company/report/TLKM/?sections=financials%2Coverview",
           "excerpt_or_json_pointer": "/financials/historical_financials/1/earnings",
           "published_at": null,
-          "fetched_at": "2026-09-27T13:29:52.426320+00:00",
+          "fetched_at": "2026-10-01T15:43:07.711465+00:00",
           "cache_status": "fetched"
         }
       ],
-      "run_id": "4101fe91-0f7b-4b2a-885b-50ea89bf0259",
+      "run_id": "b63e2a14-ffc2-49e8-b447-37800817295d",
       "compared_against_run_id": null,
-      "first_seen_at": "2026-09-27T13:29:52.495930+00:00",
-      "published_at": "2025-01-17",
-      "stored_at": "2026-09-27T13:29:52.497435+00:00"
+      "first_seen_at": "2026-10-01T15:43:07.777078+00:00",
+      "published_at": "2025-01-15",
+      "stored_at": "2026-10-01T15:43:07.779589+00:00"
     },
     "revisions": [
       {
         "schema_version": 1,
-        "signal_id": "abe7e305-ec91-4379-8dcf-e8dd2bdb0507",
-        "revision_id": "971603e4-ce75-4854-884c-666c6e47776c",
+        "signal_id": "319b9ecf-14d8-4999-b4ae-a477a5a7e62b",
+        "revision_id": "0f8d9bf0-fb0b-4839-99be-6d32ca3fe2ea",
         "company": {
-          "id": "0fedcb73-84f8-43d1-bc5a-ff849589c574",
-          "symbol": "EXCL",
-          "name": "PT XLSMART Telecom Sejahtera Tbk",
+          "id": "f5e8ee30-c0c9-4976-9c79-2bab4e96d953",
+          "symbol": "TLKM",
+          "name": "PT Telkom Indonesia (Persero) Tbk",
           "industry": "Telecommunications"
         },
         "mode": "replay",
-        "type": "Product",
-        "title": "Synthetic product launch",
+        "type": "Partnership",
+        "title": "Synthetic enterprise partnership announcement",
         "change_status": "baseline",
         "analysis_status": "complete",
         "severity": "medium",
         "score_components": {
           "materiality": 2,
-          "relevance": 3,
-          "evidence_strength": 2,
+          "relevance": 2,
+          "evidence_strength": 3,
           "novelty": 0,
-          "confidence": 0.8,
+          "confidence": 0.9,
           "total": 7,
           "rubric_version": 2
         },
-        "severity_reason": "Positioning-impact rubric v2: materiality 2, relevance 3, evidence strength 2, novelty 0.",
+        "severity_reason": "Positioning-impact rubric v2: materiality 2, relevance 2, evidence strength 3, novelty 0.",
         "facts": [
           {
             "claim_id": "financial-0",
             "text": "revenue for 2024: 1000.00 XTS (synthetic_currency_units).",
             "evidence_ids": [
-              "0db9668c-0f46-4291-82b5-18b27b571534"
+              "ba96d9e0-51bb-49a3-84eb-4bfb0459868b"
             ]
           },
           {
             "claim_id": "financial-1",
             "text": "earnings for 2024: 100.00 XTS (synthetic_currency_units).",
             "evidence_ids": [
-              "4aec9fb6-b04a-416e-b516-61fbb7c319fc"
+              "945792aa-39d2-4a18-8fb3-82d52649b253"
             ]
           },
           {
             "claim_id": "financial-2",
             "text": "revenue for 2025: 1200.00 XTS (synthetic_currency_units).",
             "evidence_ids": [
-              "c849c6d6-83b7-446e-b50f-83ebd94347a7"
+              "2723fd02-0cd3-4a2d-a9e5-b8cdc181c124"
             ]
           },
           {
             "claim_id": "financial-3",
             "text": "earnings for 2025: 150.00 XTS (synthetic_currency_units).",
             "evidence_ids": [
-              "46a962f9-dc5b-4786-bbd0-2b7d47d5259d"
+              "21b749c0-d7a1-4e25-97f2-c5ea95d23983"
             ]
           },
           {
             "claim_id": "revenue-growth",
             "text": "Calculated revenue growth: 20.00%.",
             "evidence_ids": [
-              "c849c6d6-83b7-446e-b50f-83ebd94347a7",
-              "0db9668c-0f46-4291-82b5-18b27b571534"
+              "2723fd02-0cd3-4a2d-a9e5-b8cdc181c124",
+              "ba96d9e0-51bb-49a3-84eb-4bfb0459868b"
             ]
           }
         ],
         "observed_signals": [
           {
             "claim_id": "observation-0",
-            "text": "SYNTHETIC REPLAY: a sample product is introduced.",
+            "text": "SYNTHETIC REPLAY: a sample enterprise partnership is announced.",
             "evidence_ids": [
-              "e41a9e6d-306d-48ec-b62f-8d145c0b2a34"
+              "4e39b27a-2110-4604-9a2e-e9efd1a462b9"
+            ]
+          },
+          {
+            "claim_id": "observation-1",
+            "text": "SYNTHETIC REPLAY: a sample enterprise partnership is announced.",
+            "evidence_ids": [
+              "75ec21e3-1673-4a46-a775-93a752f5b49c"
             ]
           }
         ],
@@ -1724,7 +1907,8 @@
           {
             "text": "This observation may affect competitive positioning; intent is unverified.",
             "supporting_claim_ids": [
-              "observation-0"
+              "observation-0",
+              "observation-1"
             ],
             "uncertainty": "high"
           }
@@ -1738,7 +1922,7 @@
             "period": "2024",
             "comparison_basis": "synthetic_same_scope",
             "evidence_ids": [
-              "0db9668c-0f46-4291-82b5-18b27b571534"
+              "ba96d9e0-51bb-49a3-84eb-4bfb0459868b"
             ]
           },
           {
@@ -1749,7 +1933,7 @@
             "period": "2024",
             "comparison_basis": "synthetic_same_scope",
             "evidence_ids": [
-              "4aec9fb6-b04a-416e-b516-61fbb7c319fc"
+              "945792aa-39d2-4a18-8fb3-82d52649b253"
             ]
           },
           {
@@ -1760,7 +1944,7 @@
             "period": "2025",
             "comparison_basis": "synthetic_same_scope",
             "evidence_ids": [
-              "c849c6d6-83b7-446e-b50f-83ebd94347a7"
+              "2723fd02-0cd3-4a2d-a9e5-b8cdc181c124"
             ]
           },
           {
@@ -1771,7 +1955,7 @@
             "period": "2025",
             "comparison_basis": "synthetic_same_scope",
             "evidence_ids": [
-              "46a962f9-dc5b-4786-bbd0-2b7d47d5259d"
+              "21b749c0-d7a1-4e25-97f2-c5ea95d23983"
             ]
           },
           {
@@ -1782,78 +1966,89 @@
             "period": "2025",
             "comparison_basis": "adjacent annual periods; synthetic_same_scope",
             "evidence_ids": [
-              "c849c6d6-83b7-446e-b50f-83ebd94347a7",
-              "0db9668c-0f46-4291-82b5-18b27b571534"
+              "2723fd02-0cd3-4a2d-a9e5-b8cdc181c124",
+              "ba96d9e0-51bb-49a3-84eb-4bfb0459868b"
             ]
           }
         ],
         "why_marketing_should_care": {
           "text": "Hypothesis: review this evidence when assessing messaging; it does not establish business impact.",
           "supporting_claim_ids": [
-            "observation-0"
+            "observation-0",
+            "observation-1"
           ],
           "uncertainty": "high"
         },
         "evidence": [
           {
-            "id": "e41a9e6d-306d-48ec-b62f-8d145c0b2a34",
-            "snapshot_id": "9d6cecc0-bc81-42ce-9439-d5416a189a90",
+            "id": "4e39b27a-2110-4604-9a2e-e9efd1a462b9",
+            "snapshot_id": "3549af72-6c33-460c-8586-2b63cb31d0c7",
             "source": "public",
-            "url_or_endpoint": "https://replay.invalid/EXCL",
-            "excerpt_or_json_pointer": "SYNTHETIC REPLAY: a sample product is introduced.",
-            "published_at": "2025-01-17",
-            "fetched_at": "2026-09-27T13:29:52.437849+00:00",
+            "url_or_endpoint": "https://replay.invalid/TLKM",
+            "excerpt_or_json_pointer": "SYNTHETIC REPLAY: a sample enterprise partnership is announced.",
+            "published_at": "2025-01-15",
+            "fetched_at": "2026-10-01T15:43:07.723933+00:00",
             "cache_status": "fetched"
           },
           {
-            "id": "0db9668c-0f46-4291-82b5-18b27b571534",
-            "snapshot_id": "38630981-2417-4d82-8397-1c36fb33b36c",
+            "id": "75ec21e3-1673-4a46-a775-93a752f5b49c",
+            "snapshot_id": "e29fa588-c0d3-4778-a280-7651f42cd136",
+            "source": "public",
+            "url_or_endpoint": "https://replay.invalid/TLKM",
+            "excerpt_or_json_pointer": "SYNTHETIC REPLAY: a sample enterprise partnership is announced.",
+            "published_at": "2025-01-15",
+            "fetched_at": "2026-10-01T15:43:07.721414+00:00",
+            "cache_status": "fetched"
+          },
+          {
+            "id": "ba96d9e0-51bb-49a3-84eb-4bfb0459868b",
+            "snapshot_id": "5d073901-7239-4863-8e6c-a80974d0a2cd",
             "source": "sectors",
-            "url_or_endpoint": "https://api.sectors.app/v2/company/report/EXCL/?sections=financials%2Coverview",
+            "url_or_endpoint": "https://api.sectors.app/v2/company/report/TLKM/?sections=financials%2Coverview",
             "excerpt_or_json_pointer": "/financials/historical_financials/0/revenue",
             "published_at": null,
-            "fetched_at": "2026-09-27T13:29:52.426320+00:00",
+            "fetched_at": "2026-10-01T15:43:07.711465+00:00",
             "cache_status": "fetched"
           },
           {
-            "id": "4aec9fb6-b04a-416e-b516-61fbb7c319fc",
-            "snapshot_id": "38630981-2417-4d82-8397-1c36fb33b36c",
+            "id": "945792aa-39d2-4a18-8fb3-82d52649b253",
+            "snapshot_id": "5d073901-7239-4863-8e6c-a80974d0a2cd",
             "source": "sectors",
-            "url_or_endpoint": "https://api.sectors.app/v2/company/report/EXCL/?sections=financials%2Coverview",
+            "url_or_endpoint": "https://api.sectors.app/v2/company/report/TLKM/?sections=financials%2Coverview",
             "excerpt_or_json_pointer": "/financials/historical_financials/0/earnings",
             "published_at": null,
-            "fetched_at": "2026-09-27T13:29:52.426320+00:00",
+            "fetched_at": "2026-10-01T15:43:07.711465+00:00",
             "cache_status": "fetched"
           },
           {
-            "id": "c849c6d6-83b7-446e-b50f-83ebd94347a7",
-            "snapshot_id": "38630981-2417-4d82-8397-1c36fb33b36c",
+            "id": "2723fd02-0cd3-4a2d-a9e5-b8cdc181c124",
+            "snapshot_id": "5d073901-7239-4863-8e6c-a80974d0a2cd",
             "source": "sectors",
-            "url_or_endpoint": "https://api.sectors.app/v2/company/report/EXCL/?sections=financials%2Coverview",
+            "url_or_endpoint": "https://api.sectors.app/v2/company/report/TLKM/?sections=financials%2Coverview",
             "excerpt_or_json_pointer": "/financials/historical_financials/1/revenue",
             "published_at": null,
-            "fetched_at": "2026-09-27T13:29:52.426320+00:00",
+            "fetched_at": "2026-10-01T15:43:07.711465+00:00",
             "cache_status": "fetched"
           },
           {
-            "id": "46a962f9-dc5b-4786-bbd0-2b7d47d5259d",
-            "snapshot_id": "38630981-2417-4d82-8397-1c36fb33b36c",
+            "id": "21b749c0-d7a1-4e25-97f2-c5ea95d23983",
+            "snapshot_id": "5d073901-7239-4863-8e6c-a80974d0a2cd",
             "source": "sectors",
-            "url_or_endpoint": "https://api.sectors.app/v2/company/report/EXCL/?sections=financials%2Coverview",
+            "url_or_endpoint": "https://api.sectors.app/v2/company/report/TLKM/?sections=financials%2Coverview",
             "excerpt_or_json_pointer": "/financials/historical_financials/1/earnings",
             "published_at": null,
-            "fetched_at": "2026-09-27T13:29:52.426320+00:00",
+            "fetched_at": "2026-10-01T15:43:07.711465+00:00",
             "cache_status": "fetched"
           }
         ],
-        "run_id": "4101fe91-0f7b-4b2a-885b-50ea89bf0259",
+        "run_id": "b63e2a14-ffc2-49e8-b447-37800817295d",
         "compared_against_run_id": null,
-        "first_seen_at": "2026-09-27T13:29:52.495930+00:00",
-        "published_at": "2025-01-17",
-        "stored_at": "2026-09-27T13:29:52.497435+00:00"
+        "first_seen_at": "2026-10-01T15:43:07.777078+00:00",
+        "published_at": "2025-01-15",
+        "stored_at": "2026-10-01T15:43:07.779589+00:00"
       }
     ],
-    "first_seen_at": "2026-09-27T13:29:52.495930+00:00",
-    "last_seen_at": "2026-09-27T13:29:52.497435+00:00"
+    "first_seen_at": "2026-10-01T15:43:07.777078+00:00",
+    "last_seen_at": "2026-10-01T15:43:07.779084+00:00"
   }
 }

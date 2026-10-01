@@ -78,7 +78,107 @@ export const COMPANY_CATALOGUE: Company[] = [
   { ticker: "WIKA", name: "Wijaya Karya", industry: "Infrastructure" },
 ];
 
-/** Case-insensitive match on ticker, name or industry. */
+/**
+ * What people actually call these companies. Nobody types "BBRI" in
+ * conversation; they type "BRI", "bank BRI", or "Mandiri".
+ *
+ * Deliberately absent: bare words that are also everyday Indonesian or English
+ * ("jago" = skilled, "map", "sig", "axis"). Those companies are reachable
+ * through their full names instead.
+ */
+export const COMPANY_ALIASES: Record<string, string[]> = {
+  TLKM: ["telkom", "telkom indonesia", "telkomsel", "indihome"],
+  ISAT: ["indosat", "indosat ooredoo", "ioh", "im3"],
+  EXCL: ["xl", "xl axiata", "xlsmart"],
+  FREN: ["smartfren"],
+  TOWR: ["protelindo", "sarana menara"],
+  TBIG: ["tower bersama"],
+  BBCA: ["bca", "bank bca", "bank central asia"],
+  BBRI: ["bri", "bank bri", "bank rakyat", "bank rakyat indonesia"],
+  BMRI: ["mandiri", "bank mandiri"],
+  BBNI: ["bni", "bank bni", "bank negara indonesia"],
+  ARTO: ["bank jago"],
+  BRIS: ["bsi", "bank bsi", "bank syariah indonesia"],
+  GOTO: ["goto", "gojek", "tokopedia"],
+  BUKA: ["bukalapak"],
+  EMTK: ["emtek", "elang mahkota"],
+  MTDL: ["metrodata"],
+  UNVR: ["unilever"],
+  ICBP: ["indofood cbp"],
+  INDF: ["indofood"],
+  MYOR: ["mayora"],
+  AMRT: ["alfamart", "alfaria"],
+  ACES: ["ace hardware", "azko"],
+  MAPI: ["mitra adiperkasa"],
+  ERAA: ["erajaya", "erafone"],
+  KLBF: ["kalbe", "kalbe farma"],
+  SIDO: ["sido muncul"],
+  MIKA: ["mitra keluarga"],
+  PGAS: ["pgn", "perusahaan gas negara"],
+  PTBA: ["bukit asam"],
+  MEDC: ["medco", "medco energi"],
+  ANTM: ["antam", "aneka tambang"],
+  INCO: ["vale", "vale indonesia"],
+  SMGR: ["semen indonesia", "semen gresik"],
+  INTP: ["indocement"],
+  JSMR: ["jasa marga"],
+  WIKA: ["wijaya karya"],
+};
+
+/**
+ * Tickers that are also ordinary words ("buka" = open, "aces", "mika", ...).
+ * These match only when written in capitals, so "tolong buka halaman" never
+ * adds Bukalapak to a watchlist.
+ */
+const WORD_LIKE_TICKERS = new Set(["BUKA", "ACES", "MIKA", "SIDO", "WIKA"]);
+
+interface Pattern {
+  company: Company;
+  text: string;
+  caseSensitive: boolean;
+}
+
+const PATTERNS: Pattern[] = COMPANY_CATALOGUE.flatMap((company) => [
+  { company, text: company.ticker, caseSensitive: WORD_LIKE_TICKERS.has(company.ticker) },
+  { company, text: company.name.toLowerCase(), caseSensitive: false },
+  ...(COMPANY_ALIASES[company.ticker] ?? []).map((alias) => ({ company, text: alias, caseSensitive: false })),
+])
+  // Longest first, so "indofood cbp" claims its words before "indofood" can.
+  .sort((a, b) => b.text.length - a.text.length);
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Every catalogue company mentioned in free text, in order of appearance.
+ * Matches tickers, full names and everyday aliases on whole-word boundaries,
+ * and never lets two companies claim the same words.
+ */
+export function findCompanies(text: string): Company[] {
+  const claimed: [number, number][] = [];
+  const found: { company: Company; at: number }[] = [];
+
+  for (const pattern of PATTERNS) {
+    const source = `(?<![\\p{L}\\p{N}])${escapeRegExp(pattern.text).replace(/ /g, "\\s+")}(?![\\p{L}\\p{N}])`;
+    const regex = new RegExp(source, pattern.caseSensitive ? "gu" : "giu");
+    for (const match of text.matchAll(regex)) {
+      const start = match.index ?? 0;
+      const end = start + match[0].length;
+      if (claimed.some(([s, e]) => start < e && end > s)) continue;
+      claimed.push([start, end]);
+      found.push({ company: pattern.company, at: start });
+    }
+  }
+
+  const seen = new Set<string>();
+  return found
+    .sort((a, b) => a.at - b.at)
+    .map((item) => item.company)
+    .filter((company) => !seen.has(company.ticker) && seen.add(company.ticker));
+}
+
+/** Case-insensitive match on ticker, name, alias or industry. */
 export function searchCatalogue(query: string, limit = 8): Company[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
@@ -87,7 +187,8 @@ export function searchCatalogue(query: string, limit = 8): Company[] {
     (c) =>
       c.ticker.toLowerCase().includes(q) ||
       c.name.toLowerCase().includes(q) ||
-      c.industry.toLowerCase().includes(q),
+      c.industry.toLowerCase().includes(q) ||
+      (COMPANY_ALIASES[c.ticker] ?? []).some((alias) => alias.includes(q)),
   )
     .sort((a, b) => {
       // Exact ticker first, then ticker prefix, then everything else.

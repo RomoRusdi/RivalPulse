@@ -4,10 +4,10 @@ Executed from `backend/` using the local Python 3.12 environment.
 
 | Check | Result |
 | --- | --- |
-| `python -m pytest -q` | **62 passed, 1 skipped** |
+| `python -m pytest -q` | **72 passed, 1 skipped** |
 | `ruff check app tests scripts migrations` | **Passed** |
 | `python scripts/smoke_http.py` | **Passed**: real Uvicorn HTTP listener, clean migration/seed, liveness, private access gate, company search and OpenAPI |
-| `python scripts/export_contracts.py` | **Passed**: actual replay generated the saved OpenAPI and example responses |
+| `python scripts/export_contracts.py` | **Passed**: actual replay regenerated the saved OpenAPI and example responses, now including `/api/v1/chat`, the recovery stage and agent decisions |
 | Clean migration upgrade/downgrade/upgrade and Alembic metadata drift check | **Passed on SQLite** |
 | RQ queue delivery and duplicate job delivery | **Passed with fakeredis and an in-process RQ test worker** |
 | Real PostgreSQL + Redis services | **Passed**: Compose migrations, seed, API readiness, RQ worker and reconciler started successfully |
@@ -21,6 +21,9 @@ Executed from `backend/` using the local Python 3.12 environment.
 | Announcement classification | **Passed**: word-anchored rules separate announcements from corporate boilerplate. Regression tests cover the two substring faults found during review — `mou` matching inside "amount", and a bare `advertising` matching cookie policies. |
 | Gap diagnosis and recovery round | **Passed**: a company whose first approved pages fail is re-read from its remaining pages and the gap closes; a company with no remaining pages records the reason and issues **no** recovery request, so an unreachable source cannot consume budget. Verified by tests and by a local end-to-end run against live pages. |
 | Provider news as competitive evidence | **Passed against a mocked transport**: Sectors news is stored under the `sectors_news` provider, classified into events, and cited by the resulting signals; non-announcement filler produces no signal. A news snapshot cannot satisfy the financial-evidence check. **Not yet exercised against the live Sectors news endpoint.** |
+| Conversation without the pipeline | **Passed**: small talk and product questions are answered by `/api/v1/chat` from the workspace and stored findings; tests assert it creates no run and spends no credits. A model reply containing a figure (Rp, %, triliun…) is replaced with a pointer to a cited investigation. Live check against local `qwen3.8:27b`: English and Indonesian small talk answered in the user's language, and a request for a bank's revenue was declined in favour of an investigation. Replies take roughly 11 s, about 35 s on a cold model. |
+| Bilingual routing and company aliases | **Passed (29 cases, standalone harness)**: English and Bahasa Indonesia commands, research triggers and replies; everyday names resolve to tickers (BRI→BBRI, Mandiri→BMRI, BCA→BBCA); tickers that are also ordinary words (`buka`, `jago`) never match in lower case. Research naming a company outside the watchlist stops before spending credits. The frontend has no test runner, so these cases are not in CI. |
+| Rejected AI wording during analysis | **Passed**: when the model's interpretation fails validation, the run still publishes its cited findings with reviewed conservative wording and records `validated_fallback`; a model outage still fails the run explicitly. |
 | Agent decisions exposed to the frontend | **Passed**: the run payload carries real tool invocations with cache status and credit cost, plus route, planner, spend and unresolved gaps, rather than the stage list. |
 
 Coverage includes watchlist bounds/duplicates/unknown IDs; idempotency and concurrent submissions; frozen membership; immutable history; workspace-scoped conversation upserts/deletion; durable watchlist updates; baseline/unchanged/one-change runs; financial arithmetic, citation resolution and mismatched evidence rejection; missing financial data; explicit live/replay isolation; Sectors-only mode enforcement; provider retries and atomic shared credit limits; cache reuse; bounded news pagination; malformed LLM output/repair limits; SSRF, redirects, body limits and XML safety; interrupted-worker fencing/recovery/attempt exhaustion; cancellation; cursor pagination; workspace isolation; private cookie login and origin checks; and bounded Gmail digest filtering.

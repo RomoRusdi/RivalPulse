@@ -4,7 +4,7 @@ import type { AgentRun } from "./types";
 const STORAGE_KEY = "rivalpulse.chat-history.v1";
 const MAX_SESSIONS = 30;
 
-export type ChatMessageKind = "text" | "instant" | "research";
+export type ChatMessageKind = "text" | "instant" | "research" | "chat";
 
 export interface ChatMessage {
   id: string;
@@ -14,6 +14,11 @@ export interface ChatMessage {
   label?: string;
   createdAt: string;
   run?: AgentRun;
+  /**
+   * A conversational reply still being written. Never restored from storage:
+   * after a reload there is no request left to finish it.
+   */
+  pending?: boolean;
 }
 
 export interface ChatSession {
@@ -45,10 +50,15 @@ export function parseChatHistory(value: unknown): ChatSession[] {
   return value.slice(0, MAX_SESSIONS).flatMap(parseSession);
 }
 
+/** A session as it may be stored: replies still being written are left out. */
+export function persistable(session: ChatSession): ChatSession {
+  return { ...session, messages: session.messages.filter((message) => !message.pending) };
+}
+
 export function saveChatHistory(sessions: ChatSession[]): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions.slice(0, MAX_SESSIONS)));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions.slice(0, MAX_SESSIONS).map(persistable)));
   } catch {
     // Chat remains usable when storage is unavailable.
   }
@@ -76,7 +86,7 @@ function parseMessage(value: unknown): ChatMessage[] {
   if (
     typeof row.id !== "string" ||
     (row.role !== "user" && row.role !== "assistant") ||
-    (kind !== "text" && kind !== "instant" && kind !== "research") ||
+    (kind !== "text" && kind !== "instant" && kind !== "research" && kind !== "chat") ||
     typeof row.content !== "string" ||
     typeof row.createdAt !== "string"
   ) return [];

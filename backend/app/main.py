@@ -16,12 +16,12 @@ from pydantic import Field
 from sqlalchemy import delete, exists, func, or_, select, text
 from starlette.exceptions import HTTPException
 
-from app import jobs
+from app import chat as conversation, jobs
 from app.alerts import status as alert_status
 from app.compat import run_json as legacy_run, signal_json as legacy_signal
 from app.config import get_settings
 from app.contracts import ConversationSync, ErrorBody, LegacyRunCreate, LegacyWatchlistUpdate, RunAccepted, RunCreate, Strict, WatchlistCreate, WatchlistPatch
-from app.contracts import CompanyOut, Page, RunDetail, SignalCard, SignalDetail, WatchlistOut
+from app.contracts import ChatReply, ChatRequest, CompanyOut, Page, RunDetail, SignalCard, SignalDetail, WatchlistOut
 from app.db import get_db, iso, session, uid, utcnow
 from app.errors import AppError
 from app.logging_config import configure_logging
@@ -201,6 +201,14 @@ def conversation_json(row):
 @router.get("/session", tags=["auth"])
 def current_session():
     return {"authenticated": True, "mode": "private-demo"}
+
+
+@router.post("/chat", tags=["agent"], response_model=ChatReply)
+def chat_reply(body: ChatRequest, db: DB):
+    """Conversation only: no provider calls, no credits, no research run."""
+    text, source, language = conversation.reply(
+        db, body.message, [turn.model_dump() for turn in body.history])
+    return {"reply": text, "source": source, "language": language}
 
 
 @router.get("/conversations", tags=["agent"])

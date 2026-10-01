@@ -136,6 +136,8 @@ export const OrchestrationSchema = z.object({
   routeReason: z.string().optional(),
   /** "qwen" | "deterministic" | "validated_fallback" — never hide a fallback. */
   planner: z.string().optional(),
+  /** Who wrote the interpretation; "validated_fallback" when the model's wording was rejected. */
+  interpreter: z.string().optional(),
   toolCalls: z.number().int().optional(),
   credits: z.number().int().optional(),
   cacheHits: z.number().int().optional(),
@@ -247,4 +249,12 @@ export const DashboardResponseSchema = z.object({
   watchlist: WatchlistSchema,
   aggregates: DashboardAggregatesSchema,
   signals: z.array(SignalSchema),
+});
+
+/** POST /api/v1/chat — conversation only; never spends provider credits. */
+export const ChatReplySchema = z.object({
+  reply: z.string().min(1),
+  /** "llm", "fallback" (no model available) or "guarded" (a figure was suppressed). */
+  source: z.enum(["llm", "fallback", "guarded"]),
+  language: z.enum(["en", "id"]),
 });

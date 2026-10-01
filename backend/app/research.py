@@ -543,9 +543,27 @@ def execute_run(run_id, adapter=None):
                     raise
                 brief.caveats.append("AI interpretation could not be validated; the cited figures remain available.")
                 log.warning("financial_interpretation_unavailable", extra={"run_id": run_id, "error_code": exc.code})
-        analysis = agent.analyze([{"event_key": c["event_key"], "claims": c["claims"],
-                                  "financial_context": c["metrics"]}
-                                 for c in candidates])
+        prepared = [{"event_key": c["event_key"], "claims": c["claims"], "financial_context": c["metrics"]}
+                    for c in candidates]
+        interpreter = "qwen" if agent.adapter and candidates else "deterministic"
+        try:
+            analysis = agent.analyze(prepared)
+        except ProviderError as exc:
+            # The evidence is already collected and paid for. A model sentence
+            # that fails validation must not discard it: publish the cited
+            # findings with reviewed conservative wording, and say so. A model
+            # outage still fails the run, matching the planning policy.
+            if exc.code not in ("LLM_INVALID_OUTPUT", "LLM_BUDGET_EXCEEDED"):
+                raise
+            analysis, interpreter = Agent.deterministic_analysis(prepared), "validated_fallback"
+            log.warning("analysis_wording_rejected", extra={"run_id": run_id, "error_code": exc.code})
+        with session() as db, db.begin():
+            active = ensure_active(db, run_id, token)
+            analyze_step = db.scalar(select(RunStep).where(
+                RunStep.run_id == run_id, RunStep.attempt == active.attempts, RunStep.stage == "analyze"))
+            analyze_step.details = {**(analyze_step.details or {}), "interpreter": interpreter}
+            if interpreter == "validated_fallback":
+                analyze_step.message = "AI wording rejected; published cited findings with reviewed wording"
         stage(run_id, token, "validate_output", "Schema and supporting claims validated")
         stage(run_id, token, "persist", "Storing cited investigation")
         published = persist(run_id, token, candidates, analysis, coverage, warnings, brief)

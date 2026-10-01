@@ -23,16 +23,17 @@ import { Logo } from "@/components/ui/Logo";
 import { Button, Pill, cx } from "@/components/ui/primitives";
 import { useStore } from "@/lib/store";
 import { clock, runFailureMessage } from "@/lib/format";
-import { routeInstantMessage } from "@/lib/agent-router";
+import { routeMessage } from "@/lib/agent-router";
 import {
   type ChatMessage,
   type ChatSession,
   loadChatHistory,
   newId,
+  persistable,
   saveChatHistory,
 } from "@/lib/chat-history";
 import type { AgentRun } from "@/lib/types";
-import { clearConversationHistory, deleteConversation, getConversationHistory, saveConversation } from "@/lib/api";
+import { type ChatTurn, clearConversationHistory, deleteConversation, getConversationHistory, saveConversation, sendChat } from "@/lib/api";
 
 const STARTERS = [
   {
@@ -66,11 +67,14 @@ export function AgentWorkspace() {
     cancelRun,
     retryRun,
     dismissRun,
-    addCompany,
-    removeCompany,
+    addCompanies,
+    removeCompanies,
     renameWatchlist,
   } = store;
   const [draft, setDraft] = useState("");
+  // A conversational reply is being written; hold the composer so replies
+  // land in the order they were asked.
+  const [chatPending, setChatPending] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -110,7 +114,7 @@ export function AgentWorkspace() {
     if (!historyReady || clearingRef.current) return;
     saveChatHistory(sessions);
     const timer = window.setTimeout(() => {
-      if (!clearingRef.current) pendingSync.current = Promise.allSettled(sessions.map(saveConversation));
+      if (!clearingRef.current) pendingSync.current = Promise.allSettled(sessions.map((session) => saveConversation(persistable(session))));
     }, 600);
     return () => window.clearTimeout(timer);
   }, [historyReady, sessions]);
@@ -157,26 +161,57 @@ export function AgentWorkspace() {
 
   const launch = (query: string) => {
     const clean = query.trim();
-    if (!clean || busy || clearingRef.current) return;
+    if (!clean || busy || chatPending || clearingRef.current) return;
 
     stayAtBottom.current = true;
     setShowJump(false);
     const sessionId = selectedSessionId ?? newId();
     const now = new Date().toISOString();
     const userMessage: ChatMessage = { id: newId(), role: "user", kind: "text", content: clean, createdAt: now };
-    const instant = routeInstantMessage(clean, watchlist);
+    const route = routeMessage(clean, watchlist);
 
     setSelectedSessionId(sessionId);
     setDraft("");
 
-    if (instant) {
-      if (instant.action?.type === "add_company") addCompany(instant.action.company);
-      if (instant.action?.type === "remove_company") removeCompany(instant.action.ticker);
-      if (instant.action?.type === "rename_watchlist") renameWatchlist(instant.action.name);
+    if (route.kind === "instant") {
+      if (route.action?.type === "add_companies") addCompanies(route.action.companies);
+      if (route.action?.type === "remove_companies") removeCompanies(route.action.tickers);
+      if (route.action?.type === "rename_watchlist") renameWatchlist(route.action.name);
       appendMessages(sessionId, [userMessage, {
-        id: newId(), role: "assistant", kind: "instant", content: instant.content,
-        label: instant.label, createdAt: new Date().toISOString(),
+        id: newId(), role: "assistant", kind: "instant", content: route.content,
+        label: route.label, createdAt: new Date().toISOString(),
       }], conversationTitle(clean));
+      return;
+    }
+
+    if (route.kind === "chat") {
+      // Conversation: answered without the pipeline, so it never spends credits.
+      const history: ChatTurn[] = (sessions.find((session) => session.id === sessionId)?.messages ?? [])
+        .filter((message) => !message.pending)
+        .slice(-10)
+        .map((message) => ({
+          role: message.role,
+          content: (message.kind === "research" ? message.run?.resultSummary : message.content) ?? message.content,
+        }));
+      const replyId = newId();
+      const thinking = route.language === "id" ? "Sedang berpikir…" : "Thinking…";
+      appendMessages(sessionId, [userMessage, {
+        id: replyId, role: "assistant", kind: "chat", content: thinking, pending: true,
+        createdAt: new Date().toISOString(),
+      }], conversationTitle(clean));
+      setChatPending(true);
+      const settle = (content: string) => setSessions((current) => current.map((session) => ({
+        ...session,
+        messages: session.messages.map((message) => message.id === replyId
+          ? { ...message, content, pending: false, createdAt: new Date().toISOString() }
+          : message),
+      })));
+      sendChat(clean, history)
+        .then((reply) => settle(reply.reply))
+        .catch(() => settle(route.language === "id"
+          ? "Maaf, saya tidak bisa menjawab saat ini. Perintah watchlist dan investigasi tetap berfungsi."
+          : "Sorry — I can't reply right now. Watchlist commands and investigations still work."))
+        .finally(() => setChatPending(false));
       return;
     }
 
@@ -307,7 +342,7 @@ export function AgentWorkspace() {
             <button
               type="button"
               onClick={startNewChat}
-              disabled={busy || clearingHistory}
+              disabled={busy || chatPending || clearingHistory}
               className="inline-flex cursor-pointer items-center gap-1.5 rounded-field px-2.5 py-1.5 text-xs font-bold text-ink-2 transition-console hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-45"
             >
               <Plus aria-hidden size={14} /> New chat
@@ -374,13 +409,13 @@ export function AgentWorkspace() {
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={handleKeyDown}
-              disabled={busy || clearingHistory}
+              disabled={busy || chatPending || clearingHistory}
               rows={2}
               placeholder={busy ? "RivalPulse is investigating…" : "Ask a question or give a command…"}
               aria-label="Ask RivalPulse"
               className="max-h-36 min-h-13 flex-1 resize-none bg-transparent px-2.5 py-2 text-[14px] leading-[1.55] text-ink outline-none placeholder:text-muted disabled:cursor-not-allowed"
             />
-            <Button type="submit" variant="primary" size="sm" disabled={!draft.trim() || busy || clearingHistory} aria-label="Send message">
+            <Button type="submit" variant="primary" size="sm" disabled={!draft.trim() || busy || chatPending || clearingHistory} aria-label="Send message">
               <Send aria-hidden size={15} strokeWidth={2.2} />
               <span className="hidden sm:inline">Send</span>
             </Button>
@@ -475,6 +510,26 @@ function AssistantMessage({ message, live, onCancel, onRetry }: { message: ChatM
           <Pill tone="quiet" className="ml-auto">Instant action · no pipeline</Pill>
         </div>
         <p className="text-[13px] leading-[1.65] text-ink-2">{message.content}</p>
+      </div>
+    );
+  }
+
+  if (message.kind === "chat") {
+    return (
+      <div className="max-w-[720px] rounded-detail border border-divider bg-card px-4 py-3.5">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-subtle text-accent">
+            {message.pending ? <LoaderCircle size={11} className="animate-spin" /> : <MessageSquareText size={11} />}
+          </span>
+          <span className="text-xs font-extrabold text-ink">RivalPulse</span>
+          <Pill tone="quiet" className="ml-auto">Conversation · no credits</Pill>
+        </div>
+        <p
+          className={cx("whitespace-pre-line text-[13px] leading-[1.65]", message.pending ? "text-muted" : "text-ink-2")}
+          aria-live="polite"
+        >
+          {message.content}
+        </p>
       </div>
     );
   }
@@ -598,6 +653,8 @@ const ROUTE_LABEL: Record<string, string> = {
   financial_statements: "Financial statements",
 };
 
+const INTERPRETER_FALLBACK = "AI wording rejected → reviewed wording";
+
 const PLANNER_LABEL: Record<string, string> = {
   qwen: "Planned by Qwen",
   deterministic: "Deterministic plan",
@@ -615,6 +672,7 @@ function OrchestrationPanel({ run, bare = false }: { run: AgentRun; bare?: boole
   const facts = [
     o.route ? ROUTE_LABEL[o.route] ?? o.route : null,
     o.planner ? PLANNER_LABEL[o.planner] ?? o.planner : null,
+    o.interpreter === "validated_fallback" ? INTERPRETER_FALLBACK : null,
     o.toolCalls ? `${o.toolCalls} tool ${o.toolCalls === 1 ? "call" : "calls"}` : null,
     typeof o.credits === "number" ? `${o.credits} ${o.credits === 1 ? "credit" : "credits"}` : null,
     o.cacheHits ? `${o.cacheHits} cached` : null,
@@ -630,7 +688,8 @@ function OrchestrationPanel({ run, bare = false }: { run: AgentRun; bare?: boole
             key={fact}
             className={cx(
               "rounded-field border px-2 py-0.5 text-[10.5px] font-semibold",
-              o.planner === "validated_fallback" && fact.startsWith("Qwen plan rejected")
+              (o.planner === "validated_fallback" && fact.startsWith("Qwen plan rejected")) ||
+                fact === INTERPRETER_FALLBACK
                 ? "border-accent/40 bg-accent/10 text-accent-ink"
                 : "border-divider bg-subtle/60 text-ink-2",
             )}

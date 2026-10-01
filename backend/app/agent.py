@@ -22,6 +22,10 @@ class LLMAdapter:
     def structured(self, kind, schema, data, repair=False):
         raise NotImplementedError
 
+    def chat(self, messages, max_tokens=400):
+        """Free-text conversation. Never used for research output."""
+        raise NotImplementedError
+
 
 class OllamaAdapter(LLMAdapter):
     """Local structured-output adapter for the evidence-grounded Qwen agent."""
@@ -100,11 +104,43 @@ class OllamaAdapter(LLMAdapter):
             if owned:
                 client.close()
 
+    def chat(self, messages, max_tokens=400):
+        settings = get_settings()
+        payload = {
+            "model": settings.ollama_model, "stream": False, "think": False, "messages": messages,
+            "options": {"temperature": 0.4, "num_ctx": 8192, "num_predict": max_tokens},
+        }
+        owned = self.client is None
+        client = self.client or httpx.Client(timeout=min(settings.ollama_timeout, 90), trust_env=False)
+        try:
+            response = client.post(self._endpoint(settings.ollama_base_url), json=payload)
+            if response.status_code != 200 or len(response.content) > 200_000:
+                raise ProviderError("LLM_UNAVAILABLE", "Ollama request failed")
+            content = response.json()["message"]["content"]
+            if not isinstance(content, str) or not content.strip():
+                raise ProviderError("LLM_UNAVAILABLE", "Ollama returned an empty reply")
+            return content.strip()
+        except (httpx.HTTPError, KeyError, TypeError, ValueError):
+            raise ProviderError("LLM_UNAVAILABLE", "Ollama response unavailable") from None
+        finally:
+            if owned:
+                client.close()
+
+
+# English and Bahasa Indonesia. A route decided from English words alone sent
+# every Indonesian statement question through the costlier activity sweep.
+FINANCIAL_TERMS = re.compile(
+    r"\b(revenue|earnings|financials?|profit|ebitda|assets|equity|pendapatan|laba|rugi|keuangan|"
+    r"keuntungan|aset|ekuitas)\b", re.I)
+ACTIVITY_TERMS = re.compile(
+    r"\b(this week|today|recent|latest news|campaign|launch|product|pricing|partnership|announcement|"
+    r"signals?|stock price|share price|minggu ini|hari ini|terbaru|terkini|berita|kampanye|peluncuran|"
+    r"luncur\w*|produk|harga|kemitraan|kerja ?sama|pengumuman|sinyal|harga saham)\b", re.I)
+
 
 def is_financial_question(query):
     """Only standalone statement questions can skip the public-event sweep."""
-    return (bool(re.search(r"\b(revenue|earnings|financial|profit|ebitda|assets|equity)\b", query, re.I))
-            and not re.search(r"\b(this week|today|recent|latest news|campaign|launch|product|pricing|partnership|announcement|signals?|stock price|share price)\b", query, re.I))
+    return bool(FINANCIAL_TERMS.search(query)) and not ACTIVITY_TERMS.search(query)
 
 
 class Agent:
@@ -236,6 +272,12 @@ class Agent:
             with session() as db:
                 objective = db.get(Run, self.run_id).query
             return self.request("analyze", Analysis, {"objective": objective, "candidates": candidates}, validate)
+        return self.deterministic_analysis(candidates)
+
+    @staticmethod
+    def deterministic_analysis(candidates):
+        """Conservative, claim-linked wording that needs no model. Used when no
+        model is configured, and when the model's wording fails validation."""
         return Analysis(interpretations=[dict(event_key=c["event_key"],
                                              supporting_claim_ids=[x["claim_id"] for x in c["claims"]],
                                              hypothesis="This observation may affect competitive positioning; intent is unverified.",

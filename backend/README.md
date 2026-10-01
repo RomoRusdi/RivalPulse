@@ -2,7 +2,7 @@
 
 FastAPI, SQLAlchemy/Alembic, PostgreSQL, Redis/RQ, HTTPX, and an explicit Python research agent.
 
-Workflow: enter a chat command → route simple workspace operations without research, or queue an analytical investigation → collect Sectors v2 financial data and approved public evidence → compare successful baselines → validate cited findings → publish immutable revisions. Conversation transcripts are stored per workspace in PostgreSQL. Sectors is the only live financial provider; synthetic replay is restricted to automated tests. Repeating identical evidence produces no new revision or alert. First observations are labeled `baseline`.
+Workflow: enter a chat message in English or Bahasa Indonesia → run workspace commands instantly, answer conversation through `/api/v1/chat` (no provider calls, no credits), or — only for research intent such as a research verb, a named company, or a market topic about competitors — queue an analytical investigation → collect Sectors v2 financial data and approved public evidence → compare successful baselines → validate cited findings → publish immutable revisions. Conversation transcripts are stored per workspace in PostgreSQL. Sectors is the only live financial provider; synthetic replay is restricted to automated tests. Repeating identical evidence produces no new revision or alert. First observations are labeled `baseline`.
 
 ## Start with Docker Compose
 
@@ -89,7 +89,7 @@ Find IDs with `GET /api/v1/companies?query=ISAT`. Watchlists require 2–5 disti
 
 ## API contracts and frontend integration
 
-Versioned endpoints cover company search; watchlist create/list/detail/edit; research submission/status/history; signal list/detail/revisions; and health. Lists use `{ "items": [], "next_cursor": null }`. Signal filters include `watchlist_id`, `severity`, and `mode`. Research submission returns **202**, `id`, `mode`, `status`, and `status_url`. Errors contain `code`, `message`, `retryable`, and `request_id`.
+Versioned endpoints cover company search; watchlist create/list/detail/edit; research submission/status/history; signal list/detail/revisions; conversation (`POST /api/v1/chat`, which never calls Sectors or creates a run); and health. Lists use `{ "items": [], "next_cursor": null }`. Signal filters include `watchlist_id`, `severity`, and `mode`. Research submission returns **202**, `id`, `mode`, `status`, and `status_url`. Errors contain `code`, `message`, `retryable`, and `request_id`.
 
 - [docs/openapi.json](docs/openapi.json): canonical typed OpenAPI contract.
 - [docs/examples.json](docs/examples.json): actual synthetic replay output, including a completed run, evidence, signal detail, and frontend dashboard.

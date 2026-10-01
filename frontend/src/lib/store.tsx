@@ -84,6 +84,12 @@ interface StoreValue {
   /** Watchlist editing. Rejected silently when it would break the 2-5 rule. */
   addCompany: (company: Company) => void;
   removeCompany: (ticker: string) => void;
+  /**
+   * Batch forms. Several single calls in one tick would each read the same
+   * pre-edit watchlist, so only the last one would survive.
+   */
+  addCompanies: (companies: Company[]) => void;
+  removeCompanies: (tickers: string[]) => void;
   renameWatchlist: (name: string) => void;
   /** True when the watchlist differs from what the server sent. */
   watchlistEdited: boolean;
@@ -386,6 +392,31 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [editWatchlist],
   );
 
+  const addCompanies = useCallback(
+    (companies: Company[]) => {
+      editWatchlist((current) => {
+        const tracked = new Set(current.companies.map((c) => c.ticker));
+        const fresh = companies.filter((c) => !tracked.has(c.ticker));
+        const room = Math.max(0, MAX_COMPANIES - current.companies.length);
+        return fresh.length && room
+          ? { ...current, companies: [...current.companies, ...fresh.slice(0, room)] }
+          : current;
+      });
+    },
+    [editWatchlist],
+  );
+
+  const removeCompanies = useCallback(
+    (tickers: string[]) => {
+      const drop = new Set(tickers);
+      editWatchlist((current) => ({
+        ...current,
+        companies: current.companies.filter((c) => !drop.has(c.ticker)),
+      }));
+    },
+    [editWatchlist],
+  );
+
   const renameWatchlist = useCallback(
     (name: string) => {
       const trimmed = name.trim();
@@ -503,6 +534,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       resetDemoState,
       addCompany,
       removeCompany,
+      addCompanies,
+      removeCompanies,
       renameWatchlist,
       watchlistEdited: editedWatchlist !== null,
       profile,
@@ -532,6 +565,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       resetDemoState,
       addCompany,
       removeCompany,
+      addCompanies,
+      removeCompanies,
       renameWatchlist,
       profile,
       updateProfile,

@@ -1,11 +1,12 @@
 import {
   AgentRunSchema,
   AlertStatusSchema,
+  ChatReplySchema,
   DashboardResponseSchema,
   SignalSchema,
   WatchlistSchema,
 } from "./schemas";
-import type { AgentRun, AlertStatus, DashboardResponse, Range, Signal, Watchlist } from "./types";
+import type { AgentRun, AlertStatus, ChatReply, DashboardResponse, Range, Signal, Watchlist } from "./types";
 import { parseChatHistory, type ChatSession } from "./chat-history";
 import {
   ALL_SIGNALS,
@@ -218,6 +219,35 @@ export async function deleteConversation(id: string): Promise<void> {
   if (USE_MOCKS) return;
   const response = await fetch(`${API_BASE}/api/v1/conversations/${encodeURIComponent(id)}`, { method: "DELETE" });
   if (!response.ok) throw new ApiError(`DELETE /api/v1/conversations failed: ${response.status}`);
+}
+
+/* ── Conversation ──────────────────────────────────────────────────────── */
+
+export interface ChatTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/**
+ * Conversational reply. The backend answers from the workspace and stored
+ * findings only: no provider call, no credits, no research run.
+ */
+export async function sendChat(message: string, history: ChatTurn[]): Promise<ChatReply> {
+  if (USE_MOCKS) {
+    await delay(Math.min(readDemoSettings().latencyMs, 600));
+    const indonesian = /(apa|kabar|kamu|saya|bagaimana|gimana|tolong|halo|hai)/i.test(message);
+    return ChatReplySchema.parse({
+      source: "fallback",
+      language: indonesian ? "id" : "en",
+      reply: indonesian
+        ? "Saya siap membantu. Saya bisa memperbarui daftar kompetitor Anda, atau menjalankan investigasi berbasis bukti — coba “Bandingkan BBRI dan BMRI minggu ini”."
+        : "I'm here and ready to help. I can update your watchlist, or run an evidence-backed investigation — try “Compare BBRI and BMRI this week”.",
+    });
+  }
+  return request("/api/v1/chat", ChatReplySchema, {
+    method: "POST",
+    body: JSON.stringify({ message, history: history.slice(-10) }),
+  });
 }
 
 /* ── Agent runs ────────────────────────────────────────────────────────── */

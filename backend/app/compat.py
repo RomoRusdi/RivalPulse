@@ -64,11 +64,13 @@ def orchestration(run, steps):
     by_stage = {s.stage: s for s in steps}
     plan = (by_stage["plan"].details or {}) if "plan" in by_stage else {}
     recover = (by_stage["recover"].details or {}) if "recover" in by_stage else {}
+    analyze = (by_stage["analyze"].details or {}) if "analyze" in by_stage else {}
     coverage = [e for s in steps for e in (s.details or {}).get("coverage", [])]
     summary = {
         "route": plan.get("route"),
         "routeReason": plan.get("route_reason"),
         "planner": plan.get("planner"),
+        "interpreter": analyze.get("interpreter"),
         "toolCalls": len(coverage),
         "credits": run.credits,
         "cacheHits": sum(1 for e in coverage if e.get("cache_status") in ("cached", "resumed")),

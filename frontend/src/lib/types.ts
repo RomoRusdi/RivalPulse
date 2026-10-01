@@ -2,6 +2,7 @@ import type { z } from "zod";
 import type {
   AgentRunSchema,
   AlertStatusSchema,
+  ChatReplySchema,
   CompanySchema,
   CreditUsageSchema,
   DashboardAggregatesSchema,
@@ -59,3 +60,4 @@ export type AlertStatus = z.infer<typeof AlertStatusSchema>;
  * server field without any component changing.
  */
 export type SignalWithState = Signal & { seen: boolean };
+export type ChatReply = z.infer<typeof ChatReplySchema>;

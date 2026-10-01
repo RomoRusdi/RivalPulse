@@ -42,7 +42,7 @@ class WatchlistPatch(Strict):
 class ConversationMessageIn(Strict):
     id: str = Field(min_length=1, max_length=80)
     role: Literal["user", "assistant"]
-    kind: Literal["text", "instant", "research"]
+    kind: Literal["text", "instant", "research", "chat"]
     content: str = Field(min_length=1, max_length=20_000)
     label: str | None = Field(None, max_length=200)
     created_at: datetime = Field(alias="createdAt")
@@ -55,6 +55,23 @@ class ConversationSync(Strict):
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
     messages: list[ConversationMessageIn] = Field(max_length=200)
+
+
+class ChatTurn(Strict):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class ChatRequest(Strict):
+    message: str = Field(min_length=1, max_length=2000)
+    history: list[ChatTurn] = Field(default_factory=list, max_length=20)
+
+
+class ChatReply(Strict):
+    reply: str
+    # "llm", "fallback" (no model available), or "guarded" (figure suppressed).
+    source: Literal["llm", "fallback", "guarded"]
+    language: Literal["en", "id"]
 
 
 class RunCreate(Strict):
