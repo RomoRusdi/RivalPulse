@@ -25,6 +25,49 @@ CATALOG = [
       ("https://www.xlsmart.co.id/", "body")]),
 ]
 
+# The rest of the IDX catalogue the frontend already offers. Sectors covers any
+# listed ticker, so these need no per-company scraping configuration.
+#
+# They are seeded with no approved domains on purpose: a domain here is an SSRF
+# allowlist entry, not a label, and pre-approving one that has not been verified
+# would widen what the fetcher may reach. Adding a page source for any of these
+# stays an explicit admin step via `python -m app.sources`.
+CATALOG_ONLY = [
+    ("FREN", "Smartfren Telecom", "Telecommunication"),
+    ("TOWR", "Sarana Menara Nusantara", "Telecommunication"),
+    ("TBIG", "Tower Bersama Infrastructure", "Telecommunication"),
+    ("BBCA", "Bank Central Asia", "Banking"),
+    ("BBRI", "Bank Rakyat Indonesia", "Banking"),
+    ("BMRI", "Bank Mandiri", "Banking"),
+    ("BBNI", "Bank Negara Indonesia", "Banking"),
+    ("ARTO", "Bank Jago", "Banking"),
+    ("BRIS", "Bank Syariah Indonesia", "Banking"),
+    ("GOTO", "GoTo Gojek Tokopedia", "Technology"),
+    ("BUKA", "Bukalapak.com", "Technology"),
+    ("EMTK", "Elang Mahkota Teknologi", "Technology"),
+    ("MTDL", "Metrodata Electronics", "Technology"),
+    ("UNVR", "Unilever Indonesia", "Consumer goods"),
+    ("ICBP", "Indofood CBP Sukses Makmur", "Consumer goods"),
+    ("INDF", "Indofood Sukses Makmur", "Consumer goods"),
+    ("MYOR", "Mayora Indah", "Consumer goods"),
+    ("AMRT", "Sumber Alfaria Trijaya", "Retail"),
+    ("ACES", "Aspirasi Hidup Indonesia", "Retail"),
+    ("MAPI", "Mitra Adiperkasa", "Retail"),
+    ("ERAA", "Erajaya Swasembada", "Retail"),
+    ("KLBF", "Kalbe Farma", "Healthcare"),
+    ("SIDO", "Industri Jamu dan Farmasi Sido Muncul", "Healthcare"),
+    ("MIKA", "Mitra Keluarga Karyasehat", "Healthcare"),
+    ("PGAS", "Perusahaan Gas Negara", "Energy"),
+    ("PTBA", "Bukit Asam", "Energy"),
+    ("MEDC", "Medco Energi Internasional", "Energy"),
+    ("ANTM", "Aneka Tambang", "Basic materials"),
+    ("INCO", "Vale Indonesia", "Basic materials"),
+    ("SMGR", "Semen Indonesia", "Basic materials"),
+    ("INTP", "Indocement Tunggal Prakarsa", "Basic materials"),
+    ("JSMR", "Jasa Marga", "Infrastructure"),
+    ("WIKA", "Wijaya Karya", "Infrastructure"),
+]
+
 
 def seed():
     with session() as db, db.begin():
@@ -48,6 +91,13 @@ def seed():
                 # Repair selectors on re-seed: an approved page that never matched
                 # its selector produced silent gaps rather than a visible error.
                 source.extraction = {"selector": selector, "event_type": "Product"}
+        for symbol, name, industry in CATALOG_ONLY:
+            if not db.scalar(select(Company).where(Company.symbol == symbol)):
+                db.add(Company(
+                    symbol=symbol, name=name, industry=industry, aliases=[], official_domains=[],
+                    identity_reference="Catalogue entry; company identity not independently verified.",
+                    comparison_note="Reporting scope must be verified before growth comparisons.",
+                ))
         if not db.get(CreditAccount, "sectors"):
             db.add(CreditAccount(id="sectors", used=0))
         settings = get_settings()

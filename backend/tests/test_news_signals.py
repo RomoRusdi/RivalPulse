@@ -89,3 +89,34 @@ def test_news_snapshots_cannot_be_cited_as_financial_evidence(client, watchlist,
         evidence = {e["id"]: e for e in card["evidence"]}
         for metric in card["financial_context"]:
             assert not {evidence[i]["snapshot_id"] for i in metric["evidence_ids"]} & news_ids
+
+
+def test_catalogue_company_without_approved_pages_still_completes(client, monkeypatch):
+    """Most IDX companies have no hand-curated page. Sectors covers them, so a
+    missing optional page must not be reported as missing evidence."""
+    live_stack(monkeypatch, [ANNOUNCEMENT])
+    catalogue = {c["symbol"]: c["id"] for c in client.get("/api/v1/companies?limit=100").json()["items"]}
+    assert {"BBCA", "BBRI"} <= set(catalogue), "the backend catalogue must match what the UI offers"
+
+    created = client.post("/api/v1/watchlists", json={
+        "name": "Banks", "objective": "Compare product and pricing moves",
+        "company_ids": [catalogue["BBCA"], catalogue["BBRI"]]})
+    assert created.status_code == 201, created.text
+
+    run_id = client.post("/api/v1/research-runs", json={"watchlist_id": created.json()["id"]}).json()["id"]
+    execute_run(run_id)
+    detail = client.get("/api/v1/research-runs/" + run_id).json()
+
+    assert detail["status"] == "completed", detail["result"]["warnings"]
+    assert not any("NO_APPROVED_SOURCES" in w for w in detail["result"]["warnings"])
+    assert detail["result"]["signals"], "provider news alone should produce signals"
+
+
+def test_backend_catalogue_covers_every_company_the_ui_offers(client):
+    """A ticker the UI lets you pick but the backend rejects is a dead end."""
+    import pathlib
+    import re
+    source = pathlib.Path("../frontend/src/lib/catalogue.ts").read_text(encoding="utf-8")
+    offered = set(re.findall(r'ticker:\s*"([A-Z]{4})"', source))
+    seeded = {c["symbol"] for c in client.get("/api/v1/companies?limit=100").json()["items"]}
+    assert offered and offered <= seeded, f"UI offers unseeded tickers: {sorted(offered - seeded)}"

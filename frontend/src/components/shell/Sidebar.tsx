@@ -5,10 +5,8 @@ import type { Route } from "next";
 import { usePathname } from "next/navigation";
 import {
   Activity,
+  BellRing,
   Database,
-  FileText,
-  History,
-  LayoutDashboard,
   Lightbulb,
   PanelLeftClose,
   Settings,
@@ -36,22 +34,19 @@ const GROUPS: {
     label: "Main",
     items: [
       { href: "/", label: "RivalPulse agent", icon: Sparkles },
-      { href: "/signals", label: "Signals", icon: Activity },
+      { href: "/signals", label: "What changed", icon: Activity },
+      { href: "/actions", label: "Recommended actions", icon: Lightbulb },
       { href: "/watchlists", label: "Competitors", icon: Swords },
     ],
   },
   {
-    label: "Agent output",
-    items: [
-      { href: "/overview", label: "Overview", icon: LayoutDashboard },
-      { href: "/summary", label: "Summary report", icon: FileText },
-      { href: "/actions", label: "Action suggestions", icon: Lightbulb },
-      { href: "/timeline", label: "Signal timeline", icon: History },
-    ],
-  },
-  {
     label: "System",
-    items: [{ href: "/settings", label: "Settings", icon: Settings }],
+    items: [
+      // Alerts is the half of the product that runs without anyone asking, so
+      // it earns a place in the nav rather than hiding a level down.
+      { href: "/alerts", label: "Alerts", icon: BellRing },
+      { href: "/settings", label: "Settings", icon: Settings },
+    ],
   },
 ];
 
@@ -131,7 +126,7 @@ export function Sidebar({
               item.href === "/"
                 ? pathname === "/"
                 : item.href === "/settings"
-                  ? ["/settings", "/alerts", "/sectors"].some((path) => pathname.startsWith(path))
+                  ? ["/settings", "/sectors"].some((path) => pathname.startsWith(path))
                   : pathname.startsWith(item.href);
             const Icon = item.icon;
             return (

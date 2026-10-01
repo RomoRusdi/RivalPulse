@@ -122,6 +122,33 @@ export const ToolCallSchema = z.object({
   detail: z.string(),
 });
 
+/**
+ * What the agent *decided*, as opposed to what it found.
+ *
+ * The signal cards prove the evidence is real. This proves the orchestration is
+ * real: which route was taken, who chose the tools, what was cached, what was
+ * missing and whether the agent could recover it. Every field is optional
+ * because a run in progress has only some of them.
+ */
+export const OrchestrationSchema = z.object({
+  /** "competitive_activity" | "financial_statements" */
+  route: z.string().optional(),
+  routeReason: z.string().optional(),
+  /** "qwen" | "deterministic" | "validated_fallback" — never hide a fallback. */
+  planner: z.string().optional(),
+  toolCalls: z.number().int().optional(),
+  credits: z.number().int().optional(),
+  cacheHits: z.number().int().optional(),
+  comparedAgainstRunId: z.string().nullable().optional(),
+  gapsClosed: z.number().int().optional(),
+  gaps: z.array(z.object({
+    symbol: z.string(),
+    missing: z.string(),
+    recoverable: z.boolean(),
+    reason: z.string(),
+  })).optional(),
+});
+
 export const AgentRunSchema = z.object({
   id: z.string(),
   query: z.string(),
@@ -132,6 +159,7 @@ export const AgentRunSchema = z.object({
   elapsedSeconds: z.number(),
   etaSeconds: z.number(),
   toolCalls: z.array(ToolCallSchema),
+  orchestration: OrchestrationSchema.optional(),
   failedTool: z.string().optional(),
   resultSummary: z.string().optional(),
   coverageStatus: z.enum(["queued", "running", "completed", "partial", "failed"]).optional(),

@@ -1,10 +1,10 @@
-# Verification record — 2026-09-26
+# Verification record — 2026-10-01
 
 Executed from `backend/` using the local Python 3.12 environment.
 
 | Check | Result |
 | --- | --- |
-| `python -m pytest -q` | **61 passed, 1 skipped** |
+| `python -m pytest -q` | **62 passed, 1 skipped** |
 | `ruff check app tests scripts migrations` | **Passed** |
 | `python scripts/smoke_http.py` | **Passed**: real Uvicorn HTTP listener, clean migration/seed, liveness, private access gate, company search and OpenAPI |
 | `python scripts/export_contracts.py` | **Passed**: actual replay generated the saved OpenAPI and example responses |
@@ -17,11 +17,15 @@ Executed from `backend/` using the local Python 3.12 environment.
 | Live Sectors authorization | **Passed (limited)**: one direct overview-only `TLKM` report request returned HTTP 200 with matching `TLKM.JK` identity; documented cost is 1 credit. This probe bypassed the app ledger and did not verify annual financials or a full investigation. |
 | Live Sectors billing reconciliation, entitlements and full company coverage | **Not yet verified**: no credit-consuming end-to-end investigation was run with the newly configured key. |
 | Live Ollama adapter | **Passed**: host and container reached installed `qwen3.8:27b`; structured output and end-to-end grounded synthesis completed |
-| Official-source extraction against live HTML | **Partial**: TLKM produced evidence; the current XLSMART selector failed and the Indosat page was unavailable during rehearsal |
+| Official-source extraction against live HTML | **Passed for TLKM, partial elsewhere**: the Telkom newsroom yielded three classified announcements (two Partnership, one Product) with dates and headlines intact, and the Telkom company-profile page correctly yielded **zero** events. XLSMART's pages expose no `<main>` element, so its selector is now `body`; its newsroom is client-rendered and still yields nothing to a plain fetch. The Indosat page exceeds the 500 KiB body cap and returns `RESPONSE_TOO_LARGE`. |
+| Announcement classification | **Passed**: word-anchored rules separate announcements from corporate boilerplate. Regression tests cover the two substring faults found during review — `mou` matching inside "amount", and a bare `advertising` matching cookie policies. |
+| Gap diagnosis and recovery round | **Passed**: a company whose first approved pages fail is re-read from its remaining pages and the gap closes; a company with no remaining pages records the reason and issues **no** recovery request, so an unreachable source cannot consume budget. Verified by tests and by a local end-to-end run against live pages. |
+| Provider news as competitive evidence | **Passed against a mocked transport**: Sectors news is stored under the `sectors_news` provider, classified into events, and cited by the resulting signals; non-announcement filler produces no signal. A news snapshot cannot satisfy the financial-evidence check. **Not yet exercised against the live Sectors news endpoint.** |
+| Agent decisions exposed to the frontend | **Passed**: the run payload carries real tool invocations with cache status and credit cost, plus route, planner, spend and unresolved gaps, rather than the stage list. |
 
 Coverage includes watchlist bounds/duplicates/unknown IDs; idempotency and concurrent submissions; frozen membership; immutable history; workspace-scoped conversation upserts/deletion; durable watchlist updates; baseline/unchanged/one-change runs; financial arithmetic, citation resolution and mismatched evidence rejection; missing financial data; explicit live/replay isolation; Sectors-only mode enforcement; provider retries and atomic shared credit limits; cache reuse; bounded news pagination; malformed LLM output/repair limits; SSRF, redirects, body limits and XML safety; interrupted-worker fencing/recovery/attempt exhaustion; cancellation; cursor pagination; workspace isolation; private cookie login and origin checks; and bounded Gmail digest filtering.
 
-The initial expanded test run exposed a misplaced test assertion; it was corrected and the complete suite rerun successfully. No failing checks remain in the executed suite. One upstream Starlette/AnyIO deprecation warning remains; it does not fail the suite.
+A recovery test exposed two real defects during this round: approved sources were ordered by random UUID, so "the first two pages" varied between runs; and a failed fetch was indistinguishable from an unread page, which made the agent retry sources it had already tried. Both were fixed and are covered by tests. The initial expanded test run exposed a misplaced test assertion; it was corrected and the complete suite rerun successfully. No failing checks remain in the executed suite. One upstream Starlette/AnyIO deprecation warning remains; it does not fail the suite.
 
 The previously configured key was rejected (`PROVIDER_AUTH_FAILED`); the newly configured local key authenticated for one overview-only request. A deliberate credit-limited end-to-end investigation is still required to confirm financial report normalization, full coverage and account billing. Retired test-mode records remain isolated and labeled in the existing database but can no longer be produced. Synthetic replay is restricted to deterministic automated tests. Qwen synthesis can remain enabled while live tool planning starts deterministic. Interpretations are labeled in progress and hypotheses remain explicit.
 

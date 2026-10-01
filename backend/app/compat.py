@@ -33,6 +33,54 @@ def signal_json(card):
     }
 
 
+def tool_calls(run, steps):
+    """Real tool invocations, not stage names.
+
+    The stage list says "collect"; the coverage record says which company was
+    read, from which provider, whether it was cached and what it cost. That
+    second thing is the evidence of orchestration, so it is what gets shown.
+    """
+    symbols = {c["id"]: c["symbol"] for c in (run.inputs or {}).get("companies", [])}
+    calls = []
+    for step in steps:
+        for entry in (step.details or {}).get("coverage", []):
+            target = ", ".join(symbols.get(i, i[:8]) for i in entry.get("company_ids", []))
+            bits = [target] if target else []
+            if entry.get("cache_status"):
+                bits.append(entry["cache_status"])
+            if entry.get("estimated_credits"):
+                bits.append(f"{entry['estimated_credits']} credit{'s' if entry['estimated_credits'] != 1 else ''}")
+            if entry.get("duration_ms"):
+                bits.append(f"{entry['duration_ms']} ms")
+            if entry["status"] != "ok":
+                bits.append(entry.get("code") or entry["status"])
+            calls.append({"name": entry["tool"], "detail": " · ".join(bits)})
+    # Before the first tool returns there is nothing to show but the stage.
+    return calls or [{"name": s.stage, "detail": s.message} for s in steps]
+
+
+def orchestration(run, steps):
+    """What the agent decided, as opposed to what it found."""
+    by_stage = {s.stage: s for s in steps}
+    plan = (by_stage["plan"].details or {}) if "plan" in by_stage else {}
+    recover = (by_stage["recover"].details or {}) if "recover" in by_stage else {}
+    coverage = [e for s in steps for e in (s.details or {}).get("coverage", [])]
+    summary = {
+        "route": plan.get("route"),
+        "routeReason": plan.get("route_reason"),
+        "planner": plan.get("planner"),
+        "toolCalls": len(coverage),
+        "credits": run.credits,
+        "cacheHits": sum(1 for e in coverage if e.get("cache_status") in ("cached", "resumed")),
+        "comparedAgainstRunId": run.baseline_id,
+        "gapsClosed": recover.get("gaps_closed"),
+        "gaps": [{"symbol": g["symbol"], "missing": g["missing"],
+                  "recoverable": g["recoverable"], "reason": g["reason"]}
+                 for g in recover.get("gaps", [])],
+    }
+    return {k: v for k, v in summary.items() if v not in (None, [])}
+
+
 def run_json(db, run):
     steps = list(db.scalars(select(RunStep).where(RunStep.run_id == run.id).order_by(RunStep.created_at)))
     status = {"completed": "complete", "partial": "complete", "failed": "failed"}.get(run.status, run.status)
@@ -42,7 +90,8 @@ def run_json(db, run):
                 currentStep=STAGES.index(run.stage) if run.stage in STAGES else -1,
                 steps=[{"id": stage, "label": stage.replace("_", " ").title()} for stage in STAGES],
                 elapsedSeconds=max(0, elapsed), etaSeconds=max(0, 90 - elapsed) if status in ("queued", "running") else 0,
-                toolCalls=[{"name": s.stage, "detail": s.message} for s in steps], mode=run.mode,
+                toolCalls=tool_calls(run, steps), mode=run.mode,
+                orchestration=orchestration(run, steps),
                 coverageStatus=run.status, startedAt=iso(run.started_at))
     if run.error_code:
         data["failedTool"] = run.error_code

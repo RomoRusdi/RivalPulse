@@ -520,6 +520,7 @@ function ResearchRunMessage({ run, live, onCancel, onRetry }: { run: AgentRun; l
         </div>
         <p className="mt-3 text-[14px] leading-[1.7] text-ink-2">{run.resultSummary ?? "The evidence was collected, validated, and stored."}</p>
         {run.financialBrief ? <FinancialEvidence brief={run.financialBrief} /> : null}
+        <OrchestrationPanel run={run} bare />
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-divider pt-4">
           <span className="text-xs text-muted">{run.financialBrief ? "Financial context only · no claims about recent competitor moves" : produced ? `${produced} evidence-backed ${produced === 1 ? "signal" : "signals"} published` : partial ? "Recent activity could not be verified; no conclusion about changes" : "No publishable changes in the available evidence"}</span>
           {produced ? <Link href="/signals" className="inline-flex items-center gap-1.5 text-xs font-extrabold text-accent-ink no-underline hover:text-accent">Review findings <ArrowRight size={13} /></Link> : null}
@@ -548,7 +549,12 @@ function ResearchRunMessage({ run, live, onCancel, onRetry }: { run: AgentRun; l
       </div>
 
       <div className="overflow-x-auto px-4 py-4 md:px-5">
-        <ol className="relative grid min-w-[620px] grid-cols-7 gap-2">
+        {/* Column count follows the backend STAGES list; hardcoding it wrapped
+            the rail onto a second row the moment a stage was added. */}
+        <ol
+          className="relative grid min-w-[620px] gap-2"
+          style={{ gridTemplateColumns: `repeat(${run.steps.length}, minmax(0, 1fr))` }}
+        >
           <span aria-hidden className="absolute top-[10px] right-[7%] left-[7%] h-0.5 bg-neutral-200" />
           {run.steps.map((step, index) => {
             const done = index < run.currentStep;
@@ -570,17 +576,86 @@ function ResearchRunMessage({ run, live, onCancel, onRetry }: { run: AgentRun; l
         </ol>
       </div>
 
+      <OrchestrationPanel run={run} />
+
       <div className="border-t border-divider px-4 py-3 md:px-5">
-        <p className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-muted">Latest agent activity</p>
+        <p className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-muted">Tool calls</p>
         {run.toolCalls.length ? (
           <div className="mt-2 flex flex-col gap-1.5" aria-live="polite">
-            {run.toolCalls.slice(-2).map((call, index) => (
+            {run.toolCalls.slice(-6).map((call, index) => (
               <div key={`${call.name}-${index}`} className="flex min-w-0 items-baseline gap-2 text-[11px]"><code className="shrink-0 font-bold text-accent-ink">{call.name}()</code><span className="truncate text-muted">{call.detail}</span></div>
             ))}
           </div>
         ) : <p className="mt-2 text-[11px] text-muted">Selecting the smallest sufficient set of approved tools…</p>}
         {live && busy ? <button type="button" onClick={onCancel} className="mt-3 inline-flex cursor-pointer items-center gap-1.5 rounded-field border border-border bg-card px-2.5 py-1.5 text-[11px] font-bold text-ink-2 transition-console hover:bg-subtle"><Square size={9} fill="currentColor" /> Stop run</button> : null}
       </div>
+    </div>
+  );
+}
+
+const ROUTE_LABEL: Record<string, string> = {
+  competitive_activity: "Competitive activity",
+  financial_statements: "Financial statements",
+};
+
+const PLANNER_LABEL: Record<string, string> = {
+  qwen: "Planned by Qwen",
+  deterministic: "Deterministic plan",
+  validated_fallback: "Qwen plan rejected → reviewed fallback",
+};
+
+/**
+ * The decisions behind the answer: route, planner, spend, and what the agent
+ * could not reach. A rejected model plan is shown, never quietly swapped.
+ */
+function OrchestrationPanel({ run, bare = false }: { run: AgentRun; bare?: boolean }) {
+  const o = run.orchestration;
+  if (!o || (!o.route && !o.toolCalls && !o.gaps?.length)) return null;
+
+  const facts = [
+    o.route ? ROUTE_LABEL[o.route] ?? o.route : null,
+    o.planner ? PLANNER_LABEL[o.planner] ?? o.planner : null,
+    o.toolCalls ? `${o.toolCalls} tool ${o.toolCalls === 1 ? "call" : "calls"}` : null,
+    typeof o.credits === "number" ? `${o.credits} ${o.credits === 1 ? "credit" : "credits"}` : null,
+    o.cacheHits ? `${o.cacheHits} cached` : null,
+    o.comparedAgainstRunId ? `compared with run #${o.comparedAgainstRunId.slice(0, 8)}` : null,
+  ].filter(Boolean) as string[];
+
+  return (
+    <div className={bare ? "mt-4 border-t border-divider pt-4" : "border-t border-divider px-4 py-3 md:px-5"}>
+      <p className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-muted">Agent decisions</p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {facts.map((fact) => (
+          <span
+            key={fact}
+            className={cx(
+              "rounded-field border px-2 py-0.5 text-[10.5px] font-semibold",
+              o.planner === "validated_fallback" && fact.startsWith("Qwen plan rejected")
+                ? "border-accent/40 bg-accent/10 text-accent-ink"
+                : "border-divider bg-subtle/60 text-ink-2",
+            )}
+          >
+            {fact}
+          </span>
+        ))}
+      </div>
+      {o.gaps?.length ? (
+        <div className="mt-2.5">
+          <p className="text-[10.5px] text-muted">
+            {o.gapsClosed
+              ? `Recovered ${o.gapsClosed} of ${o.gaps.length} evidence gaps`
+              : `${o.gaps.length} evidence ${o.gaps.length === 1 ? "gap" : "gaps"} could not be closed`}
+          </p>
+          <ul className="mt-1.5 flex flex-col gap-1">
+            {o.gaps.map((gap) => (
+              <li key={`${gap.symbol}-${gap.missing}`} className="flex min-w-0 items-baseline gap-2 text-[10.5px]">
+                <span className="shrink-0 font-bold text-ink-2">{gap.symbol}</span>
+                <span className="truncate text-muted">{gap.reason}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -115,3 +115,32 @@ def test_quiet_pages_complete_instead_of_reporting_missing_evidence(client, watc
     assert detail["status"] == "completed" and detail["error_code"] is None
     assert detail["result"]["signals"] == []
     assert "verified quiet period" in detail["result"]["summary"]
+
+
+def test_run_payload_exposes_decisions_not_just_stage_names(client, watchlist, monkeypatch):
+    """The chat surface must show real tool calls and the agent's own decisions."""
+    monkeypatch.setattr("app.agent.collect_public", collector({}))
+    run_id = launch(client, watchlist)
+    execute_run(run_id)
+    legacy = client.get("/runs/" + run_id + "/stream").text
+
+    detail = client.get("/api/v1/research-runs/" + run_id).json()
+    assert "recover" in {s["stage"] for s in detail["progress"]}
+
+    import json as _json
+    payload = _json.loads(legacy.split("data: ")[-1].strip())
+    names = {call["name"] for call in payload["toolCalls"]}
+    # Real tools, not the STAGES list.
+    assert "get_company_metrics" in names and not names & set(STAGE_NAMES)
+
+    decisions = payload["orchestration"]
+    assert decisions["route"] == "competitive_activity"
+    assert decisions["planner"] == "deterministic"
+    assert decisions["toolCalls"] >= 6
+    gaps = {g["symbol"]: g for g in decisions["gaps"]}
+    assert set(gaps) == {"TLKM", "ISAT", "EXCL"}
+    assert all(not g["recoverable"] for g in gaps.values())
+    assert "failed to load" in gaps["TLKM"]["reason"]
+
+
+STAGE_NAMES = {"validate", "plan", "collect", "recover", "compare", "analyze", "validate_output", "persist"}

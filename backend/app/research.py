@@ -22,6 +22,18 @@ STAGES = ["validate", "plan", "collect", "recover", "compare", "analyze", "valid
 EVENT_PROVIDERS = ("public", "sectors_news")
 # Tools that sweep for competitive events, in coverage records.
 SWEEP_TOOLS = ("get_recent_signals", "get_company_news")
+# Approved pages are optional corroboration; Sectors is the primary event source.
+# A company with no page configured has nothing to fail, so these must not be
+# read as coverage failures — otherwise every catalogue company without a
+# hand-curated page would drag its run to "partial".
+OPTIONAL_SOURCE_CODES = {"NO_APPROVED_SOURCES", "NO_REMAINING_SOURCES"}
+
+
+def blocking(entries):
+    """Warnings that represent evidence we failed to obtain, not evidence we
+    were never configured to look for."""
+    return [w for w in entries
+            if not (isinstance(w, dict) and w.get("code") in OPTIONAL_SOURCE_CODES)]
 
 
 def diagnose(run_id, coverage, financial_only=False):
@@ -306,7 +318,10 @@ def validate_card(card, snapshots):
         cited = [snapshots[evidence[i].snapshot_id] for i in metric.evidence_ids]
         # Existing archived test cards retain their original citation checks;
         # the retired test provider cannot be selected for any new run.
-        allowed_financial_provider = "yahoo" if parsed.mode == "yahoo" else "sectors"
+        # Financial figures may only ever cite a Sectors company report. News
+        # snapshots are stored under "sectors_news" precisely so they cannot
+        # satisfy this check.
+        allowed_financial_provider = "sectors"
         if any(s.provider != allowed_financial_provider for s in cited):
             raise ValueError(f"Financial metrics require {allowed_financial_provider} evidence in {parsed.mode} mode")
         if metric.metric != "revenue_growth_percent":
@@ -394,7 +409,7 @@ def persist(run_id, token, candidates, analysis, coverage, warnings, financial_b
             # leave real coverage gaps.
             sweeps = [entry for entry in coverage if entry["tool"] in SWEEP_TOOLS]
             verified_quiet = bool(sweeps) and all(
-                entry["status"] == "ok" and not entry.get("warnings") for entry in sweeps)
+                entry["status"] == "ok" and not blocking(entry.get("warnings", [])) for entry in sweeps)
             partial = bool(warnings) or (not cards and not verified_quiet) or any(
                 c["analysis_status"] != "complete" for c in cards)
             if not cards and verified_quiet:
@@ -468,7 +483,7 @@ def execute_run(run_id, adapter=None):
                 if isinstance(output, dict) and output.get("warnings"):
                     outcome["warnings"] = output["warnings"]
                     if tool.name != "get_company_metrics":
-                        warnings.extend(f"{tool.name}: {w}" for w in output["warnings"])
+                        warnings.extend(f"{tool.name}: {w}" for w in blocking(output["warnings"]))
                 if tool.name == "get_company_metrics" and not output["data"].get("metrics"):
                     warnings.append("INSUFFICIENT_EVIDENCE: " + tool.company_ids[0])
                     outcome["status"] = "missing_financial"
