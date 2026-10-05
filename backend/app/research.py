@@ -1,12 +1,16 @@
 """Durable, fenced orchestration. Publication is one database transaction."""
 import copy
 import logging
+import re
 import time
 from datetime import timezone
+from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select, text, update
 
-from app.agent import Agent, Tools, is_financial_question
+from pydantic import ValidationError
+
+from app.agent import Agent, Tools, is_financial_question, planned_scope
 from app.alerts import send_digest
 from app.config import get_settings
 from app.contracts import FinancialBrief, ResearchResult, SignalCard, ToolCall
@@ -58,7 +62,10 @@ def diagnose(run_id, coverage, financial_only=False):
                            if s.provider == "sectors" and not s.normalized.get("metrics")}
         events = {s.company_id for s in snapshots if s.provider in EVENT_PROVIDERS and s.normalized.get("events")}
         gaps = []
+        scope = planned_scope(run.inputs)
         for company in run.inputs["companies"]:
+            if company["id"] not in scope:
+                continue
             company_id, sources = company["id"], company.get("sources", [])
             if company_id not in financial:
                 gaps.append({
@@ -86,10 +93,15 @@ def diagnose(run_id, coverage, financial_only=False):
         return gaps
 
 
-def recovery_plan(gaps, inputs):
+def recovery_plan(gaps, inputs, coverage=()):
     """A second evidence plan derived from what the first pass actually returned,
     rather than from the query alone."""
     companies = {c["id"]: c for c in inputs["companies"]}
+    sweeps = {}
+    for entry in coverage:
+        if entry["tool"] == "get_recent_signals":
+            for company_id in entry["company_ids"]:
+                sweeps[company_id] = sweeps.get(company_id, 0) + 1
     actions = []
     for gap in (g for g in gaps if g["recoverable"]):
         company = companies[gap["company_id"]]
@@ -97,7 +109,10 @@ def recovery_plan(gaps, inputs):
             actions.append(ToolCall(name="get_company_metrics", company_ids=[company["id"]],
                                     reason=f"Retry unretrieved financial statements for {company['symbol']}"))
         else:
-            actions.append(ToolCall(name="get_recent_signals", company_ids=[company["id"]], source_offset=2,
+            # Continue where this run's own sweeps left off: a company the first
+            # pass never swept starts at offset 0, not 2.
+            offset = 2 * sweeps.get(company["id"], 0)
+            actions.append(ToolCall(name="get_recent_signals", company_ids=[company["id"]], source_offset=offset,
                                     reason=f"Read the remaining approved pages for {company['symbol']}"))
     return actions
 
@@ -171,10 +186,76 @@ def candidates_for(run_id, coverage):
             periods = next((t["requested_periods"] for t in run.plan["tools"]
                             if t["name"] == "get_company_metrics" and c["company"]["id"] in t["company_ids"]), [])
             if periods:
-                fin = [m for m in fin if int(m["period"]) in periods]
+                kept = []
+                for m in fin:
+                    try:
+                        if int(m["period"]) in periods:
+                            kept.append(m)
+                    except (ValueError, TypeError, KeyError):
+                        continue
+                fin = kept
             c["metrics"] = fin
             c["content_hash"] = digest({"events": sorted({e["text"] for e, _, _ in c["observations"]}), "financials": fin})
     return list(candidates.values())
+
+
+def comparison_note(brief):
+    """One evidence-grounded ranking line for the common period, or None.
+
+    Ranking is only stated when every compared company reports revenue for the
+    same period with identical known currency, unit and reporting scope — the
+    same comparability rule as growth(). Anything weaker stays a table the
+    reader can eyeball, never a claim.
+    """
+    if not brief or not brief.period:
+        return None
+    figures = []
+    for row in brief.rows:
+        match = next((m for m in row.metrics
+                      if m.metric == "revenue" and m.period == brief.period), None)
+        if not match or not match.currency:
+            return None
+        figures.append((row.symbol, match, match.currency, match.unit, match.comparison_basis))
+    if len(figures) < 2:
+        return None
+    first = figures[0]
+    if any((c, u, b) != (first[2], first[3], first[4]) for _, _, c, u, b in figures):
+        return None
+    if first[3] == "provider_native_unspecified" or first[4] == "reporting_scope_unverified":
+        return None
+    try:
+        ranked = sorted(figures, key=lambda f: Decimal(f[1].value), reverse=True)
+    except (InvalidOperation, ValueError, AttributeError):
+        return None
+    if ranked[0][1].value == ranked[-1][1].value:
+        return None
+    return (f"In {brief.period}, reported revenue on a comparable basis "
+            f"({first[2]}, {first[3]}) was highest at {ranked[0][0]} "
+            f"and lowest at {ranked[-1][0]}. See the cited figures below.")
+
+
+def yoy_percent(current, previous):
+    """Year-on-year change between adjacent annual periods, or None.
+
+    Weaker than growth() on purpose: a ratio cancels unknown-but-equal units,
+    so identical metadata suffices even when currency/unit are unspecified.
+    Anything labeled computed carries its basis in comparison_basis, and the
+    brief warns that scope is unverified. Positive denominator required, same
+    as growth(): turnarounds stay table-visible, never a claim.
+    """
+    for key in ("currency", "unit", "comparison_basis"):
+        if current.get(key) != previous.get(key):
+            return None
+    try:
+        if int(current["period"]) != int(previous["period"]) + 1:
+            return None
+        denominator = Decimal(previous["value"])
+        if denominator <= 0:
+            return None
+        pct = (Decimal(current["value"]) - denominator) / denominator * 100
+    except (InvalidOperation, ValueError, KeyError, TypeError, AttributeError):
+        return None
+    return ("+" if pct >= 0 else "") + str(pct.quantize(Decimal("0.01"))) + "%"
 
 
 def financial_brief_for(run_id):
@@ -186,13 +267,16 @@ def financial_brief_for(run_id):
             Snapshot.provider == "sectors",
         )) if s.normalized.get("metrics")}
         common = None
-        if all(c["id"] in snapshots for c in run.inputs["companies"]):
+        present = [c for c in run.inputs["companies"] if c["id"] in snapshots]
+        if present:
             periods = [{m["period"] for m in snapshots[c["id"]].normalized["metrics"] if m["metric"] == "revenue"}
-                       for c in run.inputs["companies"]]
+                       for c in present]
             shared = set.intersection(*periods) if periods else set()
             common = max(shared) if shared else None
         rows, claims, caveats = [], [], []
-        for company in run.inputs["companies"]:
+        unverified_basis = False
+        scoped = [c for c in run.inputs["companies"] if c["id"] in planned_scope(run.inputs)]
+        for company in scoped:
             snapshot = snapshots.get(company["id"])
             if not snapshot:
                 caveats.append(f"{company['symbol']}: no financial statements were available.")
@@ -210,8 +294,34 @@ def financial_brief_for(run_id):
                     claims.append({"claim_id": claim_id, "symbol": company["symbol"],
                                    "metric": metric_name, "period": period, "value": match["value"],
                                    "currency": match["currency"], "unit": match["unit"]})
+            for metric_name in ("revenue", "earnings"):
+                current = next((m for m in metrics if m["metric"] == metric_name), None)
+                if not current:
+                    continue
+                try:
+                    prior_period = str(int(period) - 1)
+                except (ValueError, TypeError):
+                    continue
+                prior = next((m for m in available
+                              if m["metric"] == metric_name and m["period"] == prior_period), None)
+                if not prior:
+                    continue
+                change = yoy_percent(current, prior)
+                if change is None:
+                    continue
+                if not current["currency"] or current["unit"] == "provider_native_unspecified":
+                    unverified_basis = True
+                metrics.append({"metric": f"{metric_name}_yoy_percent", "value": change, "currency": None,
+                                "unit": "percent", "period": period,
+                                "comparison_basis": f"computed vs {prior['period']}; {current['comparison_basis']}",
+                                "source_url": current["source_url"], "json_pointer": current["json_pointer"],
+                                "snapshot_id": current["snapshot_id"],
+                                "claim_id": f"financial-{company['symbol']}-{metric_name}-yoy-{period}"})
             rows.append({"symbol": company["symbol"], "name": company["name"],
                          "comparison_note": company["comparison_note"], "metrics": metrics})
+        if unverified_basis:
+            caveats.append("Year-on-year percentages are computed from as-reported values; "
+                           "verify reporting scope before relying on them.")
         if not common:
             caveats.append("No common annual revenue period was available for all companies; do not rank unlike periods.")
         return FinancialBrief(period=common, rows=rows, caveats=caveats), claims
@@ -343,7 +453,8 @@ def validate_card(card, snapshots):
         raise ValueError("Complete card lacks financial evidence")
 
 
-def persist(run_id, token, candidates, analysis, coverage, warnings, financial_brief=None):
+def persist(run_id, token, candidates, analysis, coverage, warnings, financial_brief=None,
+            financial_context_only=False):
     published = []
     with session() as db, db.begin():
         # Serialize event publication across different watchlists in the same workspace.
@@ -376,8 +487,18 @@ def persist(run_id, token, candidates, analysis, coverage, warnings, financial_b
                         db.flush()
                 cards.append(card)
                 continue
-            card, revision_id = build_card(run, candidate, interpretations[candidate["event_key"]], signal, prior)
-            validate_card(card, snapshots)
+            try:
+                card, revision_id = build_card(run, candidate, interpretations[candidate["event_key"]], signal, prior)
+                validate_card(card, snapshots)
+            except (ValidationError, ValueError, KeyError, TypeError) as exc:
+                # One unbuildable finding must not discard the rest of a paid,
+                # collected investigation: skip it loudly and publish the rest.
+                log.warning("card_rejected", extra={"run_id": run_id,
+                             "event_key": candidate.get("event_key", "unknown"),
+                             "error_type": type(exc).__name__})
+                warnings.append("One finding could not be validated and was skipped; "
+                                "the remaining cited findings are published below.")
+                continue
             revision = Revision(id=revision_id, signal_id=signal.id, run_id=run.id,
                                 prior_revision_id=prior.id if prior else None, content_hash=candidate["content_hash"],
                                 severity=card["severity"], card=card)
@@ -396,13 +517,42 @@ def persist(run_id, token, candidates, analysis, coverage, warnings, financial_b
             cards.append(card)
             if card["change_status"] != "baseline":
                 changes += 1
-        if financial_brief is not None:
+        # The comparison table answers the request, not the whole watchlist:
+        # scope its rows to the companies the query names (plus our own),
+        # falling back to everyone when it names no one. Status and evidence
+        # stay complete; only the presented comparison narrows.
+        scoped_brief = financial_brief
+        compared = (run.inputs or {}).get("compared_symbols")
+        if scoped_brief is not None and compared:
+            rows = [r for r in scoped_brief.rows if r.symbol in compared]
+            # Per-company caveats ("FREN: no financial statements…") for
+            # companies outside the requested comparison leak watchlist
+            # members the user did not ask about — drop them with the rows.
+            out_of_scope = {c["symbol"] for c in run.inputs["companies"]} - set(compared)
+            caveats = [c for c in scoped_brief.caveats
+                       if not any(c.startswith(f"{symbol}:") for symbol in out_of_scope)]
+            if len(rows) != len(scoped_brief.rows) or len(caveats) != len(scoped_brief.caveats):
+                scoped_brief = scoped_brief.model_copy(update={"rows": rows, "caveats": caveats})
+        # A request naming "my company" with no perspective set compares
+        # without it — say so plainly instead of silently dropping the framing.
+        ours_note = ""
+        if not (run.inputs or {}).get("user_company") and re.search(
+                r"\b(my company|our company|perusahaanku|perusahaan\s+(saya|kami|kita))\b",
+                run.query or "", re.I):
+            ours_note = (" Note: the request refers to your company, but no company perspective is set — "
+                         "set it under Competitors → Our company (or say “my company is TLKM”).")
+        if financial_brief is not None and financial_context_only:
             # Report completeness is separate from competitive-change coverage.
-            partial = bool(warnings) or len(financial_brief.rows) != len(run.inputs["companies"]) or any(
+            scoped = [c for c in run.inputs["companies"] if c["id"] in planned_scope(run.inputs)]
+            partial = bool(warnings) or len(financial_brief.rows) != len(scoped) or any(
                 not row.metrics for row in financial_brief.rows)
             summary = (f"Annual financial context for {len(financial_brief.rows)} of "
                        f"{len(run.inputs['companies'])} competitors. "
                        "See the cited figures below; annual statements do not establish weekly competitor moves.")
+            note = comparison_note(scoped_brief)
+            if note:
+                summary += " " + note
+            summary += ours_note
         else:
             # An approved page that was read successfully and contained no announcement
             # is a verified quiet result, not missing evidence. Only unread sources
@@ -417,9 +567,47 @@ def persist(run_id, token, candidates, analysis, coverage, warnings, financial_b
                            f"{len(run.inputs['companies'])} competitors. Every page was read successfully; "
                            "this is a verified quiet period, not missing evidence.")
             else:
-                summary = (f"{changes} new or updated findings; "
-                           f"{sum(c['change_status'] == 'baseline' for c in cards)} baseline observations; "
-                           f"{sum(c['change_status'] == 'unchanged' for c in cards)} previously observed findings unchanged.")
+                baselines = sum(c["change_status"] == "baseline" for c in cards)
+                unchanged = sum(c["change_status"] == "unchanged" for c in cards)
+                if changes == 0 and baselines and not unchanged:
+                    symbols = sorted({c["company"]["symbol"] for c in cards})
+                    hot = sum(1 for c in cards if c["severity"] == "high")
+                    summary = (
+                        f"{baselines} baseline observations across {len(symbols)} "
+                        f"competitor{'s' if len(symbols) != 1 else ''} ({', '.join(symbols)}). "
+                        "This first investigation establishes the reference baseline; "
+                        "new or updated findings will be flagged from the next run.")
+                    if hot:
+                        summary += (f" {hot} baseline "
+                                    f"{'finding needs' if hot == 1 else 'findings need'} attention (high severity).")
+                else:
+                    summary = (f"{changes} new or updated findings; "
+                               f"{baselines} baseline observations; "
+                               f"{unchanged} previously observed findings unchanged.")
+            if scoped_brief is not None:
+                note = comparison_note(scoped_brief)
+                if note:
+                    summary += " " + note
+            if cards:
+                # Name the companies the evidence said nothing about. A tracked
+                # competitor with zero findings otherwise vanishes silently,
+                # leaving "why no Mandiri?" unanswered. Scoped to the requested
+                # comparison: unmentioned companies were never investigated.
+                scope = planned_scope(run.inputs)
+                covered = {c["company"]["symbol"] for c in cards}
+                for company in run.inputs["companies"]:
+                    if company["id"] not in scope or company["symbol"] in covered:
+                        continue
+                    own = [s for s in snapshots.values() if s.company_id == company["id"]]
+                    if not own:
+                        why = "no data was retrieved for it"
+                    elif not any(s.provider in EVENT_PROVIDERS and (s.normalized or {}).get("events")
+                                   for s in own):
+                        why = "no competitive events were found for it in this run's evidence"
+                    else:
+                        why = "its events could not be validated into findings"
+                    summary += f" No findings for {company['symbol']}: {why}."
+            summary += ours_note
             if warnings:
                 summary += " Some sources were unavailable; this does not establish that nothing changed."
         run.status = "partial" if partial else "completed"
@@ -427,7 +615,7 @@ def persist(run_id, token, candidates, analysis, coverage, warnings, financial_b
         run.finished_at, run.heartbeat_at = utcnow(), utcnow()
         result = ResearchResult(run_id=run.id, mode=run.mode, status=run.status, generated_at=iso(utcnow()),
                                 summary=summary, coverage=coverage, warnings=warnings, signals=cards,
-                                financial_brief=financial_brief)
+                                financial_brief=scoped_brief)
         run.result = result.model_dump()
         run.lease_token = None
         final_step = db.scalar(select(RunStep).where(RunStep.run_id == run_id, RunStep.attempt == run.attempts,
@@ -462,7 +650,8 @@ def execute_run(run_id, adapter=None):
                                  "route_reason": ("Statement question: annual financials only, no page sweep"
                                                   if financial_only else
                                                   "Activity question: approved pages plus financial context"),
-                                 "required_tools": sorted({t.name for t in plan.tools})}
+                                 "required_tools": sorted({t.name for t in plan.tools}),
+                                 "user_company": inputs.get("user_company")}
             if agent.plan_source == "validated_fallback":
                 plan_step.message = "Qwen plan rejected; using the reviewed bounded evidence plan"
         stage(run_id, token, "collect", "Collecting provider evidence", {"tools": plan.model_dump()["tools"]})
@@ -514,7 +703,7 @@ def execute_run(run_id, adapter=None):
         # to the query, so gaps and their reasons are recorded either way.
         gaps = diagnose(run_id, coverage, financial_only)
         if gaps:
-            actions = recovery_plan(gaps, inputs)
+            actions = recovery_plan(gaps, inputs, coverage)
             stage(run_id, token, "recover",
                   f"Closing {sum(g['recoverable'] for g in gaps)} of {len(gaps)} evidence gaps",
                   {"gaps": gaps, "actions": [a.model_dump() for a in actions]})
@@ -532,10 +721,14 @@ def execute_run(run_id, adapter=None):
             log.info("recovery_finished", extra={"run_id": run_id, "gaps": len(gaps), "closed": closed})
         stage(run_id, token, "compare", "Comparing collected evidence")
         candidates = [] if financial_only else candidates_for(run_id, coverage)
-        brief, claims = financial_brief_for(run_id) if financial_only else (None, [])
-        stage(run_id, token, "analyze", "Generating evidence-linked interpretation",
-              {"adapter": "llm" if agent.adapter else "deterministic", "candidates": len(candidates)})
-        if brief is not None:
+        # Every run gets the cited annual-statement table for side-by-side
+        # comparison. It is free (reads this run's snapshots: no credits, no
+        # model call). Only statement-only investigations let it drive status;
+        # activity runs attach it as context while competitive coverage decides.
+        brief, claims = financial_brief_for(run_id)
+        if financial_only:
+            stage(run_id, token, "analyze", "Generating evidence-linked interpretation",
+                  {"adapter": "llm" if agent.adapter else "deterministic", "candidates": len(candidates)})
             try:
                 brief.interpretation = agent.analyze_financial(claims)
             except ProviderError as exc:
@@ -543,6 +736,12 @@ def execute_run(run_id, adapter=None):
                     raise
                 brief.caveats.append("AI interpretation could not be validated; the cited figures remain available.")
                 log.warning("financial_interpretation_unavailable", extra={"run_id": run_id, "error_code": exc.code})
+        else:
+            stage(run_id, token, "analyze", "Generating evidence-linked interpretation",
+                  {"adapter": "llm" if agent.adapter else "deterministic", "candidates": len(candidates)})
+            brief.interpretation = None
+            if not any(row.metrics for row in brief.rows):
+                brief = None
         prepared = [{"event_key": c["event_key"], "claims": c["claims"], "financial_context": c["metrics"]}
                     for c in candidates]
         interpreter = "qwen" if agent.adapter and candidates else "deterministic"
@@ -566,7 +765,8 @@ def execute_run(run_id, adapter=None):
                 analyze_step.message = "AI wording rejected; published cited findings with reviewed wording"
         stage(run_id, token, "validate_output", "Schema and supporting claims validated")
         stage(run_id, token, "persist", "Storing cited investigation")
-        published = persist(run_id, token, candidates, analysis, coverage, warnings, brief)
+        published = persist(run_id, token, candidates, analysis, coverage, warnings, brief,
+                              financial_context_only=financial_only)
         send_digest(published)
     except Exception as exc:
         code = exc.code if isinstance(exc, ProviderError) else "INTERNAL_ERROR"
@@ -575,5 +775,7 @@ def execute_run(run_id, adapter=None):
                 status="failed", error_code=code, finished_at=utcnow(), lease_token=None))
             if changed.rowcount:
                 db.execute(update(RunStep).where(RunStep.run_id == run_id, RunStep.status == "running").values(status="failed"))
-        # Never log provider exception bodies or prompts.
-        log.error("run_failed", extra={"run_id": run_id, "error_code": code})
+        # Never log provider exception bodies or prompts; type plus a short
+        # detail is what makes "check the API logs" actually answerable.
+        log.error("run_failed", extra={"run_id": run_id, "error_code": code,
+                 "error_type": type(exc).__name__, "error_detail": str(exc)[:300]})

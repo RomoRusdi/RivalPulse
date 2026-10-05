@@ -1,5 +1,6 @@
 import { AgentRunSchema } from "./schemas";
 import type { AgentRun } from "./types";
+import type { RouteSuggestion } from "./agent-router";
 
 const STORAGE_KEY = "rivalpulse.chat-history.v1";
 const MAX_SESSIONS = 30;
@@ -14,6 +15,8 @@ export interface ChatMessage {
   label?: string;
   createdAt: string;
   run?: AgentRun;
+  /** Tappable follow-ups. Restored from storage like everything else. */
+  suggestions?: RouteSuggestion[];
   /**
    * A conversational reply still being written. Never restored from storage:
    * after a reload there is no request left to finish it.
@@ -91,6 +94,18 @@ function parseMessage(value: unknown): ChatMessage[] {
     typeof row.createdAt !== "string"
   ) return [];
   const run = row.run ? AgentRunSchema.safeParse(row.run) : null;
+  const suggestions = Array.isArray(row.suggestions)
+    ? row.suggestions
+      .filter(
+        (s): s is RouteSuggestion =>
+          !!s &&
+          typeof s === "object" &&
+          typeof (s as Partial<RouteSuggestion>).label === "string" &&
+          typeof (s as Partial<RouteSuggestion>).prompt === "string",
+      )
+      .slice(0, 4)
+      .map((s) => ({ label: s.label.slice(0, 80), prompt: s.prompt.slice(0, 500) }))
+    : undefined;
   return [{
     id: row.id,
     role: row.role,
@@ -99,5 +114,6 @@ function parseMessage(value: unknown): ChatMessage[] {
     label: typeof row.label === "string" ? row.label : undefined,
     createdAt: row.createdAt,
     run: run?.success ? run.data : undefined,
+    ...(suggestions?.length ? { suggestions } : null),
   }];
 }

@@ -4,7 +4,7 @@ from app.agent import Agent, is_financial_question
 from app.config import get_settings
 from app.db import session
 from app.models import Run, RunSnapshot, Snapshot
-from app.research import claim_run, execute_run
+from app.research import claim_run, comparison_note, execute_run
 
 
 class FinancialAdapter:
@@ -38,7 +38,11 @@ def test_financial_question_uses_real_snapshots_without_public_events(client, wa
     assert result["result"]["signals"] == []
     brief = result["result"]["financial_brief"]
     assert brief["period"] == "2025" and len(brief["rows"]) == 3
-    assert all({m["metric"] for m in row["metrics"]} == {"revenue", "earnings"} for row in brief["rows"])
+    assert all({m["metric"] for m in row["metrics"]} == {
+        "revenue", "earnings", "revenue_yoy_percent", "earnings_yoy_percent",
+    } for row in brief["rows"])
+    assert all(m["unit"] == "percent" or not m["metric"].endswith("_yoy_percent")
+               or m["value"].endswith("%") for row in brief["rows"] for m in row["metrics"])
     assert brief["interpretation"]["supporting_claim_ids"][0].startswith("financial-")
     with session() as db:
         for row in brief["rows"]:
@@ -100,7 +104,89 @@ def test_unvalidated_financial_narrative_does_not_erase_cited_figures(client, wa
     assert any("could not be validated" in caveat for caveat in result["result"]["financial_brief"]["caveats"])
 
 
+def test_common_period_ignores_companies_without_statements(client, watchlist, monkeypatch):
+    """EXCL has no statements but TLKM/ISAT share 2025: the brief period and
+    the ranking line must reflect the pair that can actually be compared."""
+    import httpx
+
+    from app.errors import ProviderError
+    from tests.test_providers import LockRedis
+
+    monkeypatch.setenv("MODE", "live")
+    monkeypatch.setenv("SECTORS_API_KEY", "test-only-fake-key")
+    get_settings.cache_clear()
+
+    def handler(request):
+        if "/news/" in request.url.path:
+            return httpx.Response(200, json={"results": [], "pagination": {"has_next": False}})
+        symbol = request.url.path.split("/")[-2]
+        financials = {} if symbol == "EXCL" else {
+            "currency": "IDR", "unit": "billion", "comparison_basis": "audited",
+            "historical_financials": [
+                {"year": 2024, "revenue": 120.0, "earnings": 10.0},
+                {"year": 2025, "revenue": 150.0 if symbol == "TLKM" else 100.0, "earnings": 12.0},
+            ],
+        }
+        return httpx.Response(200, json={"symbol": symbol + ".JK", "company_name": symbol,
+                                         "overview": {}, "financials": financials, "peers": []})
+
+    real = httpx.Client
+    monkeypatch.setattr("app.providers.httpx.Client",
+                        lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+    monkeypatch.setattr("app.providers.redis_connection", LockRedis)
+    monkeypatch.setattr("app.agent.collect_public", lambda *a: (_ for _ in ()).throw(
+        ProviderError("SOURCE_UNAVAILABLE", "unreachable")))
+
+    run_id = client.post("/api/v1/research-runs", json={
+        "watchlist_id": watchlist["id"], "query": "compare TLKM and ISAT this week",
+    }).json()["id"]
+    execute_run(run_id)
+    detail = client.get("/api/v1/research-runs/" + run_id).json()
+
+    assert detail["status"] == "partial", detail["error_code"]
+    brief = detail["result"]["financial_brief"]
+    assert brief["period"] == "2025"
+    by_symbol = {r["symbol"]: r for r in brief["rows"]}
+    assert set(by_symbol) == {"TLKM", "ISAT"}, "table covers the requested pair only"
+    assert {m["metric"] for m in by_symbol["TLKM"]["metrics"]} == {
+        "revenue", "earnings", "revenue_yoy_percent", "earnings_yoy_percent"}
+    assert brief["interpretation"] is None
+    assert "highest at TLKM and lowest at ISAT" in detail["result"]["summary"]
+    assert any(m["value"].startswith("+") and m["value"].endswith("%")
+               for m in by_symbol["TLKM"]["metrics"] if m["metric"].endswith("_yoy_percent"))
+
+
 def test_recent_question_still_requires_public_evidence():
     assert is_financial_question("What is annual revenue for TLKM?")
     assert not is_financial_question("What changed this week in revenue and product pricing?")
     assert not is_financial_question("How did the recent campaign affect earnings?")
+
+
+def make_brief(period, entries):
+    from app.contracts import FinancialBrief
+    return FinancialBrief(period=period, caveats=[], rows=[{
+        "symbol": symbol, "name": symbol, "comparison_note": "",
+        "metrics": [{
+            "metric": "revenue", "value": value, "currency": currency,
+            "unit": "billion", "period": period, "comparison_basis": "audited",
+            "source_url": "https://sectors.test/r", "json_pointer": "/r",
+            "snapshot_id": "s", "claim_id": "c",
+        }],
+    } for symbol, value, currency in entries])
+
+
+def test_comparison_note_ranks_only_comparable_revenue():
+    brief = make_brief("2025", [("BBCA", "100", "IDR"), ("BMRI", "200", "IDR")])
+    note = comparison_note(brief)
+    assert note is not None and "BMRI" in note and "BBCA" in note and "2025" in note
+
+
+def test_comparison_note_withholds_ranking_without_common_basis():
+    tie = make_brief("2025", [("BBCA", "100", "IDR"), ("BMRI", "100", "IDR")])
+    assert comparison_note(tie) is None
+    mixed_currency = make_brief("2025", [("BBCA", "100", "IDR"), ("BMRI", "200", "USD")])
+    assert comparison_note(mixed_currency) is None
+    unknown_currency = make_brief("2025", [("BBCA", "100", "IDR"), ("BMRI", "200", None)])
+    assert comparison_note(unknown_currency) is None
+    from app.contracts import FinancialBrief
+    assert comparison_note(FinancialBrief(period=None, rows=[], caveats=[])) is None

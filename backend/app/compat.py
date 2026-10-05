@@ -8,12 +8,33 @@ from app.models import RunStep
 from app.research import STAGES
 
 
+def try_float(value):
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None
+
+
 def signal_json(card):
+    observations = card.get("observed_signals") or []
+    series = []
+    for m in card.get("financial_context") or []:
+        if m.get("metric") != "revenue":
+            continue
+        value = try_float(m.get("value"))
+        if value is None:
+            continue
+        series.append({"label": m.get("period"), "value": value})
+    implication = card["why_marketing_should_care"]["text"]
+    why_it_matters = implication if implication.startswith("Hypothesis:") else "Hypothesis: " + implication
+    # Headline is the short event title (≤300 chars), never the full
+    # observation text: list rows and chat cards render it verbatim.
+    headline = card["title"] or (observations[0]["text"] if observations else "")
     return {
         "id": card["signal_id"], "company": card["company"]["symbol"], "companyName": card["company"]["name"],
         "type": card["type"], "title": ({"replay": "[REPLAY] ", "yahoo": "[YAHOO TEST] "}.get(card["mode"], "")) + card["title"],
         "subline": f"{card['mode']} · {card['change_status']} · {card['analysis_status']}",
-        "headline": card["observed_signals"][0]["text"], "severity": card["severity"],
+        "headline": headline, "severity": card["severity"],
         "detectedAt": card["first_seen_at"][:10], "runId": card["run_id"], "storedAt": card["stored_at"],
         "comparedAgainstRunId": card["compared_against_run_id"] or "",
         "evidence": [{"kind": kind, "source": "AI interpretation" if kind == "hypothesis" else "Stored evidence",
@@ -23,12 +44,11 @@ def signal_json(card):
         "financialContext": {
             "seriesCaption": (("Yahoo Finance test data" if card["mode"] == "yahoo" else "Sectors annual revenue") +
                               "; source currency and unit shown in metrics"),
-            "series": [{"label": m["period"], "value": float(m["value"])}
-                       for m in card["financial_context"] if m["metric"] == "revenue"],
+            "series": series,
             "metrics": [{"label": m["metric"] + " · " + m["period"],
                          "value": f"{m['value']} {m['currency'] or ''} {m['unit']}".strip()}
                         for m in card["financial_context"]],
-            "whyItMatters": "Hypothesis: " + card["why_marketing_should_care"]["text"],
+            "whyItMatters": why_it_matters,
         }, "mode": card["mode"], "change_status": card["change_status"],
     }
 

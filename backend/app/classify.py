@@ -27,6 +27,8 @@ MATCHERS = tuple((category, re.compile(rf"\b{pattern}\b", re.I)) for category, p
 
 
 def normalized_text(value):
+    if not isinstance(value, str):
+        return ""
     return re.sub(r"\s+", " ", unicodedata.normalize("NFKC", value)).strip()
 
 

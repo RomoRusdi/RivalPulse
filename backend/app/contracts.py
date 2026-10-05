@@ -87,6 +87,7 @@ class LegacyRunCreate(Strict):
 class LegacyWatchlistUpdate(Strict):
     name: str | None = Field(None, min_length=1, max_length=120)
     tickers: list[str] | None = Field(None, min_length=2, max_length=5)
+    user_company: str | None = Field(None, max_length=200)
 
     @model_validator(mode="after")
     def validate_update(self):
@@ -113,7 +114,7 @@ class ToolCall(Strict):
 
 
 class AgentPlan(Strict):
-    tools: list[ToolCall] = Field(min_length=1, max_length=12)
+    tools: list[ToolCall] = Field(min_length=1, max_length=30)
 
 
 class Interpretation(Strict):

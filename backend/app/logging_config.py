@@ -6,7 +6,8 @@ class SafeFormatter(logging.Formatter):
     def format(self, record):
         return json.dumps({"level": record.levelname, "event": record.getMessage(),
                            **{key: getattr(record, key) for key in
-                              ("run_id", "stage", "duration_ms", "error_code", "estimated_credits",
+                              ("run_id", "stage", "duration_ms", "error_code", "error_type", "error_detail",
+                               "estimated_credits",
                                "cache_status", "input_tokens", "output_tokens") if hasattr(record, key)}})
 
 

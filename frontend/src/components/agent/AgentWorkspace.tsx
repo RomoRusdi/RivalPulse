@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowRight,
   Check,
   Clock3,
   FileSearch,
+  FileSpreadsheet,
   History,
   LoaderCircle,
   MessageSquareText,
@@ -22,8 +23,8 @@ import {
 import { Logo } from "@/components/ui/Logo";
 import { Button, Pill, cx } from "@/components/ui/primitives";
 import { useStore } from "@/lib/store";
-import { clock, runFailureMessage } from "@/lib/format";
-import { routeMessage } from "@/lib/agent-router";
+import { clock, compactFinancial, figureUnitSuffix, prettyBriefKind, BRIEF_KINDS, runFailureMessage } from "@/lib/format";
+import { routeMessage, detectLanguage } from "@/lib/agent-router";
 import {
   type ChatMessage,
   type ChatSession,
@@ -32,7 +33,8 @@ import {
   persistable,
   saveChatHistory,
 } from "@/lib/chat-history";
-import type { AgentRun } from "@/lib/types";
+import type { AgentRun, Signal } from "@/lib/types";
+import { downloadRunXls } from "@/lib/export-xls";
 import { type ChatTurn, clearConversationHistory, deleteConversation, getConversationHistory, saveConversation, sendChat } from "@/lib/api";
 
 const STARTERS = [
@@ -60,6 +62,8 @@ export function AgentWorkspace() {
   const {
     activeRun,
     watchlist,
+    signals,
+    aggregates,
     loading,
     error,
     reload,
@@ -71,6 +75,7 @@ export function AgentWorkspace() {
     removeCompanies,
     renameWatchlist,
   } = store;
+  const { setOurCompany } = store;
   const [draft, setDraft] = useState("");
   // A conversational reply is being written; hold the composer so replies
   // land in the order they were asked.
@@ -122,8 +127,41 @@ export function AgentWorkspace() {
   // Attach every streamed run update to the research message that started it.
   // This turns the conversation itself into durable local history instead of
   // showing progress in a disconnected card that disappears on navigation.
+  // pendingRun is a ref, so it is lost when this component unmounts (route or
+  // tab switch) while the store-owned stream keeps running. On re-link the
+  // newest run-less research message belonging to the live run is adopted, so
+  // progress keeps attaching instead of completing invisibly.
   useEffect(() => {
     if (!activeRun) return;
+    if (!pendingRun.current && (activeRun.status === "queued" || activeRun.status === "running")) {
+      const now = new Date().toISOString();
+      let adopted: PendingRun | null = null;
+      setSessions((current) => {
+        if (current.some((s) => s.messages.some((m) => m.run?.id === activeRun.id))) return current;
+        let best: { sessionId: string; messageId: string; createdAt: string } | null = null;
+        for (const session of current) {
+          for (const message of session.messages) {
+            if (message.role === "assistant" && message.kind === "research" && !message.run) {
+              if (!best || message.createdAt > best.createdAt) {
+                best = { sessionId: session.id, messageId: message.id, createdAt: message.createdAt };
+              }
+            }
+          }
+        }
+        if (!best) return current;
+        adopted = { sessionId: best.sessionId, messageId: best.messageId };
+        return current.map((session) => session.id === best.sessionId
+          ? {
+              ...session,
+              messages: session.messages.map((message) => message.id === best.messageId
+                ? { ...message, run: activeRun }
+                : message),
+              updatedAt: now,
+            }
+          : session);
+      });
+      if (adopted) pendingRun.current = adopted;
+    }
     const pending = pendingRun.current;
     setSessions((current) => current.map((session) => ({
       ...session,
@@ -138,12 +176,13 @@ export function AgentWorkspace() {
   }, [activeRun]);
 
   const scrollSignature = `${selectedSession?.messages.length ?? 0}:${activeRun?.currentStep ?? -1}:${activeRun?.status ?? "idle"}:${activeRun?.toolCalls.length ?? 0}`;
-  useEffect(() => {
+  // Layout effect, not passive effect: the scroll position is set before the
+  // browser paints, so opening the tab never flashes the top of the chat
+  // before jumping to the bottom.
+  useLayoutEffect(() => {
     if (!stayAtBottom.current) return;
-    requestAnimationFrame(() => {
-      const element = scrollRef.current;
-      if (element) element.scrollTop = element.scrollHeight;
-    });
+    const element = scrollRef.current;
+    if (element) element.scrollTop = element.scrollHeight;
   }, [scrollSignature]);
 
   const appendMessages = (sessionId: string, messages: ChatMessage[], title?: string) => {
@@ -159,15 +198,131 @@ export function AgentWorkspace() {
     });
   };
 
+  const answerLocalCommand = (clean: string, sessionId: string, userMessage: ChatMessage): boolean => {
+    // Session controls. Read-only except stop, which only ever cancels the
+    // run already in flight — never anything else.
+    const lang = detectLanguage(clean);
+    const id = lang === "id";
+    if (/^(stop|cancel|stop (it|this|the run)|berhenti|batal(kan)?|stop run)\s*[?.!]*$/i.test(clean)) {
+      if (busy) {
+        if (selectedSessionId) {
+          setSelectedSessionId(sessionId);
+          appendMessages(sessionId, [userMessage], conversationTitle(clean));
+        }
+        setDraft("");
+        stopCurrentRun();
+      } else {
+        setSelectedSessionId(sessionId);
+        setDraft("");
+        appendMessages(sessionId, [userMessage, {
+          id: newId(), role: "assistant", kind: "instant",
+          content: id ? "Tidak ada investigasi yang berjalan — tidak ada yang dihentikan." : "No investigation running — nothing to stop.",
+          label: id ? "Perintah instan" : "Instant action",
+          createdAt: new Date().toISOString(),
+        }], conversationTitle(clean));
+      }
+      return true;
+    }
+    if (/^(retry|try again|coba lagi|ulangi)\s*[?.!]*$/i.test(clean)) {
+      const failed = activeRun && activeRun.status === "failed" ? activeRun : null;
+      setSelectedSessionId(sessionId);
+      setDraft("");
+      if (failed) {
+        appendMessages(sessionId, [userMessage], conversationTitle(clean));
+        retryRun();
+      } else {
+        appendMessages(sessionId, [userMessage, {
+          id: newId(), role: "assistant", kind: "instant",
+          content: id ? "Tidak ada investigasi gagal yang bisa diulang." : "No failed investigation to retry.",
+          label: id ? "Perintah instan" : "Instant action",
+          createdAt: new Date().toISOString(),
+        }], conversationTitle(clean));
+      }
+      return true;
+    }
+    if (/^(new chat|new conversation|chat baru|mulai baru)\s*[?.!]*$/i.test(clean)) {
+      startNewChat();
+      return true;
+    }
+
+    // Instant, read-only workspace answers. No pipeline, no credits, safe to
+    // ask mid-investigation (the composer stays locked while busy, but these
+    // also fire from suggestion bubbles and typed commands when idle).
+    const sayIt = (en: string, idText: string) => {
+      setSelectedSessionId(sessionId);
+      setDraft("");
+      appendMessages(sessionId, [userMessage, {
+        id: newId(), role: "assistant", kind: "instant", content: id ? idText : en,
+        label: id ? "Perintah instan" : "Instant action",
+        createdAt: new Date().toISOString(),
+      }], conversationTitle(clean));
+    };
+
+    if (/^(status|stats|what'?s (running|happening|going on)|status(nya| run| investigasi)?|lagi (jalan|ngapain|running))\s*[?.!]*$/i.test(clean)) {
+      const live = activeRun && (activeRun.status === "queued" || activeRun.status === "running") ? activeRun : null;
+      const step = live
+        ? live.steps[Math.max(0, live.currentStep)]?.label ?? (live.status === "queued" ? "Queued" : "Working")
+        : null;
+      sayIt(
+        live
+          ? `Running: “${live.query}” — ${step} · ${clock(live.elapsedSeconds)} elapsed. Safe to switch tabs; I keep working.`
+          : "No investigation running right now. Ask me to compare or research something whenever ready.",
+        live
+          ? `Sedang berjalan: “${live.query}” — ${step} · ${clock(live.elapsedSeconds)} berlalu. Aman ganti tab; saya lanjut bekerja.`
+          : "Tidak ada investigasi yang berjalan saat ini. Minta saya membandingkan atau meneliti sesuatu kapan pun siap.",
+      );
+      return true;
+    }
+
+    if (/^(credits?|sisa kredit|kredit|usage|pemakaian)\s*[?.!]*$/i.test(clean)) {
+      sayIt(
+        aggregates
+          ? `Sectors credits: ${aggregates.credits.used}/${aggregates.credits.total} used · ${Math.round(aggregates.credits.cacheHitRate * 100)}% cache hits. Each investigation is capped; digests cost nothing.`
+          : "Credit data is still loading. Try again in a moment.",
+        aggregates
+          ? `Kredit Sectors: ${aggregates.credits.used}/${aggregates.credits.total} terpakai · ${Math.round(aggregates.credits.cacheHitRate * 100)}% cache hit. Setiap investigasi dibatasi; email tidak memakai kredit.`
+          : "Data kredit masih dimuat. Coba lagi sebentar lagi.",
+      );
+      return true;
+    }
+
+    if (/^(export(\s+(xls|excel|last( result)?|terakhir))?|ekspor(\s+(terakhir|xls))?)\s*[?.!]*$/i.test(clean)) {
+      const done = [...sessions.flatMap((session) => session.messages)]
+        .filter((message) => message.kind === "research" && message.run?.status === "complete")
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+      if (!done?.run) {
+        sayIt(
+          "No completed investigation yet — run one first, then ask me to export it.",
+          "Belum ada investigasi yang selesai — jalankan dulu, lalu minta saya mengekspornya.",
+        );
+        return true;
+      }
+      downloadRunXls(done.run, signals);
+      sayIt(
+        `Exported investigation “${conversationTitle(done.run.query)}” as .xls — check your downloads.`,
+        `Investigasi “${conversationTitle(done.run.query)}” sudah diekspor sebagai .xls — periksa unduhan Anda.`,
+      );
+      return true;
+    }
+
+    return false;
+  };
+
   const launch = (query: string) => {
     const clean = query.trim();
-    if (!clean || busy || chatPending || clearingRef.current) return;
+    if (!clean || chatPending || clearingRef.current) return;
 
     stayAtBottom.current = true;
     setShowJump(false);
     const sessionId = selectedSessionId ?? newId();
     const now = new Date().toISOString();
     const userMessage: ChatMessage = { id: newId(), role: "user", kind: "text", content: clean, createdAt: now };
+
+    // Read-only local commands work even mid-run: they touch no pipeline,
+    // spend nothing, and never disturb the active investigation.
+    if (answerLocalCommand(clean, sessionId, userMessage)) return;
+    if (busy) return;
+
     const route = routeMessage(clean, watchlist);
 
     setSelectedSessionId(sessionId);
@@ -177,9 +332,10 @@ export function AgentWorkspace() {
       if (route.action?.type === "add_companies") addCompanies(route.action.companies);
       if (route.action?.type === "remove_companies") removeCompanies(route.action.tickers);
       if (route.action?.type === "rename_watchlist") renameWatchlist(route.action.name);
+      if (route.action?.type === "set_our_company") setOurCompany(route.action.ticker);
       appendMessages(sessionId, [userMessage, {
         id: newId(), role: "assistant", kind: "instant", content: route.content,
-        label: route.label, createdAt: new Date().toISOString(),
+        label: route.label, createdAt: new Date().toISOString(), suggestions: route.suggestions,
       }], conversationTitle(clean));
       return;
     }
@@ -362,7 +518,7 @@ export function AgentWorkspace() {
       <div
         ref={scrollRef}
         onScroll={onConversationScroll}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-smooth"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
       >
         {selectedSession ? (
           <Conversation
@@ -370,6 +526,7 @@ export function AgentWorkspace() {
             liveRunId={activeRun?.id}
             onCancel={stopCurrentRun}
             onRetry={retryMessage}
+            onLaunch={launch}
           />
         ) : (
           <Welcome
@@ -476,7 +633,7 @@ function Welcome({ loading, companyNames, onLaunch }: { loading: boolean; compan
   );
 }
 
-function Conversation({ session, liveRunId, onCancel, onRetry }: { session: ChatSession; liveRunId?: string; onCancel: () => void; onRetry: (sessionId: string, messageId: string) => void }) {
+function Conversation({ session, liveRunId, onCancel, onRetry, onLaunch }: { session: ChatSession; liveRunId?: string; onCancel: () => void; onRetry: (sessionId: string, messageId: string) => void; onLaunch: (prompt: string) => void }) {
   return (
     <div className="mx-auto flex w-full max-w-[900px] flex-col gap-6 px-4 py-7 md:px-8 md:py-9">
       {session.messages.map((message) => message.role === "user" ? (
@@ -493,6 +650,7 @@ function Conversation({ session, liveRunId, onCancel, onRetry }: { session: Chat
             live={message.run?.id === liveRunId}
             onCancel={onCancel}
             onRetry={() => onRetry(session.id, message.id)}
+            onLaunch={onLaunch}
           />
         </div>
       ))}
@@ -500,7 +658,7 @@ function Conversation({ session, liveRunId, onCancel, onRetry }: { session: Chat
   );
 }
 
-function AssistantMessage({ message, live, onCancel, onRetry }: { message: ChatMessage; live: boolean; onCancel: () => void; onRetry: () => void }) {
+function AssistantMessage({ message, live, onCancel, onRetry, onLaunch }: { message: ChatMessage; live: boolean; onCancel: () => void; onRetry: () => void; onLaunch: (prompt: string) => void }) {
   if (message.kind === "instant") {
     return (
       <div className="max-w-[720px] rounded-detail border border-divider bg-card px-4 py-3.5">
@@ -510,6 +668,20 @@ function AssistantMessage({ message, live, onCancel, onRetry }: { message: ChatM
           <Pill tone="quiet" className="ml-auto">Instant action · no pipeline</Pill>
         </div>
         <p className="text-[13px] leading-[1.65] text-ink-2">{message.content}</p>
+        {message.suggestions && message.suggestions.length > 0 ? (
+          <div className="mt-2.5 flex flex-wrap gap-1.5" role="group" aria-label="Suggested follow-ups">
+            {message.suggestions.map((suggestion) => (
+              <button
+                key={`${suggestion.label}::${suggestion.prompt}`}
+                type="button"
+                onClick={() => onLaunch(suggestion.prompt)}
+                className="cursor-pointer rounded-full border border-accent-wash-border bg-accent-wash px-3 py-1.5 text-xs font-bold text-accent-ink transition-console hover:bg-accent hover:text-white active:scale-95"
+              >
+                {suggestion.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -549,13 +721,39 @@ function AssistantMessage({ message, live, onCancel, onRetry }: { message: ChatM
   return <p className="max-w-[700px] text-[14px] leading-[1.7] text-ink-2">{message.content}</p>;
 }
 
+function SignalLinkList({ items, total }: { items: Signal[]; total: number }) {
+  return (
+    <>
+      <ul className="mt-2 flex flex-col gap-1.5">
+        {items.map((signal) => (
+          <li key={signal.id} className="text-[13px] leading-[1.5]">
+            <Link href={`/signals/${signal.id}`} title={signal.headline} className="font-bold text-accent-ink no-underline hover:text-accent">
+              <span className="line-clamp-3">{signal.company} · {signal.headline}</span>
+            </Link>
+            <span className="text-muted"> — {signal.type}, {signal.severity} severity</span>
+          </li>
+        ))}
+      </ul>
+      {total > items.length ? (
+        <Link href="/signals" className="mt-2 inline-block text-[12px] font-bold text-accent-ink no-underline hover:text-accent">
+          …and {total - items.length} more in Signals
+        </Link>
+      ) : null}
+    </>
+  );
+}
+
 function ResearchRunMessage({ run, live, onCancel, onRetry }: { run: AgentRun; live: boolean; onCancel: () => void; onRetry: () => void }) {
   const busy = run.status === "queued" || run.status === "running";
+  const { signals } = useStore();
   if (run.status === "failed") {
     return (
       <div className="max-w-[760px] rounded-detail border border-accent-wash-border bg-card p-4">
         <div className="flex items-center gap-2 font-bold text-ink"><X size={16} className="text-accent-ink" /> Investigation stopped</div>
         <p className="mt-2 text-[13px] leading-[1.6] text-muted">{runFailureMessage(run.failedTool)}</p>
+        <p className="mt-1.5 font-mono text-[11px] text-muted">
+          Run #{run.id.slice(0, 8)}{run.failedTool ? ` · ${run.failedTool}` : ""} · API logs: docker compose logs worker
+        </p>
         {live ? <button type="button" onClick={onRetry} className="mt-3 inline-flex cursor-pointer items-center gap-1.5 rounded-field bg-accent px-3 py-2 text-xs font-bold text-white transition-console hover:bg-accent-hover"><RefreshCw size={13} /> Retry</button> : null}
       </div>
     );
@@ -564,6 +762,23 @@ function ResearchRunMessage({ run, live, onCancel, onRetry }: { run: AgentRun; l
   if (run.status === "complete") {
     const produced = run.producedSignalIds?.length ?? 0;
     const partial = run.coverageStatus === "partial";
+    // Baselines belong to this run too: match stored signals by run id so a
+    // first investigation shows its comparison instead of a dead end.
+    const runSignals = signals.filter((s) => s.runId === run.id);
+    const baselineCount = runSignals.filter((s) => !run.producedSignalIds?.includes(s.id)).length;
+    const shown = runSignals.slice(0, 6);
+    // A comparison that published nothing new still answers better with the
+    // relevant stored signals for the compared companies — but only then, so
+    // fresh findings are never duplicated below.
+    const comparedSymbols = run.financialBrief ? run.financialBrief.rows.map((r) => r.symbol) : [];
+    const relevantSignals =
+      runSignals.length === 0 && comparedSymbols.length > 0
+        ? signals.filter((s) => comparedSymbols.includes(s.company)).slice(0, 6)
+        : [];
+    const relevantTotal =
+      runSignals.length === 0 && comparedSymbols.length > 0
+        ? signals.filter((s) => comparedSymbols.includes(s.company)).length
+        : 0;
     return (
       <div className="max-w-[760px] rounded-detail border border-divider bg-card p-4 md:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -575,10 +790,35 @@ function ResearchRunMessage({ run, live, onCancel, onRetry }: { run: AgentRun; l
         </div>
         <p className="mt-3 text-[14px] leading-[1.7] text-ink-2">{run.resultSummary ?? "The evidence was collected, validated, and stored."}</p>
         {run.financialBrief ? <FinancialEvidence brief={run.financialBrief} /> : null}
-        <OrchestrationPanel run={run} bare />
+        {shown.length > 0 ? (
+          <div className="mt-4 border-t border-divider pt-4">
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-muted">
+              Findings in this run ({runSignals.length})
+            </p>
+            <SignalLinkList items={shown} total={runSignals.length} />
+          </div>
+        ) : null}
+        {relevantSignals.length > 0 ? (
+          <div className="mt-4 border-t border-divider pt-4">
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-muted">
+              Relevant signals for the compared companies ({relevantTotal})
+            </p>
+            <SignalLinkList items={relevantSignals} total={relevantTotal} />
+          </div>
+        ) : null}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-divider pt-4">
-          <span className="text-xs text-muted">{run.financialBrief ? "Financial context only · no claims about recent competitor moves" : produced ? `${produced} evidence-backed ${produced === 1 ? "signal" : "signals"} published` : partial ? "Recent activity could not be verified; no conclusion about changes" : "No publishable changes in the available evidence"}</span>
-          {produced ? <Link href="/signals" className="inline-flex items-center gap-1.5 text-xs font-extrabold text-accent-ink no-underline hover:text-accent">Review findings <ArrowRight size={13} /></Link> : null}
+          <span className="text-xs text-muted">{run.financialBrief && run.orchestration?.route === "financial_statements" ? "Financial context only · no claims about recent competitor moves" : produced ? `${produced} evidence-backed ${produced === 1 ? "signal" : "signals"} published` : partial ? "Recent activity could not be verified; no conclusion about changes" : baselineCount ? `${baselineCount} baseline ${baselineCount === 1 ? "observation" : "observations"} recorded — the reference for future runs` : signals.length > 0 ? "No new findings in this run — previously observed findings are in Signals" : run.financialBrief ? "No new announcements; cited annual comparison below" : "No publishable changes in the available evidence"}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => downloadRunXls(run, signals)}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-field border border-border bg-card px-2.5 py-1.5 text-xs font-bold text-ink-2 transition-console hover:bg-subtle"
+              title="Download this result as .xls"
+            >
+              <FileSpreadsheet size={13} /> Export XLS
+            </button>
+            {produced || runSignals.length ? <Link href="/signals" className="inline-flex items-center gap-1.5 text-xs font-extrabold text-accent-ink no-underline hover:text-accent">Review findings <ArrowRight size={13} /></Link> : null}
+          </div>
         </div>
       </div>
     );
@@ -631,8 +871,6 @@ function ResearchRunMessage({ run, live, onCancel, onRetry }: { run: AgentRun; l
         </ol>
       </div>
 
-      <OrchestrationPanel run={run} />
-
       <div className="border-t border-divider px-4 py-3 md:px-5">
         <p className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-muted">Tool calls</p>
         {run.toolCalls.length ? (
@@ -648,117 +886,100 @@ function ResearchRunMessage({ run, live, onCancel, onRetry }: { run: AgentRun; l
   );
 }
 
-const ROUTE_LABEL: Record<string, string> = {
-  competitive_activity: "Competitive activity",
-  financial_statements: "Financial statements",
-};
-
-const INTERPRETER_FALLBACK = "AI wording rejected → reviewed wording";
-
-const PLANNER_LABEL: Record<string, string> = {
-  qwen: "Planned by Qwen",
-  deterministic: "Deterministic plan",
-  validated_fallback: "Qwen plan rejected → reviewed fallback",
-};
-
-/**
- * The decisions behind the answer: route, planner, spend, and what the agent
- * could not reach. A rejected model plan is shown, never quietly swapped.
- */
-function OrchestrationPanel({ run, bare = false }: { run: AgentRun; bare?: boolean }) {
-  const o = run.orchestration;
-  if (!o || (!o.route && !o.toolCalls && !o.gaps?.length)) return null;
-
-  const facts = [
-    o.route ? ROUTE_LABEL[o.route] ?? o.route : null,
-    o.planner ? PLANNER_LABEL[o.planner] ?? o.planner : null,
-    o.interpreter === "validated_fallback" ? INTERPRETER_FALLBACK : null,
-    o.toolCalls ? `${o.toolCalls} tool ${o.toolCalls === 1 ? "call" : "calls"}` : null,
-    typeof o.credits === "number" ? `${o.credits} ${o.credits === 1 ? "credit" : "credits"}` : null,
-    o.cacheHits ? `${o.cacheHits} cached` : null,
-    o.comparedAgainstRunId ? `compared with run #${o.comparedAgainstRunId.slice(0, 8)}` : null,
-  ].filter(Boolean) as string[];
-
-  return (
-    <div className={bare ? "mt-4 border-t border-divider pt-4" : "border-t border-divider px-4 py-3 md:px-5"}>
-      <p className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-muted">Agent decisions</p>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {facts.map((fact) => (
-          <span
-            key={fact}
-            className={cx(
-              "rounded-field border px-2 py-0.5 text-[10.5px] font-semibold",
-              (o.planner === "validated_fallback" && fact.startsWith("Qwen plan rejected")) ||
-                fact === INTERPRETER_FALLBACK
-                ? "border-accent/40 bg-accent/10 text-accent-ink"
-                : "border-divider bg-subtle/60 text-ink-2",
-            )}
-          >
-            {fact}
-          </span>
-        ))}
-      </div>
-      {o.gaps?.length ? (
-        <div className="mt-2.5">
-          <p className="text-[10.5px] text-muted">
-            {o.gapsClosed
-              ? `Recovered ${o.gapsClosed} of ${o.gaps.length} evidence gaps`
-              : `${o.gaps.length} evidence ${o.gaps.length === 1 ? "gap" : "gaps"} could not be closed`}
-          </p>
-          <ul className="mt-1.5 flex flex-col gap-1">
-            {o.gaps.map((gap) => (
-              <li key={`${gap.symbol}-${gap.missing}`} className="flex min-w-0 items-baseline gap-2 text-[10.5px]">
-                <span className="shrink-0 font-bold text-ink-2">{gap.symbol}</span>
-                <span className="truncate text-muted">{gap.reason}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 function FinancialEvidence({ brief }: { brief: NonNullable<AgentRun["financialBrief"]> }) {
   return (
     <div className="mt-4 border-t border-divider pt-4">
       <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-accent-ink">Cited annual statements {brief.period ? `· ${brief.period}` : "· periods vary"}</p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        {brief.rows.map((row) => (
-          <div key={row.symbol} className="min-w-0 rounded-field border border-divider bg-subtle/50 p-3">
-            <p className="text-xs font-extrabold text-ink">{row.symbol} <span className="font-medium text-muted">· {row.name}</span></p>
-            {row.metrics.length ? row.metrics.map((metric) => (
-              <div key={metric.claim_id} className="mt-3 text-xs">
-                <p className="capitalize text-muted">{metric.metric} · {metric.period}</p>
-                <p className="mt-0.5 break-words font-bold tabular-nums text-ink" title={`Provider value: ${metric.value} ${metric.currency ?? "currency not supplied"} (${metric.unit})`}>
-                  {formatFinancialValue(metric.value, metric.currency)}
-                </p>
-                <a href={metric.source_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block font-bold text-accent-ink hover:text-accent" title={metric.json_pointer}>
-                  {metric.source_url.includes("sectors.app") ? "Sectors report" : "Archived source"} ↗
-                </a>
-              </div>
-            )) : <p className="mt-2 text-xs text-muted">No comparable annual figures available.</p>}
-            {row.comparison_note !== "Reporting scope must be verified before growth comparisons." ? <p className="mt-2 text-[10px] leading-4 text-muted">{row.comparison_note}</p> : null}
-          </div>
-        ))}
-      </div>
+      <ComparisonTable brief={brief} />
+      <p className="mt-2 text-[10px] leading-4 text-muted">
+        Units unverified unless labeled — hover any figure for its provider-native value.
+      </p>
+      {brief.rows.map((row) =>
+        row.comparison_note !== "Reporting scope must be verified before growth comparisons." ? (
+          <p key={row.symbol} className="mt-2 text-[10px] leading-4 text-muted">
+            <strong>{row.symbol}:</strong> {row.comparison_note}
+          </p>
+        ) : null,
+      )}
       {brief.interpretation ? <p className="mt-3 text-[12px] leading-[1.6] text-ink-2"><strong>AI hypothesis (uncertainty: {brief.interpretation.uncertainty}):</strong> {brief.interpretation.text}</p> : null}
       {brief.caveats.map((caveat) => <p key={caveat} className="mt-2 text-[11px] leading-[1.55] text-muted">{caveat}</p>)}
     </div>
   );
 }
 
-function formatFinancialValue(value: string, currency: string | null): string {
-  const numeric = Number(value);
-  const unit = currency ?? "Currency unspecified";
-  // Compact IDR figures are explicitly approximate. The provider-native
-  // amount remains available in the title and persisted snapshot.
-  if (currency === "IDR" && Number.isSafeInteger(numeric)) {
-    const absolute = Math.abs(numeric);
-    const scale = absolute >= 1e12 ? 1e12 : absolute >= 1e9 ? 1e9 : 0;
-    if (scale) return `${unit} ≈${new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 }).format(numeric / scale)} ${scale === 1e12 ? "trillion" : "billion"}`;
+/**
+ * Side-by-side statement comparison: one table, companies as columns, so a
+ * "compare" answer actually compares instead of stacking per-company cards.
+ * Every cell links its cited source; missing cells say so instead of hiding.
+ */
+function ComparisonTable({ brief }: { brief: NonNullable<AgentRun["financialBrief"]> }) {
+  const { watchlist } = useStore();
+  const ours = watchlist?.user_company ?? null;
+  const present = BRIEF_KINDS.filter((kind) =>
+    brief.rows.some((row) => row.metrics.some((metric) => metric.metric === kind)),
+  );
+  const periods = [...new Set(
+    brief.rows.flatMap((row) => row.metrics.map((metric) => metric.period)),
+  )].sort().reverse();
+  const lookup = new Map(
+    brief.rows.flatMap((row) =>
+      row.metrics.map((metric) => [`${row.symbol}|${metric.metric}|${metric.period}`, metric] as const),
+    ),
+  );
+
+  if (!present.length || !periods.length) {
+    return <p className="mt-3 text-xs text-muted">No comparable annual figures available.</p>;
   }
-  return `${unit} ${value}`;
+
+  return (
+    <div className="mt-3 overflow-x-auto rounded-field border border-divider">
+      <table className="w-full min-w-[480px] border-collapse text-xs">
+        <thead>
+          <tr className="bg-subtle/70">
+            <th className="px-3 py-2 text-left font-bold text-muted">Metric · Period</th>
+            {brief.rows.map((row) => (
+              <th key={row.symbol} title={`${row.name}${ours === row.symbol ? " (your company)" : ""}`} className="px-3 py-2 text-right font-extrabold text-ink">
+                {row.symbol}{ours === row.symbol ? " ★" : ""}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {present.map((kind) =>
+            periods.map((period) => (
+              <tr key={`${kind}-${period}`} className="border-t border-divider">
+                <td className="px-3 py-2 capitalize text-muted">{prettyBriefKind(kind)} · {period}</td>
+                {brief.rows.map((row) => {
+                  const metric = lookup.get(`${row.symbol}|${kind}|${period}`);
+                  if (!metric) return <td key={row.symbol} className="px-3 py-2 text-right text-muted">—</td>;
+                  const full = `${metric.value} ${metric.currency ?? "currency unspecified"} (${metric.unit})`;
+                  const suffix = figureUnitSuffix(metric.currency, metric.unit);
+                  return (
+                    <td key={row.symbol} className="px-3 py-2 text-right tabular-nums" title={full}>
+                      <span className="font-bold text-ink">{compactFinancial(metric.value)}</span>
+                      <a
+                        href={metric.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(event) => event.stopPropagation()}
+                        title={`Cited source: ${metric.json_pointer}`}
+                        className="ml-1 font-bold text-accent-ink no-underline hover:text-accent"
+                      >
+                        ↗
+                      </a>
+                      {suffix ? (
+                        <span className="block text-[10px] font-semibold text-muted">{suffix.trim()}</span>
+                      ) : null}
+                    </td>
+                  );
+                })}
+              </tr>
+            )),
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function HistoryDrawer({ sessions, selectedId, busyRunId, onClose, onSelect, onDelete, onClearAll, clearing, clearError, onNew }: { sessions: ChatSession[]; selectedId: string | null; busyRunId?: string; onClose: () => void; onSelect: (id: string) => void; onDelete: (id: string) => void; onClearAll: () => Promise<void>; clearing: boolean; clearError: string | null; onNew: () => void }) {

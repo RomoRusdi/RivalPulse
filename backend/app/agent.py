@@ -2,7 +2,7 @@
 import json
 import logging
 import re
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from urllib.parse import urlsplit
 
 import httpx
@@ -57,6 +57,8 @@ class OllamaAdapter(LLMAdapter):
             "claim IDs, event keys, or tool permissions. Never provide investment advice. "
             "For planning, select only the allowlisted tools and company IDs in the payload. "
             "For planning, obey required_tools exactly; a financial_only request must have only metric tools. "
+            "If the payload includes user_company, frame evidence selection and comparisons relative to "
+            "that company; otherwise compare competitors neutrally. "
             "For analysis, use every supplied event key exactly once and cite only its supplied claim IDs. "
             "For financial_analysis, write one short sentence describing only the signs of supplied earnings claims, "
             "using their claim IDs. Do not discuss trends, stability, growth, causes, or future outcomes. "
@@ -86,7 +88,12 @@ class OllamaAdapter(LLMAdapter):
             response = client.post(self._endpoint(settings.ollama_base_url), json=payload)
             if response.status_code != 200 or len(response.content) > 200_000:
                 raise ProviderError("LLM_UNAVAILABLE", "Ollama request failed")
-            envelope = response.json()
+            try:
+                envelope = response.json()
+            except ValueError:
+                raise ProviderError("LLM_UNAVAILABLE", "Ollama response unavailable") from None
+            if not isinstance(envelope, dict):
+                raise ProviderError("LLM_UNAVAILABLE", "Ollama response unavailable")
             logging.getLogger("rivalpulse.agent").info("llm_usage", extra={
                 "input_tokens": envelope.get("prompt_eval_count"),
                 "output_tokens": envelope.get("eval_count"),
@@ -143,6 +150,16 @@ def is_financial_question(query):
     return bool(FINANCIAL_TERMS.search(query)) and not ACTIVITY_TERMS.search(query)
 
 
+def planned_scope(inputs):
+    """Frozen company IDs this run investigates: the requested comparison
+    scope, or every frozen company when the request names no one. Tools,
+    credits, gaps and brief rows all derive from this — an unmentioned
+    company costs nothing and appears nowhere."""
+    scope = {c["id"] for c in inputs["companies"]
+             if not inputs.get("compared_symbols") or c["symbol"] in inputs["compared_symbols"]}
+    return scope or {c["id"] for c in inputs["companies"]}
+
+
 class Agent:
     def __init__(self, run_id, token, adapter=None):
         self.run_id, self.token = run_id, token
@@ -154,7 +171,7 @@ class Agent:
         for attempt in range(2):
             with session() as db, db.begin():
                 ensure_active(db, self.run_id, self.token)
-                result = db.execute(update(Run).where(Run.id == self.run_id, Run.llm_calls < 3,
+                result = db.execute(update(Run).where(Run.id == self.run_id, Run.llm_calls < 8,
                                                      Run.lease_token == self.token).values(llm_calls=Run.llm_calls + 1))
                 if not result.rowcount:
                     raise ProviderError("LLM_BUDGET_EXCEEDED", "LLM call budget exhausted", False)
@@ -170,6 +187,10 @@ class Agent:
 
     def plan(self, inputs):
         ids = {c["id"] for c in inputs["companies"]}
+        scope = planned_scope(inputs)
+        scoped = [c for c in inputs["companies"] if c["id"] in scope]
+        # Deterministic, free routing (EN+ID). The model spends its budget on
+        # tool selection and interpretation, not on re-deciding the route.
         financial_only = is_financial_question(inputs["query"])
 
         def validate(plan):
@@ -200,14 +221,19 @@ class Agent:
                     sources.update(tool.company_ids)
             if len(plan.tools) > get_settings().max_tool_calls:
                 raise ValueError("Plan exceeds run tool budget")
-            if metrics != ids or (not financial_only and sources != ids):
+            if metrics != scope:
+                raise ValueError("Required financial tools missing for one or more companies")
+            if "get_recent_signals" in {tool.name for tool in plan.tools} and sources != scope:
                 raise ValueError("Required evidence tools missing for one or more companies")
 
         if self.adapter and get_settings().llm_plan_enabled:
             try:
                 plan = self.request("plan", AgentPlan, {**inputs, "financial_only": financial_only,
-                    "required_tools": "One get_company_metrics per company ID and no other tools" if financial_only
-                    else "One get_company_metrics and one get_recent_signals per company ID; optional tools only within 12 calls"}, validate)
+                    "required_tools": "One get_company_metrics per scoped company ID and no other tools" if financial_only
+                    else "One get_company_metrics and one get_recent_signals per scoped company ID "
+                    "(compared_symbols when present, else every frozen company); "
+                    "no tools outside the scope; optional tools only within "
+                    f"{get_settings().max_tool_calls} calls"}, validate)
                 self.plan_source = "qwen"
                 return plan
             except ProviderError as exc:
@@ -221,14 +247,24 @@ class Agent:
                 self.plan_source = "validated_fallback"
         names = [("get_company_metrics", "Retrieve financial statements")]
         if not financial_only:
-            names.append(("get_recent_signals", "Compare approved public evidence"))
+            live = get_settings().mode == "live"
+            # Approved pages corroborate; Sectors news is the primary event
+            # source. The page sweep is included only when every scoped company
+            # fits inside the run tool budget, keeping coverage uniform: a partial
+            # sweep (or a 15-tool plan against a 12-tool budget) must never
+            # crash the run. Dropped pages are recovered within budget instead.
+            if (3 if live else 2) * len(scoped) <= get_settings().max_tool_calls:
+                names.append(("get_recent_signals", "Compare approved public evidence"))
             # Sectors company news is the primary competitive-event source where it
             # is available: structured, dated, and independent of a competitor's
             # HTML staying stable. Approved pages remain the corroborating source.
-            if get_settings().mode == "live":
+            if live:
                 names.append(("get_company_news", "Retrieve bounded Sectors company news"))
+        if len(names) * len(scoped) > get_settings().max_tool_calls:
+            raise ProviderError("TOOL_BUDGET_EXCEEDED",
+                                "Watchlist is too large for the run tool budget", False)
         plan = AgentPlan(tools=[dict(name=name, company_ids=[c["id"]], reason=reason)
-                                for c in inputs["companies"] for name, reason in names])
+                                for c in scoped for name, reason in names])
         validate(plan)
         return plan
 
@@ -245,9 +281,17 @@ class Agent:
 
         # Give Qwen qualitative facts only. Numeric values and citations remain
         # backend-owned, preventing invented figures in the narrative.
-        context = [{"claim_id": c["claim_id"], "symbol": c["symbol"], "metric": c["metric"],
-                    "direction": "negative" if Decimal(c["value"]) < 0 else "nonnegative"}
-                   for c in claims if c["metric"] == "earnings"]
+        # Unparseable values are skipped, never allowed to crash the run.
+        context = []
+        for c in claims:
+            if c["metric"] != "earnings":
+                continue
+            try:
+                direction = "negative" if Decimal(c["value"]) < 0 else "nonnegative"
+            except (InvalidOperation, ValueError, TypeError, KeyError):
+                continue
+            context.append({"claim_id": c["claim_id"], "symbol": c["symbol"], "metric": c["metric"],
+                            "direction": direction})
         if not context:
             return None
         return self.request("financial_analysis", FinancialInterpretation,
@@ -305,8 +349,14 @@ class Tools:
     def get_company_metrics(self, company_id, requested_periods=()):
         output = self.envelope(*self.sectors.report(self.companies[company_id]))
         if requested_periods:
-            output["data"] = {**output["data"], "metrics": [m for m in output["data"]["metrics"]
-                                                               if int(m["period"]) in requested_periods]}
+            kept = []
+            for m in output["data"]["metrics"]:
+                try:
+                    if int(m["period"]) in requested_periods:
+                        kept.append(m)
+                except (ValueError, TypeError, KeyError):
+                    continue
+            output["data"] = {**output["data"], "metrics": kept}
         return output
 
     def get_industry_context(self, company_ids, comparable_period=None):

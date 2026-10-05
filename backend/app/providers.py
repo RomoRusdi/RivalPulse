@@ -73,17 +73,21 @@ def normalize_report(payload, symbol):
 
 def growth(current, previous):
     """Only adjacent annual periods of the same known reporting basis and unit are comparable."""
-    for key in ("metric", "currency", "unit", "comparison_basis"):
-        if not current.get(key) or current.get(key) != previous.get(key):
+    try:
+        for key in ("metric", "currency", "unit", "comparison_basis"):
+            if not current.get(key) or current.get(key) != previous.get(key):
+                return None
+        if current["comparison_basis"] == "reporting_scope_unverified" or current["unit"] == "provider_native_unspecified":
             return None
-    if current["comparison_basis"] == "reporting_scope_unverified" or current["unit"] == "provider_native_unspecified":
+        if int(current["period"]) != int(previous["period"]) + 1:
+            return None
+        denominator = Decimal(previous["value"])
+        if denominator <= 0:
+            return None
+        return str(((Decimal(current["value"]) - denominator) / denominator * 100).quantize(Decimal("0.01")))
+    except (ValueError, InvalidOperation, KeyError, TypeError, AttributeError):
+        # Uncomparable figures mean "no growth fact", never a crashed run.
         return None
-    if int(current["period"]) != int(previous["period"]) + 1:
-        return None
-    denominator = Decimal(previous["value"])
-    if denominator <= 0:
-        return None
-    return str(((Decimal(current["value"]) - denominator) / denominator * 100).quantize(Decimal("0.01")))
 
 
 def ensure_active(db, run_id, token):
@@ -281,10 +285,16 @@ class Sectors:
 def normalize_news(payload):
     if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
         raise ProviderError("PROVIDER_INVALID_RESPONSE", "Invalid news response", False)
-    articles = [{
-        "title": str(row.get("title", ""))[:500], "text": str(row.get("body", ""))[:4000],
-        "url": row.get("source"), "published_at": row.get("timestamp"), "symbols": row.get("symbols") or [],
-    } for row in payload["results"][:30] if isinstance(row, dict)]
+    articles = []
+    for row in payload["results"][:30]:
+        if not isinstance(row, dict):
+            continue
+        published = row.get("timestamp")
+        articles.append({
+            "title": str(row.get("title", ""))[:500], "text": str(row.get("body", ""))[:4000],
+            "url": row.get("source"), "published_at": published if isinstance(published, str) else None,
+            "symbols": row.get("symbols") or [],
+        })
     # Structured provider news is classified by the same rules as approved pages,
     # so the comparison stage consumes one event shape regardless of origin.
     events = [event for event in (

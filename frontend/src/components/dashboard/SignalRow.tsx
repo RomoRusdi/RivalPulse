@@ -46,7 +46,7 @@ export function SignalRow({
       </span>
 
       <span className="min-w-0 flex-[1_1_220px]">
-        <span className="block text-[15px] font-bold leading-[1.35] text-ink">
+        <span title={signal.title} className="block text-[15px] font-bold leading-[1.35] text-ink line-clamp-2">
           {signal.title}
           {!signal.seen ? (
             <span className="sr-only"> — new since your last check</span>

@@ -157,10 +157,23 @@ export async function getAlertStatus(): Promise<AlertStatus> {
 
 export async function updateWatchlist(watchlist: Watchlist): Promise<Watchlist> {
   if (USE_MOCKS) return WatchlistSchema.parse(watchlist);
-  return request("/watchlist", WatchlistSchema, {
-    method: "PATCH",
-    body: JSON.stringify({ name: watchlist.name, tickers: watchlist.companies.map((company) => company.ticker) }),
-  });
+  const parsed = await request(
+    "/watchlist",
+    WatchlistSchema,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: watchlist.name,
+        tickers: watchlist.companies.map((company) => company.ticker),
+        user_company: (watchlist as { user_company?: string | null }).user_company ?? null,
+      }),
+    },
+  );
+  // Legacy compat may omit user_company; keep the local value then.
+  if (parsed.user_company === undefined) {
+    return WatchlistSchema.parse({ ...parsed, user_company: (watchlist as { user_company?: string | null }).user_company ?? null });
+  }
+  return parsed;
 }
 
 /* ── Private demo session (not email/password accounts) ──────────────── */
@@ -298,30 +311,53 @@ export function streamRun(
   handlers: RunStreamHandlers,
 ): () => void {
   if (!USE_MOCKS) {
-    const source = new EventSource(`${API_BASE}/runs/${run.id}/stream`);
+    // The backend replays the run's current state immediately on every
+    // connect, so a dropped connection (sleep, network blip, tab switch) is
+    // resumed by reconnecting — the backend run itself keeps going and only
+    // repeated failures mark the chat message failed.
+    const MAX_RECONNECTS = 3;
+    let attempts = 0;
     let terminal = false;
-    source.onmessage = (event) => {
-      try {
-        const update = AgentRunSchema.parse(JSON.parse(event.data));
-        terminal = update.status === "complete" || update.status === "failed";
-        handlers.onUpdate(update);
-        // The backend closes SSE after the terminal event. Close locally first
-        // so EventSource does not misreport that expected EOF as a failure.
-        if (terminal) source.close();
-      } catch (error) {
-        handlers.onError(
-          new ApiError(`Run stream sent unreadable data: ${describe(error)}`),
-        );
-      }
+    let closed = false;
+    let source: EventSource | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const connect = () => {
+      if (closed) return;
+      source = new EventSource(`${API_BASE}/runs/${run.id}/stream`);
+      source.onmessage = (event) => {
+        try {
+          const update = AgentRunSchema.parse(JSON.parse(event.data));
+          attempts = 0;
+          terminal = update.status === "complete" || update.status === "failed";
+          handlers.onUpdate(update);
+          // The backend closes SSE after the terminal event. Close locally first
+          // so EventSource does not misreport that expected EOF as a failure.
+          if (terminal) source?.close();
+        } catch (error) {
+          handlers.onError(
+            new ApiError(`Run stream sent unreadable data: ${describe(error)}`),
+          );
+        }
+      };
+      source.onerror = () => {
+        if (terminal || closed) return;
+        source?.close();
+        if (attempts < MAX_RECONNECTS) {
+          attempts += 1;
+          retryTimer = setTimeout(connect, 2000 * attempts);
+        } else {
+          handlers.onError(new ApiError("Lost connection to the run stream."));
+          source?.close();
+        }
+      };
     };
-    source.onerror = () => {
-      if (terminal) return;
-      handlers.onError(new ApiError("Lost connection to the run stream."));
-      source.close();
-    };
+    connect();
     return () => {
+      closed = true;
       terminal = true;
-      source.close();
+      if (retryTimer) clearTimeout(retryTimer);
+      source?.close();
     };
   }
 
@@ -397,6 +433,26 @@ export function streamRun(
 export async function cancelRun(runId: string): Promise<void> {
   if (!USE_MOCKS) {
     await fetch(`${API_BASE}/runs/${runId}/cancel`, { method: "POST" });
+  }
+}
+
+/**
+ * The newest in-flight run on the default watchlist, if any. Best-effort:
+ * used once per page load to resume watching a run orphaned by a reload.
+ * Anything but a parseable active run resolves to null — never throws.
+ */
+export async function getActiveRun(): Promise<AgentRun | null> {
+  if (USE_MOCKS) return null;
+  try {
+    const response = await fetch(`${API_BASE}/runs/active`, { cache: "no-store" });
+    if (!response.ok) return null;
+    const payload: unknown = await response.json();
+    const parsed = AgentRunSchema.safeParse(payload);
+    if (!parsed.success) return null;
+    const run = parsed.data;
+    return run.status === "queued" || run.status === "running" ? run : null;
+  } catch {
+    return null;
   }
 }
 

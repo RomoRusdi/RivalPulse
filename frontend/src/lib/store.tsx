@@ -13,6 +13,7 @@ import {
   ApiError,
   USE_MOCKS,
   cancelRun as apiCancelRun,
+  getActiveRun,
   getDashboard,
   startRun as apiStartRun,
   streamRun,
@@ -93,6 +94,9 @@ interface StoreValue {
   renameWatchlist: (name: string) => void;
   /** True when the watchlist differs from what the server sent. */
   watchlistEdited: boolean;
+  /** Optional "our company" ticker. Null = neutral competitor comparison. */
+  ourCompany: string | null;
+  setOurCompany: (ticker: string | null) => void;
 
   /** The signed-in person. Edits are validated before they are kept. */
   profile: UserProfile;
@@ -140,6 +144,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const hydrated = useRef(false);
 
   const unsubscribe = useRef<(() => void) | null>(null);
+
+  // Latest watchlist save. A run submitted while a PATCH is still in flight
+  // would investigate the pre-edit membership while the UI already shows the
+  // new one — startRun waits for this to settle first.
+  const watchlistSave = useRef<Promise<unknown>>(Promise.resolve());
 
   // ── Load ────────────────────────────────────────────────────────────────
   // Persisted state is read inside the async body rather than during render:
@@ -225,6 +234,73 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => () => unsubscribe.current?.(), []);
 
   // ── Runs ────────────────────────────────────────────────────────────────
+  // Subscribing to a run is separated from submitting one so a 409 (another
+  // investigation already active server-side) can resume watching the known
+  // run instead of failing the chat message.
+  const watchRun = useCallback(
+    (run: AgentRun, nextReveal: string | null) => {
+      setActiveRun(run);
+      unsubscribe.current = streamRun(run, nextReveal, {
+        onUpdate: (update) => {
+          setActiveRun(update);
+
+          if (update.status === "complete") {
+            const produced = update.producedSignalIds ?? [];
+            const checkedAt = new Date().toISOString();
+            setLastCheckedAt(checkedAt);
+
+            // Findings (including first-run baselines) live server-side;
+            // refresh so Signals and the comparison graph show this run.
+            reload();
+
+            if (produced.length > 0) {
+              setRevealedIds((prev) => [...new Set([...prev, ...produced])]);
+              setJustRevealedIds((prev) => [
+                ...new Set([...prev, ...produced]),
+              ]);
+              const revealed = RESERVE_SIGNALS.filter((s) =>
+                produced.includes(s.id),
+              ).map((s) => ({ ...s, seen: false }));
+              setRawSignals((prev) => [...revealed, ...prev]);
+            }
+
+            push({
+              tone: "accent",
+              title:
+                produced.length > 0
+                  ? `Run #${update.id} found ${produced.length} new signal${produced.length === 1 ? "" : "s"}`
+                  : update.coverageStatus === "partial"
+                    ? `Run #${update.id} finished — limited source coverage`
+                    : `Run #${update.id} finished — nothing above threshold`,
+              body: update.resultSummary,
+              action:
+                produced.length > 0
+                  ? { label: "View signals", href: "/signals" }
+                  : undefined,
+            });
+          }
+
+          if (update.status === "failed") {
+            push({
+              tone: "accent",
+              title: `Run #${update.id} failed`,
+              body: runFailureMessage(update.failedTool),
+            });
+          }
+        },
+        onError: (streamError) => {
+          setActiveRun((run) =>
+            run
+              ? { ...run, status: "failed", failedTool: "run stream" }
+              : run,
+          );
+          push({ tone: "accent", title: "Run stream lost", body: streamError.message });
+        },
+      });
+    },
+    [push, reload],
+  );
+
   const startRun = useCallback(
     (query: string) => {
       unsubscribe.current?.();
@@ -233,72 +309,40 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const nextReveal =
         RESERVE_SIGNALS.find((s) => !revealedIds.includes(s.id))?.id ?? null;
 
-      apiStartRun(query)
-        .then((run) => {
-          setActiveRun(run);
-          unsubscribe.current = streamRun(run, nextReveal, {
-            onUpdate: (update) => {
-              setActiveRun(update);
-
-              if (update.status === "complete") {
-                const produced = update.producedSignalIds ?? [];
-                const checkedAt = new Date().toISOString();
-                setLastCheckedAt(checkedAt);
-
-                if (produced.length > 0) {
-                  setRevealedIds((prev) => [...new Set([...prev, ...produced])]);
-                  setJustRevealedIds((prev) => [
-                    ...new Set([...prev, ...produced]),
-                  ]);
-                  const revealed = RESERVE_SIGNALS.filter((s) =>
-                    produced.includes(s.id),
-                  ).map((s) => ({ ...s, seen: false }));
-                  setRawSignals((prev) => [...revealed, ...prev]);
-                }
-
-                push({
-                  tone: "accent",
-                  title:
-                    produced.length > 0
-                      ? `Run #${update.id} found ${produced.length} new signal${produced.length === 1 ? "" : "s"}`
-                      : update.coverageStatus === "partial"
-                        ? `Run #${update.id} finished — limited source coverage`
-                        : `Run #${update.id} finished — nothing above threshold`,
-                  body: update.resultSummary,
-                  action:
-                    produced.length > 0
-                      ? { label: "View signals", href: "/signals" }
-                      : undefined,
-                });
-              }
-
-              if (update.status === "failed") {
-                push({
-                  tone: "accent",
-                  title: `Run #${update.id} failed`,
-                  body: runFailureMessage(update.failedTool),
-                });
-              }
-            },
-            onError: (streamError) => {
-              setActiveRun((run) =>
-                run
-                  ? { ...run, status: "failed", failedTool: "run stream" }
-                  : run,
-              );
-              push({ tone: "accent", title: "Run stream lost", body: streamError.message });
-            },
+      // Wait for any in-flight watchlist save: the backend investigates its
+      // own membership snapshot, so submitting mid-PATCH would silently
+      // investigate the wrong companies.
+      const begin = () => {
+        apiStartRun(query)
+          .then((run) => {
+            watchRun(run, nextReveal);
+          })
+          .catch((err: unknown) => {
+            const conflict = err instanceof ApiError && /failed: 409/.test(err.message);
+            const live = activeRun;
+            if (conflict && live && (live.status === "queued" || live.status === "running")) {
+              // The backend already has this investigation going and we know
+              // it: resume watching instead of failing the chat message.
+              watchRun(live, null);
+              push({
+                tone: "accent",
+                title: "An investigation is already running",
+                body: "Reconnected to it — watch progress here instead of starting over.",
+              });
+              return;
+            }
+            push({
+              tone: "accent",
+              title: "Could not start the run",
+              body: conflict
+                ? "An investigation is already running for this watchlist. Wait for it to finish (or stop it) before starting another."
+                : err instanceof ApiError ? err.message : undefined,
+            });
           });
-        })
-        .catch((err: unknown) => {
-          push({
-            tone: "accent",
-            title: "Could not start the run",
-            body: err instanceof ApiError ? err.message : undefined,
-          });
-        });
+      };
+      void watchlistSave.current.then(begin, begin);
     },
-    [push, revealedIds],
+    [activeRun, push, revealedIds, watchRun],
   );
 
   const cancelRun = useCallback(() => {
@@ -314,6 +358,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const query = activeRun?.query;
     if (query) startRun(query);
   }, [activeRun, startRun]);
+
+  // Resume a run orphaned by a page reload: the backend run keeps going, but
+  // this page lifetime never subscribed to it. One shot per mount — the
+  // chat attaches it to its research message like any live update.
+  const resumedRef = useRef(false);
+  useEffect(() => {
+    if (resumedRef.current || activeRun) return;
+    resumedRef.current = true;
+    void getActiveRun().then((run) => {
+      if (run) watchRun(run, null);
+    });
+  }, [activeRun, watchRun]);
 
   const dismissRun = useCallback(() => {
     unsubscribe.current?.();
@@ -356,16 +412,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (!parsed.success) return;
       const previous = editedWatchlist;
       setEditedWatchlist(parsed.data);
-      apiUpdateWatchlist(parsed.data)
-        .then((saved) => setEditedWatchlist(saved))
-        .catch((err: unknown) => {
+      // Chain onto any in-flight save so the last edit wins in order, and so
+      // startRun can wait for membership to settle server-side. Handled on
+      // both paths, so this promise never rejects.
+      watchlistSave.current = watchlistSave.current.then(
+        () => apiUpdateWatchlist(parsed.data),
+      ).then(
+        (saved) => {
+          setEditedWatchlist(saved);
+        },
+        (err: unknown) => {
           setEditedWatchlist(previous);
           push({
             tone: "accent",
             title: "Watchlist update was not saved",
             body: err instanceof ApiError ? err.message : "The server rejected the workspace command.",
           });
-        });
+        },
+      );
     },
     [editedWatchlist, push, watchlist],
   );
@@ -386,6 +450,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     (ticker: string) => {
       editWatchlist((current) => ({
         ...current,
+        // Dropping our own company clears the perspective with it; a stale
+        // ticker would otherwise keep framing every comparison.
+        user_company: current.user_company === ticker ? null : current.user_company,
         companies: current.companies.filter((c) => c.ticker !== ticker),
       }));
     },
@@ -411,6 +478,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const drop = new Set(tickers);
       editWatchlist((current) => ({
         ...current,
+        user_company: current.user_company && drop.has(current.user_company) ? null : current.user_company,
         companies: current.companies.filter((c) => !drop.has(c.ticker)),
       }));
     },
@@ -422,6 +490,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const trimmed = name.trim();
       if (!trimmed) return;
       editWatchlist((current) => ({ ...current, name: trimmed }));
+    },
+    [editWatchlist],
+  );
+
+  const ourCompany = activeWatchlist?.user_company ?? null;
+
+  const setOurCompany = useCallback(
+    (ticker: string | null) => {
+      editWatchlist((current) => ({ ...current, user_company: ticker }));
     },
     [editWatchlist],
   );
@@ -538,6 +615,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       removeCompanies,
       renameWatchlist,
       watchlistEdited: editedWatchlist !== null,
+      ourCompany,
+      setOurCompany,
       profile,
       updateProfile,
       profileEdited: editedProfile !== null,
@@ -568,6 +647,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       addCompanies,
       removeCompanies,
       renameWatchlist,
+      ourCompany,
+      setOurCompany,
       profile,
       updateProfile,
       editedProfile,

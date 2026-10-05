@@ -112,6 +112,63 @@ def test_catalogue_company_without_approved_pages_still_completes(client, monkey
     assert detail["result"]["signals"], "provider news alone should produce signals"
 
 
+def test_news_with_non_string_timestamp_still_publishes(client, watchlist, monkeypatch):
+    """Provider timestamps are not guaranteed strings. A numeric timestamp must
+    degrade to unknown publication time, never fail the run or drop the finding."""
+    epoch_article = {**ANNOUNCEMENT, "timestamp": 1758000000}
+    live_stack(monkeypatch, [epoch_article])
+    run_id = launch(client, watchlist)
+    execute_run(run_id)
+    detail = client.get("/api/v1/research-runs/" + run_id).json()
+
+    assert detail["status"] in ("completed", "partial"), detail["error_code"]
+    assert detail["result"]["signals"], "the announcement must still be published"
+    assert all(c["published_at"] is None for c in detail["result"]["signals"])
+
+
+def test_silent_companies_are_named_and_statements_still_compared(client, watchlist, monkeypatch):
+    """Only ISAT makes the news: TLKM and EXCL must be named as silent instead
+    of vanishing, while the cited annual table still compares all three."""
+    import httpx
+
+    from app.config import get_settings
+    from app.providers import replay_report
+    from tests.test_providers import LockRedis
+
+    monkeypatch.setenv("MODE", "live")
+    monkeypatch.setenv("SECTORS_API_KEY", "test-only-fake-key")
+    get_settings.cache_clear()
+
+    def handler(request):
+        if "/news/" in request.url.path:
+            if request.url.params.get("symbols") == "ISAT":
+                return httpx.Response(200, json={"results": [ANNOUNCEMENT],
+                                                 "pagination": {"has_next": False}})
+            return httpx.Response(200, json={"results": [], "pagination": {"has_next": False}})
+        symbol = request.url.path.split("/")[-2]
+        return httpx.Response(200, json=replay_report(symbol, "baseline", {}))
+
+    real = httpx.Client
+    monkeypatch.setattr("app.providers.httpx.Client",
+                        lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+    monkeypatch.setattr("app.providers.redis_connection", LockRedis)
+    monkeypatch.setattr("app.agent.collect_public", lambda *a: (_ for _ in ()).throw(
+        ProviderError("SOURCE_UNAVAILABLE", "unreachable")))
+
+    run_id = launch(client, watchlist)
+    execute_run(run_id)
+    detail = client.get("/api/v1/research-runs/" + run_id).json()
+
+    assert detail["status"] in ("completed", "partial"), detail["error_code"]
+    cards = detail["result"]["signals"]
+    assert cards and {c["company"]["symbol"] for c in cards} == {"ISAT"}
+    summary = detail["result"]["summary"]
+    assert "No findings for TLKM" in summary and "No findings for EXCL" in summary
+    brief = detail["result"]["financial_brief"]
+    assert brief and {r["symbol"] for r in brief["rows"]} == {"TLKM", "ISAT", "EXCL"}
+    assert brief["interpretation"] is None
+
+
 def test_backend_catalogue_covers_every_company_the_ui_offers(client):
     """A ticker the UI lets you pick but the backend rejects is a dead end."""
     import pathlib

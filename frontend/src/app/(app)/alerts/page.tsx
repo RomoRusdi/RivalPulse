@@ -54,7 +54,9 @@ export default function AlertsPage() {
 ALERT_MIN_SEVERITY=high
 ALERT_EMAIL_TO=marketing@example.com
 GMAIL_ADDRESS=your-alert-account@gmail.com
-GMAIL_APP_PASSWORD=your-google-app-password`}</pre>
+GMAIL_APP_PASSWORD=your-google-app-password
+SCHEDULED_SWEEP_ENABLED=true
+SCHEDULED_SWEEP_INTERVAL_HOURS=24`}</pre>
           </div>
           <p className="mt-3 text-[11px] leading-[1.5] text-muted">Credentials stay server-side. Use a Google App Password, never a Gmail account password.</p>
         </Card>
@@ -67,6 +69,8 @@ GMAIL_APP_PASSWORD=your-google-app-password`}</pre>
               ["No baseline email", "The first observation establishes state and does not trigger Gmail."],
               ["No unchanged email", "Repeated evidence updates last-seen state without another alert."],
               ["High severity by default", "Medium and low findings remain available in the application."],
+              ["Scheduled sweeps", "Optional daily investigations run themselves; quiet periods send nothing, and the email itself never costs credits."],
+              ["One run at a time", "A scheduled sweep never overlaps a manual investigation or double-spends."],
             ].map(([title, body]) => (
               <div key={title} className="rounded-detail border border-divider p-3.5">
                 <p className="flex items-center gap-2 text-sm font-bold"><Check aria-hidden size={14} className="text-accent" />{title}</p>

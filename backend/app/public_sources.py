@@ -141,7 +141,10 @@ def extract(body, source, final_url):
         for node in soup.select("script,style,nav,footer,header,aside,noscript,[role=banner],.cookie-banner,.cookie-consent"):
             node.decompose()
         selector = source["extraction"].get("selector", "main")
-        root = soup.select_one(selector)
+        try:
+            root = soup.select_one(selector)
+        except Exception:
+            raise ProviderError("SOURCE_PARSE_FAILED", "Approved content selector did not match", False) from None
         if root is None:
             raise ProviderError("SOURCE_PARSE_FAILED", "Approved content selector did not match", False)
         if len(normalized_text(root.get_text(" "))) < 30:
@@ -199,6 +202,9 @@ def collect_public(run_id, token, company, source):
             body, url = safe_fetch(source["url"], company["official_domains"])
             normalized = extract(body, source, url)
         except httpx.HTTPError:
+            raise ProviderError("SOURCE_UNAVAILABLE", "Approved source request failed") from None
+        except (OSError, ValueError):
+            # DNS/TLS/URL failures are missing evidence, never a crashed run.
             raise ProviderError("SOURCE_UNAVAILABLE", "Approved source request failed") from None
     snapshot = Snapshot(company_id=company["id"], source_id=source["id"], mode=mode, provider="public",
                         request_key=key, content_hash=digest(normalized), normalized=normalized, url=source["url"])

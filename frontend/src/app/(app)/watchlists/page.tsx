@@ -1,14 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
-import { ArrowRight } from "lucide-react";
 import {
   Button,
   Card,
   CardHeader,
   Disclaimer,
-  Eyebrow,
   EmptyState,
   PageTitle,
   Pill,
@@ -16,6 +13,7 @@ import {
   cx,
 } from "@/components/ui/primitives";
 import { useStore } from "@/lib/store";
+import { RevenueTrendGraph } from "@/components/dashboard/RevenueTrendGraph";
 import {
   MAX_COMPANIES,
   MIN_COMPANIES,
@@ -32,6 +30,8 @@ export default function WatchlistsPage() {
     renameWatchlist,
     watchlistEdited,
     resetDemoState,
+    ourCompany,
+    setOurCompany,
   } = useStore();
 
   const companies = watchlist?.companies ?? [];
@@ -46,7 +46,7 @@ export default function WatchlistsPage() {
         <div>
           <PageTitle>Competitors</PageTitle>
           <p className="mt-0.5 max-w-[68ch] text-sm text-muted">
-            Manage a {MIN_COMPANIES}–{MAX_COMPANIES} company watchlist and open an evidence-backed battlecard for every monitored competitor.
+            Manage a {MIN_COMPANIES}–{MAX_COMPANIES} company watchlist and compare all competitors&apos; revenue momentum on one shared graph.
           </p>
         </div>
         {watchlistEdited ? (
@@ -122,6 +122,14 @@ export default function WatchlistsPage() {
         )}
 
         <div className="mt-4 border-t border-divider pt-4">
+          <OurCompanyPicker
+            companies={companies}
+            value={ourCompany}
+            onChange={setOurCompany}
+          />
+        </div>
+
+        <div className="mt-4 border-t border-divider pt-4">
           <AddCompany
             onAdd={addCompany}
             disabled={atCapacity}
@@ -138,45 +146,13 @@ export default function WatchlistsPage() {
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-extrabold tracking-[-0.025em]">Competitor battlecards</h2>
-          <p className="mt-0.5 text-[13px] text-muted">Live summaries assembled from each company&apos;s stored signals and financial context.</p>
+          <h2 className="text-xl font-extrabold tracking-[-0.025em]">Revenue momentum</h2>
+          <p className="mt-0.5 text-[13px] text-muted">Every listed competitor&apos;s cited revenue on one shared graph — steeper means faster cited growth.</p>
         </div>
-        <Button size="sm" onClick={() => window.print()}>Print briefings</Button>
+        <Button size="sm" onClick={() => window.print()}>Print comparison</Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {companies.map((company) => {
-          const owned = signals.filter((signal) => signal.company === company.ticker);
-          const latest = owned[0];
-          const evidence = owned.reduce((total, signal) => total + signal.evidence.length, 0);
-          const growth = latest?.financialContext.metrics.find((metric) => metric.label.toLowerCase().includes("growth"));
-          return (
-            <Card key={company.ticker} className="group min-w-0 transition-console hover:border-neutral-300">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xl font-extrabold tracking-[-0.02em]">{company.ticker}</p>
-                  <p className="mt-0.5 text-[13px] text-muted">{company.name}</p>
-                </div>
-                <Pill tone={owned.some((signal) => signal.severity === "high") ? "accent" : "neutral"}>{owned.length} signal{owned.length === 1 ? "" : "s"}</Pill>
-              </div>
-              <div className="mt-4 rounded-detail bg-subtle p-3.5">
-                <Eyebrow>Latest observed move</Eyebrow>
-                <p className="mt-1.5 text-sm font-bold leading-[1.45]">{latest?.title ?? "No observed move yet"}</p>
-                <p className="mt-2 line-clamp-3 text-[13px] leading-[1.5] text-muted">{latest?.financialContext.whyItMatters ?? "Complete an investigation to establish this competitor's evidence baseline."}</p>
-              </div>
-              <dl className="mt-4 grid grid-cols-2 gap-3 text-[13px]">
-                <div><dt className="text-muted">Evidence items</dt><dd className="mt-0.5 font-extrabold">{evidence}</dd></div>
-                <div><dt className="text-muted">Financial movement</dt><dd className="mt-0.5 font-extrabold text-accent-ink">{growth?.value ?? "Awaiting data"}</dd></div>
-              </dl>
-              {latest ? (
-                <Link href={`/signals/${latest.id}`} className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-bold text-accent-ink no-underline transition-console group-hover:text-accent">
-                  Open full battlecard <ArrowRight aria-hidden size={14} />
-                </Link>
-              ) : null}
-            </Card>
-          );
-        })}
-      </div>
+      <RevenueTrendGraph />
 
       {watchlistEdited ? (
         <p className="text-[13px] text-muted">
@@ -236,6 +212,44 @@ function WatchlistName({
       aria-label="Watchlist name"
       className="w-48 rounded-[9px] border border-border bg-subtle px-2 py-1 text-[17px] font-bold text-ink outline-none"
     />
+  );
+}
+
+/* ── Our company (optional) ──────────────────────────────────────────── */
+
+function OurCompanyPicker({
+  companies,
+  value,
+  onChange,
+}: {
+  companies: { ticker: string; name: string }[];
+  value: string | null;
+  onChange: (ticker: string | null) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-[13px] font-semibold text-ink-2">
+        Our company <span className="font-normal text-muted">(optional — frames AI comparison relative to us)</span>
+      </span>
+      <select
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value || null)}
+        aria-label="Our company"
+        className="w-full rounded-field border border-border bg-subtle px-3.5 py-2.5 text-sm text-ink outline-none"
+      >
+        <option value="">Neutral — compare competitors only</option>
+        {companies.map((c) => (
+          <option key={c.ticker} value={c.ticker}>
+            {c.ticker} · {c.name}
+          </option>
+        ))}
+      </select>
+      <span className="mt-1.5 block text-[12px] text-muted">
+        {value
+          ? `Research and chat commands like “my company is ${value}” frame results relative to ${value}. The graph marks it ★.`
+          : "Leave neutral, or pick your company — or type “my company is TLKM” in chat."}
+      </span>
+    </label>
   );
 }
 

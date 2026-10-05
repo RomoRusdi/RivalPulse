@@ -39,6 +39,8 @@ export const WatchlistSchema = z.object({
   name: z.string().min(1),
   // The MVP scope is 2-5 competitors per list.
   companies: z.array(CompanySchema).max(5),
+  /** Optional "our company" ticker for our-company-relative comparison. */
+  user_company: z.string().nullable().optional(),
 });
 
 /**

@@ -100,12 +100,12 @@ export default function SignalDetailPage({
         </span>
       </div>
 
-      <h1 className="max-w-[26ch] text-[clamp(24px,3vw,34px)] font-bold leading-[1.12] tracking-[-0.035em]">
+      <h1 title={signal.headline} className="max-w-[26ch] text-[clamp(24px,3vw,34px)] font-bold leading-[1.12] tracking-[-0.035em] line-clamp-3">
         {signal.headline}
       </h1>
 
       <div className="flex flex-wrap items-stretch gap-4">
-        <EvidenceLedger evidence={signal.evidence} />
+        <EvidenceLedger evidence={signal.evidence} company={signal.companyName} headline={signal.headline} />
         <FinancialContext data={signal.financialContext} />
       </div>
 
@@ -115,11 +115,12 @@ export default function SignalDetailPage({
           {signal.comparedAgainstRunId}
         </span>
         <div className="flex gap-2.5">
-          <Button>Export battlecard</Button>
+          <Button>Export summary</Button>
           <Button
             variant="primary"
+            title="Start a fresh evidence investigation focused on this company and finding"
             onClick={() => {
-              startRun(`Investigate ${signal.company}: ${signal.title}`);
+              startRun(`Investigate ${signal.company} (${signal.companyName}) further, starting from this finding: ${signal.title}. Focus on ${signal.company} and what it means relative to our position.`);
               router.push("/");
             }}
           >

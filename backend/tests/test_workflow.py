@@ -79,6 +79,77 @@ def test_full_baseline_numeric_evidence_duplicate_and_revision(client, watchlist
     assert all(c["change_status"] == "unchanged" for c in fourth["result"]["signals"])
 
 
+def test_first_run_summary_reports_the_baseline_it_established(client, watchlist):
+    first = execute(client, watchlist)
+    assert all(c["change_status"] == "baseline" for c in first["result"]["signals"])
+    summary = first["result"]["summary"]
+    assert "baseline observations" in summary and "reference baseline" in summary
+    for symbol in ("TLKM", "ISAT", "EXCL"):
+        assert symbol in summary
+
+
+def test_comparison_scopes_to_requested_companies(client, watchlist):
+    tickers = [c["ticker"] for c in watchlist["companies"]]
+    assert client.patch("/api/v1/watchlists/" + watchlist["id"],
+                        json={"user_company": "TLKM"}).status_code == 200
+
+    mentioned = client.post("/api/v1/research-runs", json={
+        "watchlist_id": watchlist["id"], "query": "compare my company to ISAT",
+    }, headers={"Idempotency-Key": "scoped-001"}).json()
+    with session() as db:
+        inputs = db.get(Run, mentioned["id"]).inputs
+    assert set(inputs["compared_symbols"]) == {"ISAT", "TLKM"}
+
+    execute_run(mentioned["id"])
+    scoped = client.get("/api/v1/research-runs/" + mentioned["id"]).json()
+    assert scoped["status"] in ("completed", "partial"), scoped["error_code"]
+    brief = scoped["result"]["financial_brief"]
+    assert brief and {r["symbol"] for r in brief["rows"]} == {"ISAT", "TLKM"}
+
+    blanket = client.post("/api/v1/research-runs", json={
+        "watchlist_id": watchlist["id"],
+        "query": "what changed across my competitors this week",
+    }, headers={"Idempotency-Key": "scoped-002"}).json()
+    with session() as db:
+        blanket_inputs = db.get(Run, blanket["id"]).inputs
+    assert set(blanket_inputs["compared_symbols"]) == set(tickers)
+
+
+def test_unset_perspective_is_flagged_when_request_names_it(client, watchlist):
+    first = client.post("/api/v1/research-runs", json={
+        "watchlist_id": watchlist["id"], "query": "research my company news",
+    }, headers={"Idempotency-Key": "ours-note-001"}).json()
+    execute_run(first["id"])
+    summary = client.get("/api/v1/research-runs/" + first["id"]).json()["result"]["summary"]
+    assert "no company perspective is set" in summary
+
+    assert client.patch("/api/v1/watchlists/" + watchlist["id"],
+                        json={"user_company": "TLKM"}).status_code == 200
+    second = client.post("/api/v1/research-runs", json={
+        "watchlist_id": watchlist["id"], "query": "research my company news",
+    }, headers={"Idempotency-Key": "ours-note-002"}).json()
+    execute_run(second["id"])
+    summary = client.get("/api/v1/research-runs/" + second["id"]).json()["result"]["summary"]
+    assert "no company perspective is set" not in summary
+
+
+def test_active_run_endpoint_resumes_in_flight_runs_only(client, watchlist):
+    from datetime import timedelta
+
+    from app.config import get_settings
+    from app.db import utcnow
+
+    assert client.get("/runs/active").status_code == 404
+    run_id = launch(client, watchlist)
+    active = client.get("/runs/active")
+    assert active.status_code == 200 and active.json()["id"] == run_id
+    assert active.json()["status"] == "queued"
+    with session() as db, db.begin():
+        row = db.get(Run, run_id)
+        row.created_at = utcnow() - timedelta(seconds=get_settings().run_timeout + 301)
+    assert client.get("/runs/active").status_code == 404
+
+
 def test_missing_financial_partial(client, watchlist, monkeypatch):
     monkeypatch.setenv("REPLAY_SCENARIO", "missing_financial")
     get_settings.cache_clear()

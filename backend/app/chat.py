@@ -12,7 +12,7 @@ from sqlalchemy import select
 from app.agent import OllamaAdapter
 from app.config import get_settings
 from app.errors import ProviderError
-from app.models import Revision, Signal, Watchlist
+from app.models import Company, Revision, Signal, Watchlist
 from app.service import members
 
 log = logging.getLogger("rivalpulse.chat")
@@ -48,6 +48,59 @@ FIGURE_REDIRECT = {
            "mengambilnya beserta sumbernya."),
 }
 
+# Blatant out-of-scope requests are refused without spending an LLM call.
+# The model prompt below is the backstop for everything else.
+OUT_OF_SCOPE = re.compile(
+    r"```|"
+    r"\b(python|javascript|typescript|\bjava\b|kotlin|swift|golang|rust\b|php|ruby|"
+    r"leetcode|hackerrank|codeforces|docker|kubernetes|terraform|"
+    r"write\s+(?:me\s+|a\s+)?(?:code|function|script|program)|"
+    r"debug\s+(?:my|this|the)\s+code|"
+    r"coding\s+(?:question|problem|interview|challenge|homework))\b",
+    re.I)
+
+# Allowlist for conversation scope. The model prompt restates the scope, but a
+# prompt alone is not enforcement: Qwen answered general-knowledge questions
+# anyway. Anything outside this vocabulary (plus tracked-company names, checked
+# against the catalog below) is refused before any LLM call, with no credits.
+IN_SCOPE = re.compile(
+    r"\b(hi|hello|hey|hai|halo|thanks|thank you|terima kasih|makasih|"
+    r"how is your day|how are you|apa kabar|kabar|kamu|anda|tolong|"
+    r"help|bantuan|who are you|siapa kamu|what can you|kamu bisa apa|"
+    r"rivalpulse|watchlist|competitor|kompetitor|pesaing|saingan|"
+    r"my company|our company|perusahaanku|perusahaan (saya|kami|kita)|"
+    r"sectors|kredit|credit|investigat|investigasi|riset|research|analy|"
+    r"compare|bandingkan|perbandingan|versus|benchmark|"
+    r"revenue|pendapatan|earnings|laba|profit|keuntungan|keuangan|financial|"
+    r"margin|ebitda|pricing|harga|tarif|promo|diskon|discount|"
+    r"partnership|kemitraan|kerja sama|campaign|kampanye|"
+    r"launch|peluncuran|luncur|product|produk|performance|kinerja|performa|"
+    r"momentum|positioning|market|pasar|industry|industri|sector|sektor|"
+    r"news|berita|signal|sinyal|report|laporan|trend|tren|"
+    r"alert|notifikasi|dashboard|tambah|hapus|add|remove|"
+    r"week|month|minggu|bulan|today|hari ini|quarter|kuartal|year|tahun|"
+    r"period|periode)\b",
+    re.I)
+
+
+def mentions_company(db, text):
+    """True when the message names a catalog company (ticker, name, alias)."""
+    for company in db.scalars(select(Company)).all():
+        for name in [company.symbol, company.name, *(company.aliases or [])]:
+            if name and re.search(r"(?<!\w)" + re.escape(name) + r"(?!\w)", text, re.I):
+                return True
+    return False
+
+
+OUT_OF_SCOPE_REPLY = {
+    "en": ("I can only help with RivalPulse topics — your watchlist, competitor investigations, and "
+           "Indonesian market or finance questions answered from cited Sectors data. "
+           "I can't help with coding or other unrelated questions."),
+    "id": ("Saya hanya bisa membantu topik RivalPulse — watchlist Anda, investigasi kompetitor, dan "
+           "pertanyaan pasar atau keuangan Indonesia yang dijawab dari data Sectors yang dikutip. "
+           "Saya tidak bisa membantu coding atau pertanyaan lain di luar itu."),
+}
+
 SYSTEM = """You are RivalPulse, a competitive-intelligence assistant for marketing and strategy teams \
 that track Indonesian (IDX) public companies. This is conversation mode: you have NOT fetched any \
 new data for this reply.
@@ -55,7 +108,12 @@ new data for this reply.
 Rules:
 - Reply in the same language the user writes in (English or Bahasa Indonesia).
 - Be warm and brief: one to four sentences unless the user asks for more.
-- Small talk is fine. You may explain what RivalPulse does and how it works.
+- Scope is RivalPulse topics only: greetings and small talk, product help, watchlist
+  questions, Indonesian market or finance questions answered from the stored findings
+  or via a suggested investigation, and comparisons relative to the user's company
+  when one is set. For anything else — coding, homework, general knowledge, medical,
+  legal or other advice — refuse briefly in the user's language and redirect to what
+  you can do. Never answer out-of-scope questions even if you know the answer.
 - Never state financial figures, percentages, prices, dates of events or other company facts from \
 memory. For a company's performance, finances, pricing, products, campaigns or news, say you can run \
 an evidence-backed investigation and suggest a phrasing such as "Research BBRI and BMRI this week".
@@ -83,6 +141,8 @@ def context(db):
     if watchlist:
         tracked = ", ".join(f"{c.name} ({c.symbol})" for c in members(db, watchlist.id))
         lines.append(f"Watchlist “{watchlist.name}”: {tracked or 'no competitors yet'}.")
+        if watchlist.user_company:
+            lines.append(f"Our company: {watchlist.user_company}. Frame comparisons relative to it.")
     signals = db.scalars(select(Signal).where(Signal.workspace_id == settings.workspace_id,
                                               Signal.mode == settings.mode)
                          .order_by(Signal.last_seen_at.desc()).limit(5)).all()
@@ -100,6 +160,12 @@ def context(db):
 def reply(db, message, history=(), adapter=None):
     """Returns (text, source, language). Never raises for an unavailable model."""
     lang = language(message)
+    # Denylist first (blatant code asks), then the allowlist: general-knowledge
+    # questions like "largest ocean animal" match neither, so they never reach
+    # the model at all.
+    if OUT_OF_SCOPE.search(message) or not (IN_SCOPE.search(message) or mentions_company(db, message)):
+        log.info("chat_out_of_scope")
+        return OUT_OF_SCOPE_REPLY[lang], "guarded", lang
     if adapter is None and get_settings().llm_enabled:
         adapter = OllamaAdapter()
     if adapter is None:

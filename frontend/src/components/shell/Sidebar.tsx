@@ -60,7 +60,9 @@ export function Sidebar({
   onToggleCollapsed?: () => void;
 }) {
   const pathname = usePathname();
-  const { newSinceLastCheck, aggregates, profile } = useStore();
+  const { newSinceLastCheck, aggregates, profile, activeRun } = useStore();
+  const runBusy =
+    activeRun?.status === "queued" || activeRun?.status === "running";
 
   return (
     // min-h-full so the footer card sits at the bottom, but the nav can still
@@ -172,6 +174,19 @@ export function Sidebar({
                   >
                     {newSinceLastCheck}
                     <span className="sr-only"> new signals</span>
+                  </span>
+                ) : null}
+                {/* A run in progress belongs where the user looks for it too. */}
+                {item.href === "/" && runBusy ? (
+                  <span
+                    className={cx(
+                      "shrink-0",
+                      collapsed && "absolute -top-1 -right-1",
+                    )}
+                    title="Investigation running"
+                    aria-label="Investigation running"
+                  >
+                    <span aria-hidden className="block h-2 w-2 animate-pulse rounded-full bg-accent" />
                   </span>
                 ) : null}
               </Link>

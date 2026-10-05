@@ -419,10 +419,15 @@ def update_default_watchlist(body: LegacyWatchlistUpdate, db: DB):
         replace_members(db, row.id, validate_companies(db, [company.id for company in companies]))
     if body.name is not None:
         row.name = body.name
+    # "user_company" in fields_set (even with null) means the user explicitly
+    # set or cleared their company. A plain `is not None` check would make
+    # "neutral" impossible to save.
+    if "user_company" in body.model_fields_set:
+        row.user_company = body.user_company.strip() if body.user_company else None
     row.updated_at = utcnow()
     db.commit()
     projected = watchlist_json(db, row)
-    return {"id": projected["id"], "name": projected["name"],
+    return {"id": projected["id"], "name": projected["name"], "user_company": projected["user_company"],
             "companies": [{"ticker": company["ticker"], "name": company["name"], "industry": company["industry"]}
                           for company in projected["companies"]]}
 
@@ -438,6 +443,24 @@ def old_submit(body: LegacyRunCreate, db: DB, background: BackgroundTasks, idemp
     if run.status == "queued":
         background.add_task(jobs.enqueue, run.id)
     return legacy_run(db, run)
+
+
+@compat.get("/runs/active")
+def active_run(db: DB):
+    """The newest in-flight run on the default watchlist, if any.
+
+    Lets a reloaded page (or a second tab) resume watching a run whose stream
+    lived in another page lifetime, instead of orphaning it. Runs older than
+    the execution window plus grace are reconciler prey, never adopted.
+    """
+    cutoff = utcnow() - timedelta(seconds=get_settings().run_timeout + 300)
+    row = db.scalar(select(Run).where(Run.watchlist_id == default_watchlist(db).id,
+                                      Run.status.in_(["queued", "running"]),
+                                      Run.created_at > cutoff)
+                    .order_by(Run.created_at.desc()).limit(1))
+    if not row:
+        raise AppError("NO_ACTIVE_RUN", "No investigation is currently running", 404)
+    return legacy_run(db, row)
 
 
 @compat.get("/runs/{run_id}/stream")

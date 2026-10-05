@@ -46,7 +46,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${manrope.variable} h-full`}>
-      <body className="min-h-full">{children}</body>
+      {/* suppressHydrationWarning: browser extensions (e.g. Grammarly) add
+          their own attributes to <body> before React hydrates. Ignoring
+          attribute drift here is safe — React still owns all children. */}
+      <body className="min-h-full" suppressHydrationWarning>{children}</body>
     </html>
   );
 }

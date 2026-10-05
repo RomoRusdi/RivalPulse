@@ -14,6 +14,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setenv("REPLAY_SCENARIO", "baseline")
     monkeypatch.setenv("DEMO_ACCESS_TOKEN", "test-private-access-token")
     monkeypatch.setenv("LLM_ENABLED", "false")
+    monkeypatch.setenv("LLM_PLAN_ENABLED", "false")
     get_settings.cache_clear()
     engine.cache_clear()
     command.upgrade(Config("alembic.ini"), "head")

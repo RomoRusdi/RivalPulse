@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { DatabaseZap, Menu, Sparkles } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { DebugPanel } from "./DebugPanel";
+import { RunIndicator } from "./RunIndicator";
 import { SearchField } from "./SearchField";
 import { MobileDrawer } from "./MobileDrawer";
 import { UserMenu } from "./UserMenu";
@@ -23,10 +24,23 @@ import { useStore } from "@/lib/store";
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { mode } = useStore();
+  const { mode, activeRun } = useStore();
   const isAgentWorkspace = pathname === "/";
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const baseTitle = useRef<string | null>(null);
+
+  // A run in progress must stay visible when this browser tab is not the
+  // active one: the tab title is the only surface that survives tab switches.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (baseTitle.current === null) baseTitle.current = document.title;
+    const busy =
+      activeRun?.status === "queued" || activeRun?.status === "running";
+    document.title = busy
+      ? `● Investigating… · ${baseTitle.current}`
+      : (baseTitle.current ?? document.title);
+  }, [activeRun?.status]);
 
   const toggleSidebar = () => setSidebarCollapsed((current) => !current);
 
@@ -83,6 +97,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               flush against the capped search field, leaving the bar looking
               unbalanced on a wide window. */}
           <div className="flex shrink-0 items-center gap-2.5 sm:ml-auto">
+            <RunIndicator />
             <UserMenu />
           </div>
         </header>

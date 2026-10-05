@@ -68,7 +68,10 @@ def test_sectors_report_feeds_cited_annual_brief(client, watchlist, monkeypatch)
     assert outcome == "fetched" and snapshot.provider == "sectors" and snapshot.mode == "live"
     brief, claims = financial_brief_for(run_id)
     row = next(row for row in brief.rows if row.symbol == company["symbol"])
-    assert {metric.metric for metric in row.metrics} == {"revenue", "earnings"}
+    assert {metric.metric for metric in row.metrics} == {
+        "revenue", "earnings", "revenue_yoy_percent", "earnings_yoy_percent"}
+    yoy = next(m for m in row.metrics if m.metric == "revenue_yoy_percent")
+    assert yoy.value == "+20.00%" and yoy.unit == "percent"
     assert all(metric.source_url.startswith("https://api.sectors.app/v2/company/report/")
                and metric.snapshot_id == snapshot.id for metric in row.metrics)
     assert len(claims) == 2
