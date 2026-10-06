@@ -1,14 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import { Menu, Plus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+import { DatabaseZap, Menu, Sparkles } from "lucide-react";
 import { Sidebar } from "./Sidebar";
-import { InvestigateDialog } from "./InvestigateDialog";
 import { DebugPanel } from "./DebugPanel";
-import { SearchField } from "./SearchField";
+import { RunIndicator } from "./RunIndicator";
+import { pageLabel } from "@/lib/navigation";
 import { MobileDrawer } from "./MobileDrawer";
-import { Button } from "@/components/ui/primitives";
-import { USER } from "@/lib/mock-data";
+import { UserMenu } from "./UserMenu";
+import { useStore } from "@/lib/store";
+import { DEMO_CONTROLS_ENABLED } from "@/lib/demo-settings";
+import { AgentToolbarSlot } from "./AgentToolbarSlot";
 
 /**
  * The app shell: sidebar + top bar + routed main, filling the viewport.
@@ -22,11 +25,30 @@ import { USER } from "@/lib/mock-data";
  * drawer opened from a menu button.
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const { mode, activeRun } = useStore();
+  const isAgentWorkspace = pathname === "/";
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [investigateOpen, setInvestigateOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
+  const baseTitle = useRef<string | null>(null);
+
+  // A run in progress must stay visible when this browser tab is not the
+  // active one: the tab title is the only surface that survives tab switches.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (baseTitle.current === null) baseTitle.current = document.title;
+    const busy =
+      activeRun?.status === "queued" || activeRun?.status === "running";
+    document.title = busy
+      ? `● Investigating… · ${baseTitle.current}`
+      : (baseTitle.current ?? document.title);
+  }, [activeRun?.status]);
+
+  const toggleSidebar = () => setSidebarCollapsed((current) => !current);
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-surface">
+    <AgentToolbarSlot.Provider value={toolbarTarget}><div className="flex h-dvh w-full overflow-hidden bg-surface">
       {/* Keyboard users shouldn't have to tab the whole sidebar every page. */}
       <a
         href="#main"
@@ -36,8 +58,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </a>
 
       {/* Static sidebar from lg up, scrolling independently of main */}
-      <div className="hidden h-full w-[244px] shrink-0 overflow-y-auto lg:block">
-        <Sidebar />
+      <div
+        className={`hidden h-full shrink-0 overflow-y-auto transition-[width] duration-200 ease-[var(--ease-enter)] lg:block ${
+          sidebarCollapsed ? "w-20" : "w-[244px]"
+        }`}
+      >
+        <Sidebar collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebar} />
       </div>
 
       {/* Off-canvas drawer below lg */}
@@ -46,58 +72,61 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       ) : null}
 
       <div className="flex h-full min-w-0 flex-1 flex-col">
-        <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border bg-surface px-4 py-3.5 md:px-[22px]">
+        <header className="rp-glass-bar relative z-20 flex shrink-0 flex-wrap items-center gap-3 border-b border-border px-4 py-3.5 md:px-[22px]">
           <button
             type="button"
             aria-label="Open navigation"
             onClick={() => setDrawerOpen(true)}
-            className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-field border border-border bg-subtle text-ink-2 transition-console hover:bg-[#EBE8E2] lg:hidden"
+            className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-field border border-border bg-subtle text-ink-2 transition-console hover:bg-[#e0ece5] lg:hidden"
           >
             <Menu aria-hidden size={18} strokeWidth={1.5} />
           </button>
 
-          <SearchField />
+          {isAgentWorkspace ? (
+            <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:flex-none">
+              <span className="shrink-0 text-accent-ink">
+                <Sparkles aria-hidden size={16} strokeWidth={1.8} />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-extrabold text-ink">RivalPulse agent</p>
+                <p className="hidden truncate text-[11px] text-muted sm:block">Plans, investigates, compares, and cites</p>
+              </div>
+            </div>
+          ) : (
+            <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink-2">{pageLabel(pathname)}</p>
+          )}
 
-          {/* ml-auto pins the actions to the right edge. Without it they sit
-              flush against the capped search field, leaving the bar looking
-              unbalanced on a wide window. */}
+          {isAgentWorkspace ? <div ref={setToolbarTarget} className="flex shrink-0 items-center justify-end gap-2 sm:min-w-0 sm:flex-1" /> : null}
+
+          {/* Account and run status stay at the right edge of the header. */}
           <div className="flex shrink-0 items-center gap-2.5 sm:ml-auto">
-            <Button
-              variant="primary"
-              onClick={() => setInvestigateOpen(true)}
-              className="min-h-11 lg:min-h-0"
-            >
-              <Plus aria-hidden size={16} strokeWidth={2} />
-              Investigate
-            </Button>
-            {/* An empty grey circle reads as a broken image. */}
-            <span
-              aria-hidden
-              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-[13px] font-bold text-ink-2 sm:flex"
-            >
-              {USER.name
-                .split(" ")
-                .map((part) => part[0])
-                .slice(0, 2)
-                .join("")}
-            </span>
+            <RunIndicator />
+            <UserMenu />
           </div>
         </header>
+
+        {mode === "replay" ? (
+          <div className="flex shrink-0 items-center gap-2 border-b border-divider bg-subtle px-4 py-2 text-[12px] text-muted md:px-[22px]">
+            <DatabaseZap aria-hidden size={14} className="shrink-0" />
+            <span><strong className="font-extrabold text-ink-2">Sample data</strong>{" · "}Findings in this workspace are illustrative.</span>
+          </div>
+        ) : null}
 
         <main
           id="main"
           tabIndex={-1}
-          className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-[22px]"
+          className={`min-w-0 flex-1 ${isAgentWorkspace ? "overflow-hidden p-0" : "overflow-y-auto p-4 md:p-[22px]"}`}
         >
-          {children}
+          <div
+            key={pathname}
+            className={`rp-page-enter min-w-0 ${isAgentWorkspace ? "h-full" : "flex flex-col gap-4"}`}
+          >
+            {children}
+          </div>
         </main>
       </div>
 
-      {investigateOpen ? (
-        <InvestigateDialog onClose={() => setInvestigateOpen(false)} />
-      ) : null}
-
-      <DebugPanel />
-    </div>
+      {DEMO_CONTROLS_ENABLED ? <DebugPanel /> : null}
+    </div></AgentToolbarSlot.Provider>
   );
 }

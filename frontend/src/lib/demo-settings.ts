@@ -42,10 +42,11 @@ export const DEMO_DEFAULTS: DemoSettings = {
 const STORAGE_KEY = "rivalpulse.demo";
 const CHANGE_EVENT = "rivalpulse:demo-settings";
 const URL_PARAMS = ["debug", "latency", "fail", "empty", "seed"];
+export const DEMO_CONTROLS_ENABLED = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
 
 /** Safe on the server, where there is no URL and no storage. */
 export function readDemoSettings(): DemoSettings {
-  if (typeof window === "undefined") return DEMO_DEFAULTS;
+  if (typeof window === "undefined" || !DEMO_CONTROLS_ENABLED) return DEMO_DEFAULTS;
 
   let stored: Partial<DemoSettings> = {};
   try {
@@ -78,7 +79,7 @@ export function readDemoSettings(): DemoSettings {
  * URL so a stale `?fail=run` cannot override what the panel just set.
  */
 export function writeDemoSettings(next: Partial<DemoSettings>): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !DEMO_CONTROLS_ENABLED) return;
   try {
     const merged = { ...readDemoSettings(), ...next, seed: false };
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));

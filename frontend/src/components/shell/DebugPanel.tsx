@@ -118,7 +118,7 @@ export function DebugPanel() {
                 "flex-1 cursor-pointer rounded-[9px] px-2 py-1.5 text-[13px] transition-console",
                 settings.latencyMs === ms
                   ? "bg-ink-strong font-semibold text-surface"
-                  : "border border-border bg-subtle text-ink-2 hover:bg-[#EBE8E2]",
+                  : "border border-border bg-subtle text-ink-2 hover:bg-[#e0ece5]",
               )}
             >
               {ms === 0 ? "None" : `${ms}ms`}
@@ -175,7 +175,7 @@ function Toggle({
         "flex cursor-pointer items-center justify-between gap-3 rounded-[9px] border px-2.5 py-2 text-left transition-console",
         on
           ? "border-accent-wash-border bg-accent-wash"
-          : "border-border bg-subtle hover:bg-[#EBE8E2]",
+          : "border-border bg-subtle hover:bg-[#e0ece5]",
       )}
     >
       <span className="min-w-0">

@@ -34,6 +34,8 @@ export interface LocalState {
    * anything in localStorage is untrusted input.
    */
   watchlist: unknown;
+  /** The user's edited profile, same untrusted-input rules as the watchlist. */
+  profile: unknown;
 }
 
 const EMPTY: LocalState = {
@@ -41,12 +43,13 @@ const EMPTY: LocalState = {
   revealedIds: [],
   lastCheckedAt: null,
   watchlist: null,
+  profile: null,
 };
 
-export function loadLocalState(): LocalState {
+export function loadLocalState(scope?: string): LocalState {
   if (typeof window === "undefined") return EMPTY;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(scope ? `${STORAGE_KEY}:${scope}` : STORAGE_KEY);
     if (!raw) return EMPTY;
     const parsed = JSON.parse(raw) as Partial<LocalState>;
     return {
@@ -55,25 +58,26 @@ export function loadLocalState(): LocalState {
       lastCheckedAt:
         typeof parsed.lastCheckedAt === "string" ? parsed.lastCheckedAt : null,
       watchlist: parsed.watchlist ?? null,
+      profile: parsed.profile ?? null,
     };
   } catch {
     return EMPTY;
   }
 }
 
-export function saveLocalState(state: LocalState): void {
+export function saveLocalState(state: LocalState, scope?: string): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    window.localStorage.setItem(scope ? `${STORAGE_KEY}:${scope}` : STORAGE_KEY, JSON.stringify(state));
   } catch {
     // Non-fatal.
   }
 }
 
-export function clearLocalState(): void {
+export function clearLocalState(scope?: string): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(scope ? `${STORAGE_KEY}:${scope}` : STORAGE_KEY);
   } catch {
     // Non-fatal.
   }

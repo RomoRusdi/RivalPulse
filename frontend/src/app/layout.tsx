@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 import "./globals.css";
-import { StoreProvider } from "@/lib/store";
-import { ToastProvider } from "@/components/ui/Toast";
-import { AppShell } from "@/components/shell/AppShell";
 
 const manrope = Manrope({
   variable: "--font-manrope",
@@ -38,17 +35,21 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * The document shell only.
+ *
+ * Providers and the app chrome live in `(app)/layout.tsx`, so signed-out
+ * routes like `/login` render without the sidebar — and without mounting the
+ * store, which would otherwise fetch dashboard data for a visitor who has not
+ * signed in yet.
+ */
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${manrope.variable} h-full`}>
-      {/* The shell owns scrolling, so the document itself never scrolls. */}
-      <body className="h-full overflow-hidden">
-        <ToastProvider>
-          <StoreProvider>
-            <AppShell>{children}</AppShell>
-          </StoreProvider>
-        </ToastProvider>
-      </body>
+      {/* suppressHydrationWarning: browser extensions (e.g. Grammarly) add
+          their own attributes to <body> before React hydrates. Ignoring
+          attribute drift here is safe — React still owns all children. */}
+      <body className="min-h-full" suppressHydrationWarning>{children}</body>
     </html>
   );
 }

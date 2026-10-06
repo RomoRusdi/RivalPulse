@@ -2,8 +2,15 @@ x-app: &app
   build: .
   env_file: .env
   environment:
+    AUTH_MODE: ${AUTH_MODE:-accounts}
+    MODE: live
+    LLM_PLAN_ENABLED: ${LLM_PLAN_ENABLED:-false}
+    RUN_TIMEOUT: "360"
     DATABASE_URL: postgresql+psycopg://rivalpulse:rivalpulse@postgres:5432/rivalpulse
     REDIS_URL: redis://redis:6379/0
+    OLLAMA_BASE_URL: http://host.docker.internal:11434
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
   depends_on:
     postgres:
       condition: service_healthy

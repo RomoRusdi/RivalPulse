@@ -1,37 +1,39 @@
 @import "tailwindcss";
 
 /* ── RivalPulse "Console" design tokens ───────────────────────────────────
-   Source of truth for the approved visual direction. Colours are final;
+   Source of truth for the finance-green visual direction;
    all body and label text meets 4.5:1. Do not reintroduce #8A8781 / #9A968E
    for text — decorative use only. */
 @theme {
-  --color-canvas: #e8e6e0;
-  --color-surface: #fbfaf8;
+  --color-canvas: #e8eeea;
+  --color-surface: #f5f8f6;
   --color-card: #ffffff;
-  --color-sidebar: #f4f2ee;
-  --color-subtle: #f2f0ec;
+  --color-sidebar: #eef4f0;
+  --color-subtle: #eef4f0;
 
-  --color-border: #e2dfd8;
-  --color-border-frame: #dbd8d1;
-  --color-divider: #edebe6;
+  --color-border: #d7e2dc;
+  --color-border-frame: #c3d3c9;
+  --color-divider: #e6eee9;
 
-  --color-ink: #1a1a1a;
-  --color-ink-strong: #1f1e1c;
-  --color-ink-2: #4a4842;
-  --color-muted: #6b6862;
-  --color-muted-strong: #57544f;
-  --color-muted-on-dark: #a9a59d;
+  --color-ink: #17352b;
+  --color-ink-strong: #122d23;
+  --color-ink-2: #40584b;
+  --color-muted: #56685e;
+  --color-muted-strong: #4b6356;
+  --color-muted-on-dark: #b5c9bd;
 
-  --color-accent: #e2650f;
-  --color-accent-hover: #c95a0d;
-  --color-accent-ink: #a04607;
-  --color-accent-wash: #fce9dc;
-  --color-accent-wash-border: #f3d3bb;
+  --color-accent: #146c50;
+  --color-accent-hover: #0f573f;
+  --color-accent-ink: #0d503c;
+  --color-accent-wash: #e6f3ec;
+  --color-accent-wash-border: #b8dcc9;
+  --color-accent-bright: #8de0b5;
+  --color-error: #b42318;
 
-  --color-neutral-300: #c9c5bc;
-  --color-neutral-200: #dcd8d0;
-  --color-neutral-100: #edebe6;
-  --color-dot-idle: #cfcbc2;
+  --color-neutral-300: #b7cbbf;
+  --color-neutral-200: #d3e0d8;
+  --color-neutral-100: #e6eee9;
+  --color-dot-idle: #bccfc3;
 
   --font-sans: var(--font-manrope), system-ui, sans-serif;
 
@@ -70,9 +72,13 @@
   }
 }
 
-html,
-body {
+html {
   height: 100%;
+}
+
+/* min-height, not height: signed-out pages size to their own content. */
+body {
+  min-height: 100%;
 }
 
 body {
@@ -96,8 +102,8 @@ body {
 @utility transition-console {
   transition-property: background-color, color, border-color, box-shadow,
     opacity, transform;
-  transition-duration: 140ms;
-  transition-timing-function: ease-out;
+  transition-duration: 160ms;
+  transition-timing-function: var(--ease-enter);
 }
 
 /* Bars and donuts animate from 0 on first mount over 500ms. */
@@ -112,9 +118,9 @@ body {
   border-radius: var(--radius-bar);
   background-image: linear-gradient(
     90deg,
-    rgb(226 101 15 / 0) 25%,
-    rgb(247 225 211 / 0.95) 37%,
-    rgb(226 101 15 / 0) 63%
+    rgb(20 108 80 / 0) 25%,
+    rgb(211 232 221 / 0.95) 37%,
+    rgb(20 108 80 / 0) 63%
   );
   background-size: 400% 100%;
   animation: var(--animate-shimmer);
@@ -197,6 +203,90 @@ body {
   transition-timing-function: ease-in;
 }
 
+/* Route changes retain the shell and softly settle only the new content.
+   This keeps navigation responsive without making the whole app slide. */
+.rp-page-enter {
+  animation: rp-page-enter 220ms var(--ease-enter) both;
+}
+
+@keyframes rp-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Financial comparison lines draw once when their range or route mounts. */
+.rp-chart-line {
+  stroke-dasharray: 600;
+  stroke-dashoffset: 600;
+  animation: rp-chart-draw 700ms var(--ease-enter) forwards;
+}
+
+.rp-chart-point {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: rp-chart-point 380ms 480ms var(--ease-enter) both;
+}
+
+@keyframes rp-chart-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes rp-chart-point {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Agent execution uses a CI-style rail: completed stages stay solid while
+   only the active edge moves. This communicates direction without making the
+   labels themselves jump around. */
+.rp-run-progress-active {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-accent) 0%,
+    #8de0b5 45%,
+    var(--color-accent) 70%
+  );
+  background-size: 220% 100%;
+  animation: rp-progress-scan 1.5s linear infinite;
+}
+
+.rp-pipeline-flow {
+  background-image: linear-gradient(
+    180deg,
+    var(--color-accent) 0 35%,
+    var(--color-accent-wash-border) 55%,
+    var(--color-neutral-200) 78%
+  );
+  background-size: 100% 220%;
+  animation: rp-pipeline-flow 1.3s linear infinite;
+}
+
+@keyframes rp-progress-scan {
+  to {
+    background-position: -220% 0;
+  }
+}
+
+@keyframes rp-pipeline-flow {
+  to {
+    background-position: 0 220%;
+  }
+}
+
 /* A signal a run just found, settling into the top of the feed. Applied only
    to rows revealed live — never to the list on load. */
 .rp-row-new {
@@ -246,3 +336,39 @@ body {
     }
   }
 }
+
+/* Shared interaction states. Forest green anchors brand and active actions. */
+button, a, input, select, summary, textarea { -webkit-tap-highlight-color: transparent; }
+button:not(:disabled), summary { cursor: pointer; }
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: 3px;
+}
+::selection { background: var(--color-accent-wash-border); color: var(--color-ink); }
+
+/* Frosted bars use a restrained tint; research surfaces remain opaque. */
+.rp-glass-bar {
+  background: linear-gradient(120deg, rgb(255 255 255 / .9), rgb(230 243 236 / .92));
+  -webkit-backdrop-filter: blur(12px) saturate(125%);
+  backdrop-filter: blur(12px) saturate(125%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .75), 0 1px 8px rgb(18 45 35 / .03);
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .rp-glass-bar { background: var(--color-surface); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .rp-glass-bar { background: var(--color-surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+.rp-drawer-right { transition: transform 280ms var(--ease-enter), opacity 220ms var(--ease-enter); }
+@starting-style { .rp-drawer-right { transform: translateX(100%); opacity: 0; } }
+.rp-drawer-right-out { transform: translateX(100%); opacity: 0; transition-duration: 220ms; }
+.rp-data-point { transition: r 160ms var(--ease-enter), stroke-width 160ms var(--ease-enter); }
+g[role="button"]:focus-visible .rp-data-point { stroke-width: 5; }
+.rp-point-inspector { animation: rp-page-enter 160ms var(--ease-enter) both; }
+@media (prefers-reduced-motion: reduce) {
+  .rp-drawer-right, .rp-drawer-right-out, .rp-point-inspector { transform: none !important; animation: none !important; transition: none !important; }
+}
+
+.rp-select-menu { animation: rp-select-enter 140ms var(--ease-enter) both; transform-origin: top; }
+@keyframes rp-select-enter { from { opacity: 0; transform: translateY(-3px) scale(0.99); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .rp-select-menu { animation: none; } }

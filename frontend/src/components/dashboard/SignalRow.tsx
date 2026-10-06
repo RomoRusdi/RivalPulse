@@ -1,75 +1,31 @@
 "use client";
 
 import Link from "next/link";
+import type { Route } from "next";
 import { ChevronRight } from "lucide-react";
-import { SeverityPill, cx } from "@/components/ui/primitives";
+import { cx } from "@/components/ui/primitives";
+import { categoryStyle } from "@/lib/signal-categories";
+import { useOptionalAuth } from "@/lib/auth";
 import { useStore } from "@/lib/store";
-import { shortDate } from "@/lib/format";
+import { findingDate } from "@/lib/format";
 import type { SignalWithState } from "@/lib/types";
 
-/**
- * One signal row. Shared by the dashboard card and the full Signals list, so
- * the two stay identical as the design intends.
- *
- * The unread marker sits in its own left-hand gutter, the way every inbox
- * does it — inline after the title it read as decoration with no legend.
- */
-export function SignalRow({
-  signal,
-  last = false,
-}: {
-  signal: SignalWithState;
-  last?: boolean;
-}) {
+export function SignalRow({ signal, last = false, returnTo }: { signal: SignalWithState; last?: boolean; returnTo?: string }) {
   const { markSignalSeen, justRevealedIds } = useStore();
-  // Only rows a run surfaced live animate in; the list never does on load.
-  const justArrived = justRevealedIds.includes(signal.id);
-
-  return (
-    <Link
-      href={`/signals/${signal.id}`}
-      onClick={() => markSignalSeen(signal.id)}
-      className={cx(
-        "group -mx-2 flex flex-wrap items-center gap-3 rounded-[10px] px-2 py-3.5 no-underline transition-console hover:bg-[#FAF9F7]",
-        !last && "border-b border-divider rounded-b-none",
-        justArrived && "rp-row-new",
-      )}
-    >
-      <span className="flex w-2 shrink-0 justify-center" aria-hidden>
-        {!signal.seen ? (
-          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-        ) : null}
+  const auth = useOptionalAuth();
+  return <Link href={(`/signals/${signal.id}${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`) as Route}
+    onClick={() => markSignalSeen(signal.id)}
+    className={cx("group flex min-w-0 items-start gap-3 rounded-field px-2 py-5 no-underline transition-console hover:bg-subtle", !last && "border-b border-divider", justRevealedIds.includes(signal.id) && "rp-row-new")}>
+    <span className="min-w-0 flex-1">
+      <span className="mb-2.5 flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-extrabold tracking-wide text-ink-2">{signal.company}</span>
+        <span className="rounded-full px-2.5 py-1 font-semibold" style={categoryStyle(signal.type)}>{signal.type}</span>
+        <span className="text-muted">Added {findingDate(signal.addedAt, auth?.profile.timezone, signal.detectedAt)}</span>
+        {signal.relevanceReview ? <span className="font-semibold text-accent-ink">Company relevance needs review</span> : null}
       </span>
-
-      <span className="w-[52px] shrink-0 text-sm font-extrabold">
-        {signal.company}
-      </span>
-
-      <span className="min-w-0 flex-[1_1_220px]">
-        <span className="block text-[15px] font-bold leading-[1.35] text-ink">
-          {signal.title}
-          {!signal.seen ? (
-            <span className="sr-only"> — new since your last check</span>
-          ) : null}
-        </span>
-        <span className="mt-[3px] block text-[13px] text-muted">
-          {signal.subline}
-        </span>
-      </span>
-
-      <SeverityPill severity={signal.severity} />
-
-      <span className="w-[58px] shrink-0 text-right text-[13px] text-muted">
-        {shortDate(signal.detectedAt)}
-      </span>
-
-      {/* Makes the row read as navigable rather than as a static list item. */}
-      <ChevronRight
-        aria-hidden
-        size={16}
-        strokeWidth={1.5}
-        className="shrink-0 text-neutral-300 transition-console group-hover:text-muted"
-      />
-    </Link>
-  );
+      <span title={signal.title} className="block text-[15px] font-bold leading-relaxed text-ink line-clamp-2">{signal.title}</span>
+      <span className="mt-1.5 block text-xs leading-relaxed text-muted">{signal.companyName} · View supporting evidence</span>
+    </span>
+    <ChevronRight aria-hidden size={17} className="mt-7 shrink-0 text-muted transition-console group-hover:text-accent-ink" />
+  </Link>;
 }

@@ -12,8 +12,9 @@ sys.path.insert(0, str(ROOT))
 def main():
     os.chdir(ROOT)
     with tempfile.TemporaryDirectory(prefix="rivalpulse-contracts-") as directory:
-        os.environ.update(DATABASE_URL="sqlite:///" + (Path(directory) / "replay.db").as_posix(), MODE="replay",
-                          REPLAY_SCENARIO="baseline", DEMO_ACCESS_TOKEN="contract-generation-only-token", LLM_ENABLED="false")
+        os.environ.update(DATABASE_URL="sqlite:///" + (Path(directory) / "replay.db").as_posix(), MODE="replay", AUTH_MODE="demo",
+                          REPLAY_SCENARIO="baseline", DEMO_ACCESS_TOKEN="contract-generation-only-token", LLM_ENABLED="false",
+                          LLM_PLAN_ENABLED="false", SECTORS_API_KEY="")
         from app.config import get_settings
         from app.db import engine
         get_settings.cache_clear()
@@ -37,6 +38,8 @@ def main():
             examples = {"notice": "Synthetic replay only. IDs are generated, metrics are fictional XTS test values.",
                         "watchlist": watchlist, "accepted": accepted, "completed_run": detail,
                         "dashboard": client.get("/dashboard").json(),
+                        "findings": client.get("/findings?period=all").json(),
+                        "financials": client.get("/api/v1/watchlists/" + watchlist["id"] + "/financials").json(),
                         "signal_detail": client.get("/api/v1/signals/" + detail["result"]["signals"][0]["signal_id"]).json()}
             output = ROOT / "docs"
             output.mkdir(exist_ok=True)

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/primitives";
 import { useStore } from "@/lib/store";
+import { dashboardTime } from "@/lib/format";
 
 /**
  * The dark banner answers the only question the user opens the app with:
@@ -34,13 +35,12 @@ export function SummaryBanner() {
 
   const headline =
     newSinceLastCheck === 0
-      ? "No new signals since your last check"
-      : `${newSinceLastCheck} new signal${newSinceLastCheck === 1 ? "" : "s"} since your last check`;
+      ? "No unread findings"
+      : `${newSinceLastCheck} finding${newSinceLastCheck === 1 ? "" : "s"} to review`;
 
-  // An empty feed is a success state, not an error — the copy says so.
   const subline =
     newSinceLastCheck === 0
-      ? `Last agent run ${aggregates.lastRunAt}. Filtering is working: nothing crossed the threshold.`
+      ? signals.length ? `Last research: ${dashboardTime(aggregates.lastRunAt)}. Check the investigation for source coverage.` : "Start an investigation to assess competitor activity and source coverage."
       : priority?.severity === "high"
         ? `One is high severity and involves ${priority.company}.`
         : "None are high severity. Review when convenient.";

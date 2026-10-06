@@ -2,34 +2,122 @@
 from datetime import timezone
 
 from sqlalchemy import select
+from app.classify import company_event
 
 from app.db import iso, utcnow
 from app.models import RunStep
 from app.research import STAGES
 
 
+def try_float(value):
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None
+
+
 def signal_json(card):
+    observations = card.get("observed_signals") or []
+    series = []
+    for m in card.get("financial_context") or []:
+        if m.get("metric") != "revenue":
+            continue
+        value = try_float(m.get("value"))
+        if value is None:
+            continue
+        series.append({"label": m.get("period"), "value": value})
+    implication = card["why_marketing_should_care"]["text"]
+    why_it_matters = implication if implication.startswith("Hypothesis:") else "Hypothesis: " + implication
+    # Headline is the short event title (≤300 chars), never the full
+    # observation text: list rows and chat cards render it verbatim.
+    headline = card["title"] or (observations[0]["text"] if observations else "")
+    references = {entry["id"]: entry for entry in card.get("evidence", [])}
+    rows = []
+    for metric in card.get("financial_context") or []:
+        ref = next((references.get(identity) for identity in metric["evidence_ids"] if identity in references), {})
+        rows.append({"metric": metric["metric"], "value": metric["value"], "currency": metric["currency"],
+                     "unit": metric["unit"], "period": metric["period"], "basis": metric["comparison_basis"],
+                     "sourceUrl": ref.get("url_or_endpoint", ""), "snapshotId": ref.get("snapshot_id")})
+    news = any(entry.get("source") == "sectors_news" for entry in card.get("evidence", []))
+    scoped = [company_event({"text": observation["text"], "title": headline}, card["company"])
+              for observation in observations] if news else []
+    relevance_review = news and not any(event and event["type"] == card["type"] for event in scoped)
     return {
         "id": card["signal_id"], "company": card["company"]["symbol"], "companyName": card["company"]["name"],
-        "type": card["type"], "title": ("[REPLAY] " if card["mode"] == "replay" else "") + card["title"],
+        "type": card["type"], "title": ({"replay": "[REPLAY] ", "yahoo": "[YAHOO TEST] "}.get(card["mode"], "")) + card["title"],
         "subline": f"{card['mode']} · {card['change_status']} · {card['analysis_status']}",
-        "headline": card["observed_signals"][0]["text"], "severity": card["severity"],
+        "headline": headline, "severity": card["severity"],
         "detectedAt": card["first_seen_at"][:10], "runId": card["run_id"], "storedAt": card["stored_at"],
+        "addedAt": card["first_seen_at"], "publishedAt": card.get("published_at"),
+        "relevanceReview": relevance_review,
+        "sources": [{"url": entry["url_or_endpoint"], "source": entry["source"],
+                     "publishedAt": entry.get("published_at")} for entry in card.get("evidence", [])],
         "comparedAgainstRunId": card["compared_against_run_id"] or "",
         "evidence": [{"kind": kind, "source": "AI interpretation" if kind == "hypothesis" else "Stored evidence",
                       "text": c["text"]} for kind, field in
                      (("fact", "facts"), ("observed_signal", "observed_signals"), ("hypothesis", "hypotheses"))
                      for c in card[field]],
         "financialContext": {
-            "seriesCaption": "Sectors annual revenue; source currency and unit shown in metrics",
-            "series": [{"label": m["period"], "value": float(m["value"])}
-                       for m in card["financial_context"] if m["metric"] == "revenue"],
+            "seriesCaption": (("Yahoo Finance test data" if card["mode"] == "yahoo" else "Sectors annual revenue") +
+                              "; source currency and unit shown in metrics"),
+            "series": series,
+            "rows": rows,
             "metrics": [{"label": m["metric"] + " · " + m["period"],
                          "value": f"{m['value']} {m['currency'] or ''} {m['unit']}".strip()}
                         for m in card["financial_context"]],
-            "whyItMatters": "Hypothesis: " + card["why_marketing_should_care"]["text"],
+            "whyItMatters": why_it_matters,
         }, "mode": card["mode"], "change_status": card["change_status"],
     }
+
+
+def tool_calls(run, steps):
+    """Real tool invocations, not stage names.
+
+    The stage list says "collect"; the coverage record says which company was
+    read, from which provider, whether it was cached and what it cost. That
+    second thing is the evidence of orchestration, so it is what gets shown.
+    """
+    symbols = {c["id"]: c["symbol"] for c in (run.inputs or {}).get("companies", [])}
+    calls = []
+    for step in steps:
+        for entry in (step.details or {}).get("coverage", []):
+            target = ", ".join(symbols.get(i, i[:8]) for i in entry.get("company_ids", []))
+            bits = [target] if target else []
+            if entry.get("cache_status"):
+                bits.append(entry["cache_status"])
+            if entry.get("estimated_credits"):
+                bits.append(f"{entry['estimated_credits']} credit{'s' if entry['estimated_credits'] != 1 else ''}")
+            if entry.get("duration_ms"):
+                bits.append(f"{entry['duration_ms']} ms")
+            if entry["status"] != "ok":
+                bits.append(entry.get("code") or entry["status"])
+            calls.append({"name": entry["tool"], "detail": " · ".join(bits)})
+    # Before the first tool returns there is nothing to show but the stage.
+    return calls or [{"name": s.stage, "detail": s.message} for s in steps]
+
+
+def orchestration(run, steps):
+    """What the agent decided, as opposed to what it found."""
+    by_stage = {s.stage: s for s in steps}
+    plan = (by_stage["plan"].details or {}) if "plan" in by_stage else {}
+    recover = (by_stage["recover"].details or {}) if "recover" in by_stage else {}
+    analyze = (by_stage["analyze"].details or {}) if "analyze" in by_stage else {}
+    coverage = [e for s in steps for e in (s.details or {}).get("coverage", [])]
+    summary = {
+        "route": plan.get("route"),
+        "routeReason": plan.get("route_reason"),
+        "planner": plan.get("planner"),
+        "interpreter": analyze.get("interpreter"),
+        "toolCalls": len(coverage),
+        "credits": run.credits,
+        "cacheHits": sum(1 for e in coverage if e.get("cache_status") in ("cached", "resumed")),
+        "comparedAgainstRunId": run.baseline_id,
+        "gapsClosed": recover.get("gaps_closed"),
+        "gaps": [{"symbol": g["symbol"], "missing": g["missing"],
+                  "recoverable": g["recoverable"], "reason": g["reason"]}
+                 for g in recover.get("gaps", [])],
+    }
+    return {k: v for k, v in summary.items() if v not in (None, [])}
 
 
 def run_json(db, run):
@@ -41,13 +129,19 @@ def run_json(db, run):
                 currentStep=STAGES.index(run.stage) if run.stage in STAGES else -1,
                 steps=[{"id": stage, "label": stage.replace("_", " ").title()} for stage in STAGES],
                 elapsedSeconds=max(0, elapsed), etaSeconds=max(0, 90 - elapsed) if status in ("queued", "running") else 0,
-                toolCalls=[{"name": s.stage, "detail": s.message} for s in steps], mode=run.mode,
+                toolCalls=tool_calls(run, steps), mode=run.mode,
+                orchestration=orchestration(run, steps),
                 coverageStatus=run.status, startedAt=iso(run.started_at))
     if run.error_code:
         data["failedTool"] = run.error_code
     if run.result:
-        data["resultSummary"] = ("[REPLAY] " if run.mode == "replay" else "") + run.result["summary"]
+        data["resultSummary"] = ({"replay": "[REPLAY] ", "yahoo": "[YAHOO TEST] "}.get(run.mode, "")) + run.result["summary"]
         if run.status == "partial":
-            data["resultSummary"] += " Incomplete coverage: " + "; ".join(run.result["warnings"])
+            missing = [entry for entry in run.result["coverage"] if entry["status"] != "ok" or
+                       (entry["tool"] == "get_recent_signals" and entry.get("warnings"))]
+            if missing:
+                data["resultSummary"] += " Some evidence could not be verified; see source coverage in the run details."
+        if run.result.get("financial_brief"):
+            data["financialBrief"] = run.result["financial_brief"]
         data["producedSignalIds"] = [c["signal_id"] for c in run.result["signals"] if c["change_status"] in ("new", "updated")]
     return data

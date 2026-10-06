@@ -1,206 +1,139 @@
 # Start and demo RivalPulse
 
-This guide runs the backend in explicit replay mode, so the demo uses synthetic evidence and does not require or consume Sectors credentials.
+The normal app uses email/password accounts, a workspace per account, PostgreSQL, Redis and local Ollama. Sectors v2 is the only live financial provider. Synthetic replay is for automated tests.
 
-## Prerequisites
+## 1. Prepare the services
 
-- Docker Desktop running Linux containers.
-- Node.js and npm.
-- PowerShell.
-
-Check them from PowerShell:
+1. Start Docker Desktop with Linux containers.
+2. Start Ollama. Install the configured model once, then check it is available:
 
 ```powershell
-docker --version
-docker compose version
-node --version
-npm --version
+ollama pull qwen3.8:27b
+ollama list
+Invoke-RestMethod http://localhost:11434/api/tags
 ```
 
-## 1. Configure the backend
+The 27B model needs substantial local memory; allow enough time for its first load.
 
-Open PowerShell in the repository:
+## 2. Configure the backend
+
+From the repository root, copy the template only if `.env` does not already exist:
 
 ```powershell
-cd D:\RivalPulse\RivalPulse\backend
-Copy-Item .env.example .env -ErrorAction SilentlyContinue
-notepad .env
+if (-not (Test-Path backend/.env)) { Copy-Item backend/.env.example backend/.env }
 ```
 
-Generate a private demo token:
-
-```powershell
-[guid]::NewGuid().ToString("N")
-```
-
-Put that generated value in `.env` and use these demo settings:
+Edit `backend/.env` and set:
 
 ```dotenv
-DEMO_ACCESS_TOKEN=PASTE_THE_GENERATED_TOKEN_HERE
-MODE=replay
-REPLAY_SCENARIO=baseline
-SECTORS_API_KEY=
-LLM_ENABLED=false
+AUTH_MODE=accounts
+REGISTRATION_ENABLED=true
+EMAIL_VERIFICATION_ENABLED=true
+VERIFICATION_SMTP_HOST=smtp.your-email-provider.example
+VERIFICATION_SMTP_PORT=587
+VERIFICATION_SMTP_SECURITY=starttls
+VERIFICATION_SMTP_USERNAME=YOUR_SMTP_USERNAME
+VERIFICATION_SMTP_PASSWORD=YOUR_PRIVATE_SMTP_PASSWORD
+VERIFICATION_EMAIL_FROM=RivalPulse <verify@your-domain.example>
+TAB_SESSION_REQUIRED=true
+WORKSPACE_CREDIT_TOTAL=1000
+COOKIE_SECURE=false
+AUTH_ORIGINS=["http://localhost:8080","http://localhost:3000","http://localhost:8000"]
+MODE=live
+SECTORS_API_KEY=YOUR_PRIVATE_KEY
+LLM_ENABLED=true
+LLM_PLAN_ENABLED=true
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen3.8:27b
 ```
 
-Leave the container database URL unchanged. PostgreSQL is exposed to Windows on port `15432`, while containers still connect to `postgres:5432`.
+Keep the existing database/Redis values unless you changed the published ports. Default host PostgreSQL is `localhost:15432`; containers use `postgres:5432`. A database port change affects a host-side `DATABASE_URL`, not the website port. Compose routes Ollama to `host.docker.internal:11434`.
 
-## 2. Start the backend
+Never put the Sectors key or any password into frontend variables. A demo access token is not needed in accounts mode. For HTTPS deployment, set `COOKIE_SECURE=true` and use your exact HTTPS origins.
 
-From `D:\RivalPulse\RivalPulse\backend`:
-
-```powershell
-docker compose up --build -d
-docker compose ps -a
-```
-
-Expected state:
-
-- `postgres`, `redis`, `api`, `worker`, and `reconciler` are running.
-- `migrate` and `seed` exited with code `0`; this is expected.
-
-Verify readiness:
-
-```powershell
-Invoke-RestMethod http://localhost:8000/api/v1/health/ready
-```
-
-The response should contain `status: ready` and `mode: replay`.
-
-If startup fails, inspect the logs:
-
-```powershell
-docker compose logs --tail=100 migrate seed api worker reconciler
-```
+Use your mail provider's SMTP settings and an authorized sender address. The values above are placeholders; new accounts cannot be created until delivery is configured. Port 587 uses `starttls`; a provider that requires port 465 uses `VERIFICATION_SMTP_SECURITY=ssl`. Both modes validate TLS certificates. Verification email settings are separate from optional research alert delivery.
 
 ## 3. Configure the frontend
 
-Open a second PowerShell window:
-
-```powershell
-cd D:\RivalPulse\RivalPulse\frontend
-Copy-Item .env.example .env.local -ErrorAction SilentlyContinue
-notepad .env.local
-```
-
-Set:
+Set `frontend/.env.local` to:
 
 ```dotenv
+NEXT_PUBLIC_AUTH_MODE=accounts
 NEXT_PUBLIC_USE_MOCKS=false
-NEXT_PUBLIC_API_BASE=http://localhost:8080/backend
+NEXT_PUBLIC_API_BASE=/backend
 ```
 
-## 4. Start the frontend
+The startup script creates this file if absent. Restart Next.js after changing public environment variables.
 
-Keep the second PowerShell window open while using the app:
+## 4. Start the app
 
 ```powershell
-cd D:\RivalPulse\RivalPulse\frontend
-npm.cmd install
-npm.cmd run dev -- --hostname 0.0.0.0 --port 3000
+.\START_SECTORS.ps1
 ```
 
-Wait for Next.js to show `Ready`. Confirm that it responds:
+This starts the frontend on port 3000, builds the backend, applies the merged migrations, seeds the catalog, starts API/worker/reconciler, and publishes the same-origin proxy on port 8080. Existing database volumes are retained. The script checks key presence; it does not verify Sectors authorization or spend credits.
+
+Open `http://localhost:8080/signup`. Enter your name, a real email, a password of 15–128 characters, and an optional company (Neutral is available). Enter the eight-digit code from your inbox, then log in. Codes expire after 15 minutes; resend is available after one minute. The reconciler removes pending registrations after 24 hours. Unconfirmed registrations never create an active account or workspace.
+
+After updating this version, rerun the startup script so Compose rebuilds and applies migration `20261006_account_quality`. Existing accounts, passwords and workspace data are preserved. Existing users can confirm their email from Profile.
+
+## 5. Demo the account and AI workflow
+
+1. Confirm your name appears in the account menu.
+2. Visit `/profile`, edit display name and timezone, save, and reload. Check the email verification status; email is read-only.
+3. Return to `/` and send `Hello RivalPulse`. This calls local Ollama without creating a research run or spending Sectors credits. If the model is unavailable, the reply is labeled as a fallback.
+4. Ask `Show me who is currently in my competitor watchlist.` This is an instant workspace command.
+5. Ask `Compare annual revenue and earnings for ISAT and TLKM`. This queues a research run, uses bounded Sectors calls and local AI, then displays cited results or an explicit failure. A live investigation can spend credits.
+6. Reload and open History to confirm the conversation and completed research remain saved.
+7. Sign out, then log in again. Your profile, watchlist and history remain in your workspace.
+8. To check isolation, create a second test account. It receives its own starter watchlist and cannot see the first account's conversations or research.
+9. Visit Competitors, open Revenue data and sources, then choose View financial data. This opens stored evidence inside your workspace without calling Sectors again or requiring a browser API key. Unknown currency, units or reporting scope remain explicit; growth is shown only for comparable figures.
+10. Open History. The drawer slides independently, keeps keyboard focus inside, and closes with Escape. Open a company or date dropdown and try arrow keys, Enter and Escape.
+
+Research remaining shows the percentage of usable workspace research credits. These are Sectors request credits, not AI model tokens. Availability also respects the shared provider reserve, so a new workspace can start below 100%. Configure `WORKSPACE_CREDIT_TOTAL`, `CREDIT_TOTAL` and `CREDIT_RESERVE` to match the allowance you intend to provide; these values do not automatically synchronize with Sectors billing.
+
+With Keep me signed in unchecked, refresh and navigation work in the current tab; opening a fresh tab after closing it requires login. With the box checked, the session cookie lasts up to 30 days, subject to server expiry and inactivity limits. Browser restore features can restore a closed tab's session storage; closing a page is not a reliable signal for immediate server revocation. Use Sign out to revoke access immediately.
+
+Logout revokes access and closes browser requests/streams. An already queued research job continues in its owning workspace and is available after login. Password changes revoke all account sessions and require login again.
+
+## 6. Check database, queue and AI connections
 
 ```powershell
-Invoke-WebRequest http://localhost:3000 -UseBasicParsing
+Set-Location backend
+docker compose ps
+docker compose exec api python scripts/check_connections.py --probe-ai
+docker compose logs --tail 80 api worker reconciler
 ```
 
-## 5. Start the same-origin proxy
+The probe checks database read/write and migration state, Redis and workers, installed Ollama model, and a synthetic structured AI response. It does not call Sectors. If the image lacks the script, rebuild first with `docker compose up --build -d`.
 
-Return to the backend PowerShell window:
+For a 502 at port 8080, confirm the frontend listens on port 3000 and the API on port 8000, then run `docker compose --profile frontend restart frontend-proxy`. Use port 8080 consistently for browser login; mixing `localhost` and `127.0.0.1` can change cookie/origin behavior.
+
+If Chrome shows its own username/password popup, cancel it and rebuild the API and reload the proxy after updating the code. From the repository root, rerun `.\START_SECTORS.ps1`. Account authentication uses the application's login form; signed-out and expired sessions return HTTP 401 JSON without an HTTP Basic challenge. The proxy also suppresses upstream authentication challenges while preserving access checks.
+
+Check this behavior without logging in or calling Sectors, from `backend/`:
 
 ```powershell
-cd D:\RivalPulse\RivalPulse\backend
-docker compose --profile frontend up -d frontend-proxy
+.venv/Scripts/python.exe scripts/check_browser_auth.py --base-url http://localhost:8080
 ```
 
-The proxy exposes the website at port `8080`, forwards `/backend/` requests to the API, and forwards other paths to the frontend on port `3000`.
+The check requires a public HTML login page and protected account responses that remain HTTP 401 JSON with no authentication challenge. It exits with a failure if the gateway changes that behavior.
 
-## 6. Log in and open the app
+## 7. Access the preserved shared workspace
 
-Open the private login page:
-
-<http://localhost:8080/backend/demo/login>
-
-Enter the value of `DEMO_ACCESS_TOKEN` from `backend/.env`. After it reports success, open:
-
-<http://localhost:8080>
-
-Use `localhost` consistently. Do not switch between `localhost` and `127.0.0.1`, because the login cookie is scoped to the hostname.
-
-## 7. Demo the investigation workflow
-
-1. Click **Investigate**.
-2. Enter: `Compare product, pricing, and partnership developments across the watchlist.`
-3. Click **Start run**.
-4. Watch the progress card complete.
-5. Refresh the page to load the saved signal feed.
-6. Open a signal to inspect facts, observations, hypotheses, financial context, and evidence.
-7. Start the same investigation again. Identical evidence should create no duplicate alert.
-
-Replay data is visibly marked `[REPLAY]` and uses fictional `XTS` values. It must not be presented as real company financial data.
-
-## 8. Demo a changed finding
-
-Edit `backend/.env`:
-
-```dotenv
-REPLAY_SCENARIO=changed
-```
-
-Restart the processes that read backend configuration:
+New registrations do not inherit old shared demo data. To create a new owner account for the preserved workspace, run this once from `backend/`:
 
 ```powershell
-cd D:\RivalPulse\RivalPulse\backend
-docker compose up -d --force-recreate api worker reconciler
+docker compose exec api python -m app.accounts --email owner@example.com --name "Workspace owner" --workspace private-demo
 ```
 
-Start another investigation from the website and refresh after completion. This scenario should produce one updated ISAT finding. Repeating the same changed scenario should not create another revision.
+Enter the new password at the hidden prompts. Use your real email and the old `WORKSPACE_ID` if different. This never changes an existing account or moves research between workspaces.
 
-Other replay scenarios are `missing_financial`, `failure`, and `conflict`. Restart the API, worker, and reconciler after each change and submit a new investigation.
-
-## 9. Inspect the API directly
-
-Open:
-
-<http://localhost:8000/docs>
-
-Select **Authorize** and enter the demo token. Useful endpoints:
-
-- `GET /api/v1/watchlists`
-- `POST /api/v1/research-runs`
-- `GET /api/v1/research-runs/{run_id}`
-- `GET /api/v1/signals`
-- `GET /api/v1/signals/{signal_id}`
-
-Research submission should return HTTP `202`. Poll the returned `status_url` until the run is `completed`, `partial`, or `failed`.
-
-## 10. Troubleshooting
-
-If `http://localhost:8080` shows **502 Bad Gateway**, the frontend is not reachable from Nginx. Keep this command running in the frontend PowerShell window:
+## 8. Stop
 
 ```powershell
-npm.cmd run dev -- --hostname 0.0.0.0 --port 3000
+Set-Location ..
+.\STOP_SECTORS.ps1
 ```
 
-If port `15432` is unavailable, choose another unused Windows host port in `backend/compose.yaml`. Change only the left side, for example `127.0.0.1:25432:5432`. Container services must continue using port `5432`.
-
-Check all services and logs:
-
-```powershell
-cd D:\RivalPulse\RivalPulse\backend
-docker compose --profile frontend ps -a
-docker compose logs --tail=100 api worker reconciler frontend-proxy
-```
-
-## 11. Stop the demo
-
-Press `Ctrl+C` in the frontend PowerShell window, then run:
-
-```powershell
-cd D:\RivalPulse\RivalPulse\backend
-docker compose --profile frontend down
-```
-
-This preserves PostgreSQL and Redis data in Docker volumes. Running `docker compose down --volumes` also deletes that local demo data.
+Database and Redis volumes remain. Do not use `docker compose down --volumes` if you want to keep account and research data. The old Yahoo startup script is retired because the current agent supports Sectors live mode only.

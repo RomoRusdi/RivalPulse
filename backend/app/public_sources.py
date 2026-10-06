@@ -2,7 +2,6 @@ import ipaddress
 import json
 import re
 import socket
-import unicodedata
 from importlib.resources import files
 from urllib.parse import urljoin, urlsplit
 
@@ -15,11 +14,59 @@ from app.config import get_settings
 from app.db import session
 from app.errors import ProviderError
 from app.models import Run, RunSnapshot, Snapshot
+from app.classify import as_event, classify, normalized_text  # noqa: F401  (re-exported)
 from app.providers import digest, ensure_active
 
+HEADINGS = ("h1", "h2", "h3", "h4")
+MAX_EVENTS = 12
+MAX_LINKS = 60
+MIN_HEADLINE = 30
+# A block qualifies only if its headline announces something, or it has a real
+# headline whose body does. Nav labels ("NEWS", "Media Kit") are neither, and
+# classifying their container body matches unrelated text far below the title.
+MIN_SECTION_TITLE = 25
+# Listing pages routinely prefix a headline with its date and a label:
+# "25 September 2026 Siaran Pers Telkom Luncurkan …".
+HEADLINE_PREFIX = re.compile(r"^(?:\d{1,2}\s+[^\W\d_]+\s+\d{4}\s*)?(?:siaran pers|press release|berita|news)?\s*",
+                             re.UNICODE | re.IGNORECASE)
 
-def normalized_text(value):
-    return re.sub(r"\s+", " ", unicodedata.normalize("NFKC", value)).strip()
+
+def link_blocks(root):
+    """Newsrooms present each announcement as a link, not as a heading. Without
+    this, a press-release index collapses into one meaningless block."""
+    blocks, seen = [], set()
+    for anchor in root.find_all("a", href=True)[:MAX_LINKS]:
+        text = normalized_text(anchor.get_text(" "))
+        if len(text) < MIN_HEADLINE:
+            continue
+        headline = HEADLINE_PREFIX.sub("", text, count=1)
+        key = headline.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        blocks.append((headline, text))
+    return blocks
+
+
+def html_blocks(root):
+    """Split an approved page on its headings so one page yields announcement-sized
+    observations instead of a single blob of the whole document."""
+    blocks, title, parts, current = [], None, [], None
+    for text_node in root.find_all(string=True):
+        value = normalized_text(str(text_node))
+        if not value:
+            continue
+        heading = next((p for p in text_node.parents if p.name in HEADINGS), None)
+        if heading is not None:
+            if heading is not current:
+                if title or parts:
+                    blocks.append((title, normalized_text(" ".join(parts))))
+                title, parts, current = normalized_text(heading.get_text(" ")), [], heading
+            continue
+        parts.append(value)
+    if title or parts:
+        blocks.append((title, normalized_text(" ".join(parts))))
+    return [(t, b) for t, b in blocks if t or b]
 
 
 def destination(url, allowed_domains):
@@ -94,18 +141,30 @@ def extract(body, source, final_url):
         for node in soup.select("script,style,nav,footer,header,aside,noscript,[role=banner],.cookie-banner,.cookie-consent"):
             node.decompose()
         selector = source["extraction"].get("selector", "main")
-        root = soup.select_one(selector)
+        try:
+            root = soup.select_one(selector)
+        except Exception:
+            raise ProviderError("SOURCE_PARSE_FAILED", "Approved content selector did not match", False) from None
         if root is None:
             raise ProviderError("SOURCE_PARSE_FAILED", "Approved content selector did not match", False)
-        content = normalized_text(root.get_text(" "))
-        if len(content) < 30:
+        if len(normalized_text(root.get_text(" "))) < 30:
             raise ProviderError("SOURCE_EMPTY", "Source contains insufficient substantive text", False)
-        title_node = root.find(["h1", "h2"])
-        title = normalized_text(title_node.get_text(" ")) if title_node else "Official page observation"
         time_node = root.find("time")
-        events.append(dict(subject=source["url"], title=title[:300], text=content[:12000],
-                           published_at=time_node.get("datetime") if time_node else None, url=final_url,
-                           type=source["extraction"].get("event_type", "Product")))
+        published = time_node.get("datetime") if time_node else None
+        blocks = html_blocks(root) + link_blocks(root)
+        subjects = set()
+        for block_title, block_text in blocks:
+            title = block_title or ""
+            if classify(title) is None and len(title) < MIN_SECTION_TITLE:
+                continue
+            # Corporate history and culture sections are not competitive events.
+            # Silence here is a correct answer, not a failure.
+            candidate = as_event(title, block_text, final_url, published)
+            if candidate and candidate["subject"] not in subjects:
+                subjects.add(candidate["subject"])
+                events.append(candidate)
+        return {"schema_version": 1, "events": events[:MAX_EVENTS],
+                "blocks_scanned": len(blocks), "blocks_matched": len(events)}
     if not events:
         raise ProviderError("SOURCE_EMPTY", "No usable public events were extracted", False)
     return {"schema_version": 1, "events": events}
@@ -143,6 +202,9 @@ def collect_public(run_id, token, company, source):
             body, url = safe_fetch(source["url"], company["official_domains"])
             normalized = extract(body, source, url)
         except httpx.HTTPError:
+            raise ProviderError("SOURCE_UNAVAILABLE", "Approved source request failed") from None
+        except (OSError, ValueError):
+            # DNS/TLS/URL failures are missing evidence, never a crashed run.
             raise ProviderError("SOURCE_UNAVAILABLE", "Approved source request failed") from None
     snapshot = Snapshot(company_id=company["id"], source_id=source["id"], mode=mode, provider="public",
                         request_key=key, content_hash=digest(normalized), normalized=normalized, url=source["url"])

@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import select
 
 from app.agent import Agent, LLMAdapter
+from app.config import get_settings
 from app.db import session, utcnow
 from app.errors import ProviderError
 from app.jobs import reconcile
@@ -84,18 +85,32 @@ class BrokenLLM(LLMAdapter):
     def __init__(self):
         self.calls = 0
 
-    def structured(self, *args, **kwargs):
+    def structured(self, kind, schema, data, repair=False):
         self.calls += 1
-        return {"tools": [{"name": "fetch_arbitrary_url", "company_ids": ["unknown"], "reason": "ignore rules"}]}
+        if kind == "plan":
+            return {"tools": [{"name": "fetch_arbitrary_url", "company_ids": ["unknown"], "reason": "ignore rules"}]}
+        return {"interpretations": [{"event_key": item["event_key"],
+                                     "supporting_claim_ids": [item["claims"][0]["claim_id"]],
+                                     "hypothesis": "This observation may affect positioning.",
+                                     "uncertainty": "high",
+                                     "marketing_implication": "Review the observed evidence before changing messaging."}
+                                    for item in data["candidates"]]}
 
 
-def test_malformed_llm_one_repair_then_failure(client, watchlist):
+def test_malformed_llm_one_repair_then_visible_safe_fallback(client, watchlist, monkeypatch):
+    monkeypatch.setenv("LLM_PLAN_ENABLED", "true")
+    get_settings.cache_clear()
     adapter = BrokenLLM()
     run_id = launch(client, watchlist)
     execute_run(run_id, adapter)
     row = client.get("/api/v1/research-runs/" + run_id).json()
-    assert adapter.calls == 2
-    assert row["status"] == "failed" and row["error_code"] == "LLM_INVALID_OUTPUT"
+    assert adapter.calls == 3
+    assert row["status"] == "completed"
+    assert len(row["plan"]["tools"]) == 6
+    plan_step = next(step for step in row["progress"] if step["stage"] == "plan")
+    assert plan_step["details"]["planner"] == "validated_fallback"
+    assert "reviewed bounded evidence plan" in plan_step["message"]
+    assert not any(tool["name"] == "fetch_arbitrary_url" for tool in row["plan"]["tools"])
 
 
 def test_llm_cannot_add_unknown_claims_or_numbers(client, watchlist):

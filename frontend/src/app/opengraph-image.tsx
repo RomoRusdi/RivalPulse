@@ -22,9 +22,9 @@ export default function OpengraphImage() {
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          background: "#FBFAF8",
+          background: "#f5f8f6",
           padding: 72,
-          border: "16px solid #1F1E1C",
+          border: "16px solid #122d23",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
@@ -33,7 +33,7 @@ export default function OpengraphImage() {
               width: 48,
               height: 48,
               borderRadius: 14,
-              background: "#E2650F",
+              background: "#146c50",
             }}
           />
           <div
@@ -41,7 +41,7 @@ export default function OpengraphImage() {
               fontSize: 36,
               fontWeight: 800,
               letterSpacing: "-0.02em",
-              color: "#1A1A1A",
+              color: "#17352b",
             }}
           >
             RivalPulse
@@ -55,13 +55,13 @@ export default function OpengraphImage() {
               fontWeight: 800,
               letterSpacing: "-0.035em",
               lineHeight: 1.05,
-              color: "#1A1A1A",
+              color: "#17352b",
               maxWidth: 940,
             }}
           >
             Not just what competitors are doing — why it may matter.
           </div>
-          <div style={{ fontSize: 30, color: "#4A4842", maxWidth: 900 }}>
+          <div style={{ fontSize: 30, color: "#40584b", maxWidth: 900 }}>
             An AI competitive-intelligence agent for Indonesian public
             companies, grounded in verified Sectors financial data.
           </div>
@@ -73,14 +73,14 @@ export default function OpengraphImage() {
             justifyContent: "space-between",
             alignItems: "center",
             fontSize: 24,
-            color: "#6B6862",
+            color: "#56685e",
           }}
         >
           <div style={{ display: "flex", gap: 14 }}>
             <span
               style={{
-                background: "#FCE9DC",
-                color: "#B44F09",
+                background: "#e6f3ec",
+                color: "#0D503C",
                 padding: "8px 18px",
                 borderRadius: 99,
                 fontWeight: 700,
@@ -90,8 +90,8 @@ export default function OpengraphImage() {
             </span>
             <span
               style={{
-                background: "#F2F0EC",
-                color: "#4A4842",
+                background: "#eef4f0",
+                color: "#40584b",
                 padding: "8px 18px",
                 borderRadius: 99,
                 fontWeight: 700,
@@ -101,8 +101,8 @@ export default function OpengraphImage() {
             </span>
             <span
               style={{
-                background: "#1F1E1C",
-                color: "#FBFAF8",
+                background: "#122d23",
+                color: "#f5f8f6",
                 padding: "8px 18px",
                 borderRadius: 99,
                 fontWeight: 700,

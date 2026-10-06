@@ -3,11 +3,15 @@
 AI competitive-intelligence agent for Indonesian public companies.
 Sectors Hackathon 2026, Track 01 (AI Agents & Assistants).
 
-This repo currently holds the **frontend**: the approved "Console" visual
-direction built as a real Next.js app, wired to a mock data layer that matches
-the backend entities in the concept brief.
+The approved "Console" theme is implemented as a Next.js app with account
+signup/login, a server-backed profile, and an authenticated AI workspace.
+Real backend access is the default; mock data requires explicit opt-in.
 
 ## Run it
+
+Use the repository's [../START_DEMO.md](../START_DEMO.md) for the complete
+backend, local AI and same-origin proxy setup. For frontend development, copy
+`.env.example` to `.env.local` and run:
 
 ```bash
 npm install
@@ -21,7 +25,10 @@ lints.
 
 | Route | What it is |
 | --- | --- |
-| `/` | **Dashboard** — new-since-last-check banner, signal pipeline, signal mix, latest signals, live agent run, AI interpretation |
+| `/login` | Email/password login with the matching terminal theme |
+| `/signup` | Account and isolated workspace registration |
+| `/profile` | Saved profile, timezone, password change and logout |
+| `/` | AI conversation, workspace commands and cited investigations |
 | `/signals` | Full signals list with severity / unseen filters |
 | `/signals/[id]` | **Signal detail** — evidence ledger, Sectors financial context, "why marketing should care" |
 | `/watchlists` | Watchlist editing — add/remove competitors, rename, 2–5 rule |
@@ -47,10 +54,12 @@ src/
     schemas.ts        zod schemas — THE CONTRACT, edit here
     catalogue.ts      IDX company list for watchlist building
     types.ts          types derived from the schemas
-    api.ts            the only file that talks to the network
+    api.ts            validated research and conversation API
+    http.ts           cookies, CSRF, aborts and session expiry
+    auth.tsx          account loading and identity lifecycle
     store.tsx         application state
     mock-data.ts      demo dataset + the reserve pool runs discover
-    persistence.ts    DEMO SHIM — localStorage read state, delete later
+    persistence.ts    account-scoped browser display cache
     demo-settings.ts  latency / failure knobs
     format.ts         date / clock helpers
 ```
@@ -59,8 +68,9 @@ src/
 
 **`src/lib/schemas.ts` is the contract.** Zod schemas define every shape on the
 wire; `types.ts` derives its TypeScript types from them, so runtime and
-compile-time can't drift. `src/lib/api.ts` is the only file that talks to the
-network — nothing else imports `fetch` or `mock-data`.
+compile-time can't drift. `src/lib/api.ts` validates research responses;
+`src/lib/http.ts` centralizes credentials, CSRF and request invalidation.
+`src/lib/auth.tsx` handles account identity before workspace data loads.
 
 Endpoints to implement:
 

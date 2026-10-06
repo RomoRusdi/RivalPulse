@@ -13,6 +13,7 @@ from redis import Redis
 from redis.exceptions import LockError, RedisError
 from sqlalchemy import select, update
 
+from app.classify import as_event
 from app.config import get_settings
 from app.db import session, utcnow
 from app.errors import ProviderError
@@ -72,17 +73,21 @@ def normalize_report(payload, symbol):
 
 def growth(current, previous):
     """Only adjacent annual periods of the same known reporting basis and unit are comparable."""
-    for key in ("metric", "currency", "unit", "comparison_basis"):
-        if not current.get(key) or current.get(key) != previous.get(key):
+    try:
+        for key in ("metric", "currency", "unit", "comparison_basis"):
+            if not current.get(key) or current.get(key) != previous.get(key):
+                return None
+        if current["comparison_basis"] == "reporting_scope_unverified" or current["unit"] == "provider_native_unspecified":
             return None
-    if current["comparison_basis"] == "reporting_scope_unverified" or current["unit"] == "provider_native_unspecified":
+        if int(current["period"]) != int(previous["period"]) + 1:
+            return None
+        denominator = Decimal(previous["value"])
+        if denominator <= 0:
+            return None
+        return str(((Decimal(current["value"]) - denominator) / denominator * 100).quantize(Decimal("0.01")))
+    except (ValueError, InvalidOperation, KeyError, TypeError, AttributeError):
+        # Uncomparable figures mean "no growth fact", never a crashed run.
         return None
-    if int(current["period"]) != int(previous["period"]) + 1:
-        return None
-    denominator = Decimal(previous["value"])
-    if denominator <= 0:
-        return None
-    return str(((Decimal(current["value"]) - denominator) / denominator * 100).quantize(Decimal("0.01")))
 
 
 def ensure_active(db, run_id, token):
@@ -104,6 +109,15 @@ class Sectors:
     def reserve(self, key, cost):
         with session() as db, db.begin():
             run = ensure_active(db, self.run_id, self.token)
+            from app.allowance import ensure_balance
+            from app.models import WorkspaceCredit
+            ensure_balance(db, run.workspace_id)
+            quota = db.execute(update(WorkspaceCredit).where(
+                WorkspaceCredit.workspace_id == run.workspace_id,
+                WorkspaceCredit.used + cost <= WorkspaceCredit.total,
+            ).values(used=WorkspaceCredit.used + cost))
+            if not quota.rowcount:
+                raise ProviderError("CREDIT_BUDGET_EXCEEDED", "Workspace research allowance exhausted", False)
             result = db.execute(update(Run).where(
                 Run.id == run.id, Run.lease_token == self.token, Run.status == "running",
                 Run.credits + cost <= self.settings.run_credit_limit,
@@ -181,12 +195,16 @@ class Sectors:
                 db.add(RunSnapshot(run_id=self.run_id, snapshot_id=snapshot.id, outcome=outcome))
         return snapshot, outcome
 
-    def request(self, company, endpoint, params, cost, normalize, ttl=None):
+    def request(self, company, endpoint, params, cost, normalize, ttl=None, provider=None):
         with session() as db:
             run = ensure_active(db, self.run_id, self.token)
             mode, scenario = run.mode, run.inputs["replay_scenario"]
-        key = digest({"v": 1, "provider": "sectors-v2", "endpoint": endpoint, "params": params,
-                      "mode": mode, "scenario": scenario if mode == "replay" else None})
+        if mode not in ("live", "replay"):
+            raise ProviderError("UNSUPPORTED_MODE", "Archived provider mode cannot execute new requests", False)
+        provider_name = provider or "sectors"
+        key = digest({"v": 1, "provider": "sectors-v2",
+                      "endpoint": endpoint, "params": params, "mode": mode,
+                      "scenario": scenario if mode == "replay" else None})
         hit = self._cached(key)
         if hit:
             return self._link(*hit)
@@ -202,10 +220,10 @@ class Sectors:
             else:
                 payload = self._http(endpoint, params, key, cost)
             normalized = normalize(payload)
-            snapshot = Snapshot(company_id=company["id"], mode=mode, provider="sectors",
+            base_url = SECTORS_BASE + endpoint
+            snapshot = Snapshot(company_id=company["id"], mode=mode, provider=provider_name,
                                 request_key=key, content_hash=digest(normalized), normalized=normalized,
-                                raw_payload=payload,
-                                url=SECTORS_BASE + endpoint + "?" + str(httpx.QueryParams(params)))
+                                raw_payload=payload, url=base_url + "?" + str(httpx.QueryParams(params)))
             with session() as db, db.begin():
                 ensure_active(db, self.run_id, self.token)
                 db.add(snapshot)
@@ -224,7 +242,7 @@ class Sectors:
             return fetch_and_store()
         try:
             # Hold past the full run deadline; a killed worker's lock expires automatically.
-            with self.redis.lock("sectors:" + key, timeout=self.settings.run_timeout + 30, blocking_timeout=10):
+            with self.redis.lock(provider_name + ":" + key, timeout=self.settings.run_timeout + 30, blocking_timeout=10):
                 return fetch_and_store()
         except (RedisError, LockError):
             raise ProviderError("CACHE_UNAVAILABLE", "Provider request coalescing is unavailable") from None
@@ -266,7 +284,7 @@ class Sectors:
         for page in range(pages):
             snapshot, outcome = self.request(company, "/news/", {
                 "extension": "idx", "symbols": company["symbol"], "limit": 30, "offset": page * 30,
-            }, 1, normalize_news, ttl=3600)
+            }, 1, normalize_news, ttl=3600, provider="sectors_news")
             results.append((snapshot, outcome))
             if not snapshot.normalized["has_next"]:
                 break
@@ -276,11 +294,23 @@ class Sectors:
 def normalize_news(payload):
     if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
         raise ProviderError("PROVIDER_INVALID_RESPONSE", "Invalid news response", False)
-    return {"schema_version": 1, "articles": [{
-        "title": str(row.get("title", ""))[:500], "text": str(row.get("body", ""))[:4000],
-        "url": row.get("source"), "published_at": row.get("timestamp"), "symbols": row.get("symbols") or [],
-    } for row in payload["results"][:30] if isinstance(row, dict)],
-        "has_next": bool((payload.get("pagination") or {}).get("has_next"))}
+    articles = []
+    for row in payload["results"][:30]:
+        if not isinstance(row, dict):
+            continue
+        published = row.get("timestamp")
+        articles.append({
+            "title": str(row.get("title", ""))[:500], "text": str(row.get("body", ""))[:4000],
+            "url": row.get("source"), "published_at": published if isinstance(published, str) else None,
+            "symbols": row.get("symbols") or [],
+        })
+    # Structured provider news is classified by the same rules as approved pages,
+    # so the comparison stage consumes one event shape regardless of origin.
+    events = [event for event in (
+        as_event(article["title"], article["text"], article["url"], article["published_at"])
+        for article in articles) if event]
+    return {"schema_version": 1, "articles": articles, "events": events,
+            "has_next": bool((payload.get("pagination") or {}).get("has_next"))}
 
 
 def replay_report(symbol, scenario, params):

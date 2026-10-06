@@ -9,9 +9,11 @@
 export function Logo({
   size = 26,
   className,
+  plain = false,
 }: {
   size?: number;
   className?: string;
+  plain?: boolean;
 }) {
   return (
     <svg
@@ -22,11 +24,11 @@ export function Logo({
       aria-label="RivalPulse"
       className={className}
     >
-      <rect width="32" height="32" rx="8" fill="#E2650F" />
+      {!plain ? <rect width="32" height="32" rx="8" fill="var(--color-accent, #146C50)" /> : null}
       <path
         d="M5 16.5h4.2l2.6-6.8 4 13.4 3.1-9.3 1.9 2.7H27"
         fill="none"
-        stroke="#FBFAF8"
+        stroke={plain ? "var(--color-accent, #146C50)" : "#F5F8F6"}
         strokeWidth="2.6"
         strokeLinecap="round"
         strokeLinejoin="round"

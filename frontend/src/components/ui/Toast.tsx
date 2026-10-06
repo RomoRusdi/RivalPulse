@@ -1,29 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { X } from "lucide-react";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-} from "react";
+import { CheckCircle2, CircleAlert, Info, X } from "lucide-react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { Route } from "next";
 import { cx } from "./primitives";
-
-/**
- * Run completion has to reach the user wherever they are — the whole premise
- * is that a run is async and you can leave the page. Without this, a run that
- * finishes while you are reading a signal detail is silent.
- */
 
 export interface Toast {
   id: number;
   title: string;
   body?: string;
-  tone: "neutral" | "accent";
-  action?: { label: string; href: Route };
+  tone: "neutral" | "accent" | "warning" | "error";
+  action?: { label: string; href: Route } | { label: string; onClick: () => void };
 }
 
 interface ToastValue {
@@ -31,44 +19,24 @@ interface ToastValue {
   push: (toast: Omit<Toast, "id">) => void;
   dismiss: (id: number) => void;
 }
-
 const ToastContext = createContext<ToastValue | null>(null);
-
-const AUTO_DISMISS_MS = 7000;
-/** Must match `.rp-toast-out` in globals.css. */
-const EXIT_MS = 200;
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [exiting, setExiting] = useState<number[]>([]);
-
-  // Mark as leaving, let the exit transition play, then unmount.
-  const dismiss = useCallback((id: number) => {
-    setExiting((prev) => (prev.includes(id) ? prev : [...prev, id]));
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-      setExiting((prev) => prev.filter((x) => x !== id));
-    }, EXIT_MS);
+  const nextId = useRef(0);
+  const dismiss = useCallback((id: number) => setToasts((current) => current.filter((toast) => toast.id !== id)), []);
+  const push = useCallback((toast: Omit<Toast, "id">) => {
+    const id = ++nextId.current;
+    setToasts((current) => [...current, { ...toast, id }].slice(-3));
   }, []);
-
-  const push = useCallback(
-    (toast: Omit<Toast, "id">) => {
-      const id = Date.now() + Math.random();
-      setToasts((prev) => [...prev, { ...toast, id }]);
-      setTimeout(() => dismiss(id), AUTO_DISMISS_MS);
-    },
-    [dismiss],
-  );
-
-  const value = useMemo(
-    () => ({ toasts, push, dismiss }),
-    [toasts, push, dismiss],
-  );
+  const value = useMemo(() => ({ toasts, push, dismiss }), [toasts, push, dismiss]);
 
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <ToastViewport exiting={exiting} />
+      <div aria-live="polite" aria-relevant="additions" className="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex flex-col items-end gap-2 sm:inset-x-auto sm:right-6 sm:bottom-6">
+        {toasts.map((toast) => <ToastItem key={toast.id} toast={toast} dismiss={dismiss} />)}
+      </div>
     </ToastContext.Provider>
   );
 }
@@ -79,56 +47,37 @@ export function useToast(): ToastValue {
   return ctx;
 }
 
-function ToastViewport({ exiting }: { exiting: number[] }) {
-  const ctx = useContext(ToastContext);
-  if (!ctx || ctx.toasts.length === 0) return null;
+function ToastItem({ toast, dismiss }: { toast: Toast; dismiss: (id: number) => void }) {
+  const [paused, setPaused] = useState(false);
+  useEffect(() => {
+    if (paused) return;
+    const timer = setTimeout(() => dismiss(toast.id), toast.tone === "error" || toast.tone === "warning" ? 12000 : 8000);
+    return () => clearTimeout(timer);
+  }, [dismiss, paused, toast.id, toast.tone]);
+  const Icon = toast.tone === "accent" ? CheckCircle2 : toast.tone === "neutral" ? Info : CircleAlert;
+  const actionClass = "mt-3 inline-flex min-h-8 items-center text-[13px] font-bold text-accent-ink no-underline transition-console hover:text-accent";
+  const activate = () => {
+    if (toast.action && "onClick" in toast.action) toast.action.onClick();
+    dismiss(toast.id);
+  };
 
   return (
     <div
-      // Polite: a finished run is worth announcing, not worth interrupting.
-      aria-live="polite"
-      className="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex flex-col items-end gap-2 sm:inset-x-auto sm:right-6 sm:bottom-6"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocusCapture={() => setPaused(true)}
+      onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setPaused(false); }}
+      className={cx("rp-toast pointer-events-auto w-full max-w-[400px] rounded-detail border bg-card p-4 shadow-frame", toast.tone === "error" ? "border-red-200" : toast.tone === "warning" ? "border-accent-wash-border" : "border-border")}
     >
-      {ctx.toasts.map((toast) => (
-        <div
-          key={toast.id}
-          className={cx(
-            "rp-toast pointer-events-auto w-full max-w-[380px] rounded-detail border p-4 shadow-frame",
-            exiting.includes(toast.id) && "rp-toast-out",
-            toast.tone === "accent"
-              ? "border-accent-wash-border bg-accent-wash"
-              : "border-border bg-card",
-          )}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-[15px] font-bold leading-[1.35]">
-              {toast.title}
-            </p>
-            <button
-              type="button"
-              aria-label="Dismiss"
-              onClick={() => ctx.dismiss(toast.id)}
-              className="-m-1 cursor-pointer p-1 text-muted transition-console hover:text-ink"
-            >
-              <X aria-hidden size={16} strokeWidth={1.5} />
-            </button>
-          </div>
-          {toast.body ? (
-            <p className="mt-1 text-[13px] leading-[1.55] text-muted">
-              {toast.body}
-            </p>
-          ) : null}
-          {toast.action ? (
-            <Link
-              href={toast.action.href}
-              onClick={() => ctx.dismiss(toast.id)}
-              className="mt-3 inline-block text-[13px] font-semibold text-accent-ink no-underline transition-console hover:text-accent"
-            >
-              {toast.action.label} →
-            </Link>
-          ) : null}
+      <div className="flex items-start gap-3">
+        <Icon aria-hidden size={19} className={cx("mt-0.5 shrink-0", toast.tone === "error" ? "text-red-700" : toast.tone === "neutral" ? "text-muted" : "text-accent-ink")} />
+        <div className="min-w-0 flex-1">
+          <p className="text-[14px] font-bold leading-snug">{toast.title}</p>
+          {toast.body ? <p className="mt-1.5 text-[13px] leading-relaxed text-muted">{toast.body}</p> : null}
+          {toast.action ? "href" in toast.action ? <Link href={toast.action.href} onClick={() => dismiss(toast.id)} className={actionClass}>{toast.action.label} →</Link> : <button type="button" onClick={activate} className={cx(actionClass, "cursor-pointer")}>{toast.action.label} →</button> : null}
         </div>
-      ))}
+        <button type="button" aria-label="Dismiss notification" onClick={() => dismiss(toast.id)} className="-mr-2 -mt-2 flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-field text-muted transition-console hover:bg-subtle hover:text-ink"><X aria-hidden size={16} /></button>
+      </div>
     </div>
   );
 }

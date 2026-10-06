@@ -132,8 +132,8 @@ const BUTTON_BASE =
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   primary: "bg-accent text-white font-bold hover:bg-accent-hover",
-  neutral: "bg-subtle text-ink-2 font-semibold hover:bg-[#EBE8E2]",
-  dark: "bg-ink-strong text-surface font-semibold hover:bg-[#33322E]",
+  neutral: "bg-subtle text-ink-2 font-semibold hover:bg-[#e0ece5]",
+  dark: "bg-ink-strong text-surface font-semibold hover:bg-[#284b39]",
 };
 
 export function Button({
@@ -246,7 +246,7 @@ export function ErrorCard({
       <Eyebrow className="text-accent-ink">Data unavailable</Eyebrow>
       <p className="mt-2 max-w-[60ch] text-[15px] leading-[1.55]">{message}</p>
       <p className="mt-1.5 text-[13px] text-muted">
-        No cached values have been substituted for fresh data.
+        Try again to check for updated information.
       </p>
       {onRetry ? (
         <div className="mt-4">

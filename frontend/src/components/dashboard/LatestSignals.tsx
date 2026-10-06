@@ -26,7 +26,7 @@ export function LatestSignals() {
         </Link>
       </div>
       <p className="mb-3.5 text-[13px] text-muted">
-        Severity = impact on your positioning, not stock price.
+        Priority reflects potential competitive impact.
       </p>
 
       {loading ? (
@@ -38,7 +38,7 @@ export function LatestSignals() {
       ) : rows.length === 0 ? (
         <EmptyState
           title="No signals yet"
-          body={`Nothing has crossed the threshold for ${watchlist?.name ?? "this watchlist"}. The next scheduled run will compare against the stored state.`}
+          body={`Start an investigation for ${watchlist?.name ?? "this watchlist"} to gather findings and review source coverage.`}
         />
       ) : (
         <div className="flex flex-col">

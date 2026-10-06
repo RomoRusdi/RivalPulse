@@ -1,7 +1,7 @@
 """Initial durable research schema
 
 Revision ID: 5484f418611b
-Revises: 
+Revises:
 """
 from alembic import op
 import sqlalchemy as sa

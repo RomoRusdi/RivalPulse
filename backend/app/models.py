@@ -1,4 +1,4 @@
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base, uid, utcnow
@@ -7,6 +7,68 @@ from app.db import Base, uid, utcnow
 class Identity:
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     created_at: Mapped[object] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class User(Identity, Base):
+    __tablename__ = "users"
+    email: Mapped[str] = mapped_column(String(254), unique=True)
+    password_hash: Mapped[str] = mapped_column(Text)
+    name: Mapped[str] = mapped_column(String(80))
+    job_title: Mapped[str] = mapped_column(String(80), default="Marketing analyst")
+    timezone: Mapped[str] = mapped_column(String(80), default="Asia/Jakarta")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_login_at: Mapped[object] = mapped_column(DateTime(timezone=True), nullable=True)
+    email_verified_at: Mapped[object] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Workspace(Base):
+    __tablename__ = "workspaces"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
+    name: Mapped[str] = mapped_column(String(120))
+    created_at: Mapped[object] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WorkspaceMembership(Base):
+    __tablename__ = "workspace_memberships"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), primary_key=True)
+    permission: Mapped[str] = mapped_column(String(20), default="owner")
+    created_at: Mapped[object] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AuthSession(Identity, Base):
+    __tablename__ = "auth_sessions"
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    csrf_hash: Mapped[str] = mapped_column(String(64))
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"))
+    expires_at: Mapped[object] = mapped_column(DateTime(timezone=True), index=True)
+    last_seen_at: Mapped[object] = mapped_column(DateTime(timezone=True))
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    remembered: Mapped[bool] = mapped_column(Boolean, default=True)
+    tab_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class PendingRegistration(Identity, Base):
+    __tablename__ = "pending_registrations"
+    email: Mapped[str] = mapped_column(String(254), unique=True)
+    name: Mapped[str] = mapped_column(String(80))
+    password_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
+    workspace_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    user_company: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    code_hash: Mapped[str] = mapped_column(String(64))
+    code_expires_at: Mapped[object] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[object] = mapped_column(DateTime(timezone=True), index=True)
+    sent_at: Mapped[object] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class WorkspaceCredit(Base):
+    __tablename__ = "workspace_credits"
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), primary_key=True)
+    total: Mapped[int] = mapped_column(Integer)
+    used: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class Company(Identity, Base):
@@ -35,6 +97,14 @@ class Membership(Base):
     watchlist_id: Mapped[str] = mapped_column(ForeignKey("watchlists.id"), primary_key=True)
     company_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), primary_key=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class Conversation(Identity, Base):
+    __tablename__ = "conversations"
+    workspace_id: Mapped[str] = mapped_column(String(80), index=True)
+    title: Mapped[str] = mapped_column(String(120))
+    messages: Mapped[list] = mapped_column(JSON, default=list)
+    updated_at: Mapped[object] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
 class Run(Identity, Base):
@@ -170,3 +240,10 @@ class ProviderCache(Base):
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     snapshot_id: Mapped[str] = mapped_column(ForeignKey("snapshots.id"))
     expires_at: Mapped[object] = mapped_column(DateTime(timezone=True))
+
+
+# PostgreSQL adds these without rewriting immutable history tables.
+for model in (Watchlist, Conversation, Run, Signal):
+    model.__table__.append_constraint(ForeignKeyConstraint(
+        ["workspace_id"], ["workspaces.id"], name=f"fk_{model.__tablename__}_workspace"
+    ).ddl_if(dialect="postgresql"))

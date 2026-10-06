@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Generic, Literal, TypeVar
 from uuid import UUID
 
@@ -38,6 +39,47 @@ class WatchlistPatch(Strict):
         return self
 
 
+class ConversationSuggestion(Strict):
+    label: str = Field(min_length=1, max_length=80)
+    prompt: str = Field(min_length=1, max_length=500)
+
+
+class ConversationMessageIn(Strict):
+    id: str = Field(min_length=1, max_length=80)
+    role: Literal["user", "assistant"]
+    kind: Literal["text", "instant", "research", "chat"]
+    content: str = Field(min_length=1, max_length=20_000)
+    label: str | None = Field(None, max_length=200)
+    created_at: datetime = Field(alias="createdAt")
+    run: dict | None = None
+    suggestions: list[ConversationSuggestion] | None = Field(None, max_length=4)
+
+
+class ConversationSync(Strict):
+    id: UUID
+    title: str = Field(min_length=1, max_length=120)
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: datetime = Field(alias="updatedAt")
+    messages: list[ConversationMessageIn] = Field(max_length=200)
+
+
+class ChatTurn(Strict):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class ChatRequest(Strict):
+    message: str = Field(min_length=1, max_length=2000)
+    history: list[ChatTurn] = Field(default_factory=list, max_length=20)
+
+
+class ChatReply(Strict):
+    reply: str
+    # "llm", "fallback" (no model available), or "guarded" (figure suppressed).
+    source: Literal["llm", "fallback", "guarded"]
+    language: Literal["en", "id"]
+
+
 class RunCreate(Strict):
     watchlist_id: UUID
     query: str | None = Field(None, min_length=3, max_length=2000)
@@ -48,17 +90,37 @@ class LegacyRunCreate(Strict):
     query: str = Field(min_length=3, max_length=2000)
 
 
+class LegacyWatchlistUpdate(Strict):
+    name: str | None = Field(None, min_length=1, max_length=120)
+    tickers: list[str] | None = Field(None, min_length=2, max_length=5)
+    user_company: str | None = Field(None, max_length=200)
+
+    @model_validator(mode="after")
+    def validate_update(self):
+        if self.name is None and self.tickers is None:
+            raise ValueError("At least one watchlist field is required")
+        if self.tickers is not None:
+            normalized = [ticker.upper() for ticker in self.tickers]
+            if len(set(normalized)) != len(normalized):
+                raise ValueError("Competitors must be distinct")
+            self.tickers = normalized
+        return self
+
+
 class ToolCall(Strict):
     name: Literal["get_company_profile", "get_company_metrics", "get_industry_context",
-                  "get_recent_signals", "get_previous_state"]
+                  "get_recent_signals", "get_company_news", "get_previous_state"]
     company_ids: list[str] = Field(min_length=1, max_length=5)
     requested_periods: list[int] = Field(default_factory=list, max_length=5)
     comparable_period: int | None = Field(None, ge=2000, le=2100)
+    # Recovery rounds re-read a company's remaining approved pages rather than
+    # repeating the two the first pass already tried.
+    source_offset: int = Field(0, ge=0, le=8)
     reason: str = Field(min_length=1, max_length=300)
 
 
 class AgentPlan(Strict):
-    tools: list[ToolCall] = Field(min_length=1, max_length=12)
+    tools: list[ToolCall] = Field(min_length=1, max_length=30)
 
 
 class Interpretation(Strict):
@@ -71,6 +133,39 @@ class Interpretation(Strict):
 
 class Analysis(Strict):
     interpretations: list[Interpretation] = Field(max_length=50)
+
+
+class FinancialInterpretation(Strict):
+    text: str = Field(min_length=12, max_length=500)
+    supporting_claim_ids: list[str] = Field(min_length=1, max_length=10)
+    uncertainty: Literal["low", "medium", "high"]
+
+
+class BriefMetric(Strict):
+    metric: str
+    value: str
+    currency: str | None
+    unit: str
+    period: str
+    comparison_basis: str
+    source_url: str
+    json_pointer: str
+    snapshot_id: str
+    claim_id: str
+
+
+class BriefCompany(Strict):
+    symbol: str
+    name: str
+    comparison_note: str
+    metrics: list[BriefMetric]
+
+
+class FinancialBrief(Strict):
+    period: str | None
+    rows: list[BriefCompany]
+    interpretation: FinancialInterpretation | None = None
+    caveats: list[str]
 
 
 class Claim(Strict):
@@ -111,7 +206,7 @@ class SignalCard(Strict):
     signal_id: str
     revision_id: str
     company: dict
-    mode: Literal["live", "replay"]
+    mode: Literal["live", "yahoo", "replay"]
     type: str
     title: str
     change_status: Literal["baseline", "new", "updated", "unchanged"]
@@ -135,13 +230,14 @@ class SignalCard(Strict):
 class ResearchResult(Strict):
     schema_version: int = 1
     run_id: str
-    mode: Literal["live", "replay"]
+    mode: Literal["live", "yahoo", "replay"]
     status: Literal["completed", "partial", "failed"]
     generated_at: str
     summary: str
     coverage: list[dict]
     warnings: list[str]
     signals: list[SignalCard]
+    financial_brief: FinancialBrief | None = None
     disclaimer: str = "Information and business analysis only; no investment recommendations or trade execution."
 
 
@@ -203,7 +299,7 @@ class ProgressStep(Strict):
 class RunDetail(Strict):
     id: str
     watchlist_id: str
-    mode: Literal["live", "replay"]
+    mode: Literal["live", "yahoo", "replay"]
     status: Literal["queued", "running", "completed", "partial", "failed"]
     stage: str
     query: str

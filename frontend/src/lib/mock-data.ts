@@ -4,6 +4,7 @@ import type {
   RunStep,
   Signal,
   SignalType,
+  UserProfile,
   Watchlist,
 } from "./types";
 
@@ -392,10 +393,10 @@ export const MIX_ORDER: SignalType[] = [
 ];
 
 export const MIX_COLORS: Record<SignalType, string> = {
-  Pricing: "#E2650F",
-  Product: "#1F1E1C",
-  Partnership: "#A9A59D",
-  Campaign: "#F3D3BB",
+  Pricing: "#146c50",
+  Product: "#122d23",
+  Partnership: "#b5c9bd",
+  Campaign: "#b8dcc9",
 };
 
 /**
@@ -408,7 +409,7 @@ const AGGREGATES: Record<Range, DashboardAggregates> = {
     companiesTracked: 3,
     signalsInRange: 0,
     highSeverityCount: 0,
-    credits: { used: 312, total: 1000, cacheHitRate: 0.64 },
+    credits: { used: 312, total: 1000, cacheHitRate: 0.64, remaining: 688, available: 688, availablePercent: 68.8, providerLimited: false },
     pipeline: [
       { label: "Candidates", count: 118, percent: 100, tone: "neutral" },
       { label: "Deduplicated", count: 71, percent: 60, tone: "ink" },
@@ -427,7 +428,7 @@ const AGGREGATES: Record<Range, DashboardAggregates> = {
     companiesTracked: 3,
     signalsInRange: 0,
     highSeverityCount: 0,
-    credits: { used: 312, total: 1000, cacheHitRate: 0.64 },
+    credits: { used: 312, total: 1000, cacheHitRate: 0.64, remaining: 688, available: 688, availablePercent: 68.8, providerLimited: false },
     pipeline: [
       { label: "Candidates", count: 742, percent: 100, tone: "neutral" },
       { label: "Deduplicated", count: 431, percent: 58, tone: "ink" },
@@ -451,9 +452,14 @@ export function aggregatesFor(range: Range): DashboardAggregates {
   return AGGREGATES[range];
 }
 
-export const USER = {
+export const USER: UserProfile = {
+  id: "u-rizky",
   name: "Rizky Pratama",
   role: "Product marketing",
+  email: "rizky@company.co.id",
+  timezone: "Asia/Jakarta",
+  joinedAt: "2026-03-14",
+  workspace: "Telco ID",
 };
 
 /** Past runs. Persisted history is what lets a run reason over change. */

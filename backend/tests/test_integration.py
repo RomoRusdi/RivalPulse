@@ -31,6 +31,7 @@ def test_postgres_redis_queued_replay(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", url)
     monkeypatch.setenv("REDIS_URL", redis_url)
     monkeypatch.setenv("MODE", "replay")
+    monkeypatch.setenv("AUTH_MODE", "demo")
     monkeypatch.setenv("LLM_ENABLED", "false")
     monkeypatch.setenv("REPLAY_SCENARIO", "baseline")
     get_settings.cache_clear()

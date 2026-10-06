@@ -11,32 +11,39 @@ import {
 } from "react";
 import {
   ApiError,
+  USE_MOCKS,
   cancelRun as apiCancelRun,
+  getActiveRun,
   getDashboard,
   startRun as apiStartRun,
   streamRun,
+  updateWatchlist as apiUpdateWatchlist,
 } from "./api";
 import {
   MIX_COLORS,
   MIX_ORDER,
   RESERVE_SIGNALS,
   RUN_STEPS,
+  USER,
 } from "./mock-data";
 import {
   clearLocalState,
   loadLocalState,
   saveLocalState,
 } from "./persistence";
+import { useOptionalAuth } from "./auth";
 import { readDemoSettings } from "./demo-settings";
 import { useToast } from "@/components/ui/Toast";
 import { MAX_COMPANIES } from "./catalogue";
-import { WatchlistSchema } from "./schemas";
+import { runFailureMessage } from "./format";
+import { UserProfileSchema, WatchlistSchema } from "./schemas";
 import type {
   AgentRun,
   Company,
   DashboardAggregates,
   Range,
   SignalWithState,
+  UserProfile,
   Watchlist,
 } from "./types";
 
@@ -49,6 +56,7 @@ import type {
  */
 
 interface StoreValue {
+  mode: "live" | "replay" | null;
   watchlist: Watchlist | null;
   signals: SignalWithState[];
   aggregates: DashboardAggregates | null;
@@ -66,9 +74,9 @@ interface StoreValue {
   loading: boolean;
   error: string | null;
   reload: () => void;
-  startRun: (query: string) => void;
-  cancelRun: () => void;
-  retryRun: () => void;
+  startRun: (query: string, onFailure?: (message: string) => void) => Promise<boolean>;
+  cancelRun: () => Promise<boolean>;
+  retryRun: () => Promise<boolean>;
   dismissRun: () => void;
   markSignalSeen: (id: string) => void;
   markAllSeen: () => void;
@@ -78,16 +86,45 @@ interface StoreValue {
   /** Watchlist editing. Rejected silently when it would break the 2-5 rule. */
   addCompany: (company: Company) => void;
   removeCompany: (ticker: string) => void;
+  /**
+   * Batch forms. Several single calls in one tick would each read the same
+   * pre-edit watchlist, so only the last one would survive.
+   */
+  addCompanies: (companies: Company[]) => void;
+  removeCompanies: (tickers: string[]) => void;
   renameWatchlist: (name: string) => void;
   /** True when the watchlist differs from what the server sent. */
   watchlistEdited: boolean;
+  /** Optional "our company" ticker. Null = neutral competitor comparison. */
+  ourCompany: string | null;
+  setOurCompany: (ticker: string | null) => void;
+
+  /** The signed-in person. Edits are validated before they are kept. */
+  profile: UserProfile;
+  /** Returns an error message when the patch is rejected, otherwise null. */
+  updateProfile: (patch: Partial<UserProfile>) => Promise<string | null>;
+  storageScope?: string;
+  profileEdited: boolean;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
 
+const PRIVATE_DEMO_PROFILE: UserProfile = {
+  ...USER,
+  id: "private-demo",
+  name: "Demo researcher",
+  role: "Workspace member",
+  email: "demo@rivalpulse.test",
+  workspace: "Private demo",
+};
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const { push } = useToast();
+  const auth = useOptionalAuth();
+  const hasAccount = Boolean(auth);
+  const storageScope = auth ? `${auth.profile.id}:${auth.profile.workspaceId}` : undefined;
 
+  const [mode, setMode] = useState<"live" | "replay" | null>(null);
   const [watchlist, setWatchlist] = useState<Watchlist | null>(null);
   const [aggregates, setAggregates] = useState<DashboardAggregates | null>(
     null,
@@ -107,10 +144,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [editedWatchlist, setEditedWatchlist] = useState<Watchlist | null>(
     null,
   );
+  const [editedProfile, setEditedProfile] = useState<UserProfile | null>(null);
   const [justRevealedIds, setJustRevealedIds] = useState<string[]>([]);
   const hydrated = useRef(false);
 
   const unsubscribe = useRef<(() => void) | null>(null);
+  const announcedRuns = useRef(new Set<string>());
+
+  // Latest watchlist save. A run submitted while a PATCH is still in flight
+  // would investigate the pre-edit membership while the UI already shows the
+  // new one — startRun waits for this to settle first.
+  const watchlistSave = useRef<Promise<unknown>>(Promise.resolve());
 
   // ── Load ────────────────────────────────────────────────────────────────
   // Persisted state is read inside the async body rather than during render:
@@ -122,9 +166,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const load = async () => {
       if (!hydrated.current) {
         hydrated.current = true;
-        if (readDemoSettings().seed) clearLocalState();
+        if (readDemoSettings().seed) clearLocalState(storageScope);
       }
-      const local = loadLocalState();
+      const local = loadLocalState(storageScope);
 
       try {
         const data = await getDashboard(range, local.revealedIds);
@@ -132,12 +176,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setSeenIds(local.seenIds);
         setRevealedIds(local.revealedIds);
         setLastCheckedAt(local.lastCheckedAt);
+        setMode(data.mode);
         setWatchlist(data.watchlist);
 
         // A stored watchlist is untrusted input — validate before trusting it,
         // and fall back to the server's copy if it no longer fits the schema.
         const stored = WatchlistSchema.safeParse(local.watchlist);
-        setEditedWatchlist(stored.success ? stored.data : null);
+        setEditedWatchlist(USE_MOCKS && stored.success ? stored.data : null);
+        const storedProfile = UserProfileSchema.safeParse(local.profile);
+        setEditedProfile(!hasAccount && storedProfile.success ? storedProfile.data : null);
         setAggregates(data.aggregates);
         setRawSignals(
           data.signals.map((s) => ({
@@ -163,7 +210,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [range, reloadToken]);
+  }, [range, reloadToken, storageScope, hasAccount]);
 
   /** Range changes and reloads own their own loading state. */
   const changeRange = useCallback((next: Range) => {
@@ -186,99 +233,141 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       revealedIds,
       lastCheckedAt,
       watchlist: editedWatchlist,
-    });
-  }, [seenIds, revealedIds, lastCheckedAt, editedWatchlist]);
+      profile: auth ? null : editedProfile,
+    }, storageScope);
+  }, [seenIds, revealedIds, lastCheckedAt, editedWatchlist, editedProfile, auth, storageScope]);
 
   useEffect(() => () => unsubscribe.current?.(), []);
 
   // ── Runs ────────────────────────────────────────────────────────────────
-  const startRun = useCallback(
-    (query: string) => {
-      unsubscribe.current?.();
+  // Subscribing to a run is separated from submitting one so a 409 (another
+  // investigation already active server-side) can resume watching the known
+  // run instead of failing the chat message.
+  const watchRun = useCallback(
+    (run: AgentRun, nextReveal: string | null) => {
+      setActiveRun(run);
+      unsubscribe.current = streamRun(run, nextReveal, {
+        onUpdate: (update) => {
+          setActiveRun(update);
 
-      // The next unrevealed reserve signal is what this run will discover.
-      const nextReveal =
-        RESERVE_SIGNALS.find((s) => !revealedIds.includes(s.id))?.id ?? null;
+          if (update.status === "complete") {
+            if (announcedRuns.current.has(update.id)) return;
+            announcedRuns.current.add(update.id);
+            const produced = update.producedSignalIds ?? [];
+            const checkedAt = new Date().toISOString();
+            setLastCheckedAt(checkedAt);
 
-      apiStartRun(query)
-        .then((run) => {
-          setActiveRun(run);
-          unsubscribe.current = streamRun(run, nextReveal, {
-            onUpdate: (update) => {
-              setActiveRun(update);
+            // Findings (including first-run baselines) live server-side;
+            // refresh so Signals and the comparison graph show this run.
+            reload();
 
-              if (update.status === "complete") {
-                const produced = update.producedSignalIds ?? [];
-                const checkedAt = new Date().toISOString();
-                setLastCheckedAt(checkedAt);
+            if (produced.length > 0) {
+              setRevealedIds((prev) => [...new Set([...prev, ...produced])]);
+              setJustRevealedIds((prev) => [
+                ...new Set([...prev, ...produced]),
+              ]);
+              const revealed = RESERVE_SIGNALS.filter((s) =>
+                produced.includes(s.id),
+              ).map((s) => ({ ...s, seen: false }));
+              setRawSignals((prev) => [...revealed, ...prev]);
+            }
 
-                if (produced.length > 0) {
-                  setRevealedIds((prev) => [...new Set([...prev, ...produced])]);
-                  setJustRevealedIds((prev) => [
-                    ...new Set([...prev, ...produced]),
-                  ]);
-                  const revealed = RESERVE_SIGNALS.filter((s) =>
-                    produced.includes(s.id),
-                  ).map((s) => ({ ...s, seen: false }));
-                  setRawSignals((prev) => [...revealed, ...prev]);
-                }
+            push({
+              tone: update.coverageStatus === "partial" ? "warning" : "accent",
+              title: update.coverageStatus === "partial" ? "Research saved with coverage gaps" : "Research complete",
+              body: update.coverageStatus === "partial"
+                ? "Some sources could not be verified. Review coverage before drawing conclusions."
+                : produced.length > 0
+                  ? `${produced.length} new finding${produced.length === 1 ? " is" : "s are"} ready to review.`
+                  : update.financialBrief?.rows.length
+                    ? "Your financial comparison is ready, with supporting sources."
+                    : "Review the results for initial observations and source coverage.",
+              action: { label: "Review research", href: "/" },
+            });
+          }
 
-                push({
-                  tone: "accent",
-                  title:
-                    produced.length > 0
-                      ? `Run #${update.id} found ${produced.length} new signal${produced.length === 1 ? "" : "s"}`
-                      : `Run #${update.id} finished — nothing above threshold`,
-                  body: update.resultSummary,
-                  action:
-                    produced.length > 0
-                      ? { label: "View signals", href: "/signals" }
-                      : undefined,
-                });
-              }
-
-              if (update.status === "failed") {
-                push({
-                  tone: "accent",
-                  title: `Run #${update.id} failed`,
-                  body: `Tool call ${update.failedTool} did not return. No stale data was substituted.`,
-                });
-              }
-            },
-            onError: (streamError) => {
-              setActiveRun((run) =>
-                run
-                  ? { ...run, status: "failed", failedTool: "run stream" }
-                  : run,
-              );
-              push({ tone: "accent", title: "Run stream lost", body: streamError.message });
-            },
-          });
-        })
-        .catch((err: unknown) => {
-          push({
-            tone: "accent",
-            title: "Could not start the run",
-            body: err instanceof ApiError ? err.message : undefined,
-          });
-        });
+          if (update.status === "failed") {
+            if (announcedRuns.current.has(update.id)) return;
+            announcedRuns.current.add(update.id);
+            push({
+              tone: update.failedTool === "CANCELLED" || update.failedTool === "cancelled by user" ? "neutral" : "error",
+              title: update.failedTool === "CANCELLED" || update.failedTool === "cancelled by user" ? "Investigation stopped" : "Research could not finish",
+              body: runFailureMessage(update.failedTool),
+              action: { label: "Review research", href: "/" },
+            });
+          }
+        },
+        onError: () => {
+          push({ tone: "warning", title: "Live updates interrupted", body: runFailureMessage("run stream"), action: { label: "Reconnect", onClick: () => window.location.reload() } });
+        },
+      });
     },
-    [push, revealedIds],
+    [push, reload],
   );
 
-  const cancelRun = useCallback(() => {
-    unsubscribe.current?.();
-    unsubscribe.current = null;
-    setActiveRun((run) => {
-      if (run) void apiCancelRun(run.id);
-      return null;
-    });
-  }, []);
+  const startRun = useCallback(
+    async (query: string, onFailure?: (message: string) => void) => {
+      unsubscribe.current?.();
+      const nextReveal = RESERVE_SIGNALS.find((signal) => !revealedIds.includes(signal.id))?.id ?? null;
+      await watchlistSave.current;
+      try {
+        const run = await apiStartRun(query);
+        watchRun(run, nextReveal);
+        return true;
+      } catch (err: unknown) {
+        const conflict = err instanceof ApiError && err.status === 409;
+        if (conflict) {
+          const live = await getActiveRun();
+          if (live) {
+            watchRun(live, null);
+            push({ tone: "neutral", title: "Investigation already in progress", body: "Reconnected to your current research.", action: { label: "View progress", href: "/" } });
+            return true;
+          }
+        }
+        const message = conflict ? "An investigation is already running. Wait for it to finish or stop it before starting another."
+          : err instanceof ApiError ? err.message : "Check your connection and try again.";
+        onFailure?.(message);
+        push({
+          tone: "error",
+          title: "Research could not start",
+          body: message,
+        });
+        return false;
+      }
+    },
+    [push, revealedIds, watchRun],
+  );
+
+  const cancelRun = useCallback(async () => {
+    if (!activeRun) return false;
+    try {
+      await apiCancelRun(activeRun.id);
+      unsubscribe.current?.();
+      unsubscribe.current = null;
+      setActiveRun((current) => current?.id === activeRun.id ? null : current);
+      return true;
+    } catch {
+      push({ tone: "error", title: "Investigation could not be stopped", body: "We couldn’t confirm the request. Check the connection and try again." });
+      return false;
+    }
+  }, [activeRun, push]);
 
   const retryRun = useCallback(() => {
     const query = activeRun?.query;
-    if (query) startRun(query);
+    return query ? startRun(query) : Promise.resolve(false);
   }, [activeRun, startRun]);
+
+  // Resume a run orphaned by a page reload: the backend run keeps going, but
+  // this page lifetime never subscribed to it. One shot per mount — the
+  // chat attaches it to its research message like any live update.
+  const resumedRef = useRef(false);
+  useEffect(() => {
+    if (resumedRef.current || activeRun) return;
+    resumedRef.current = true;
+    void getActiveRun().then((run) => {
+      if (run) watchRun(run, null);
+    });
+  }, [activeRun, watchRun]);
 
   const dismissRun = useCallback(() => {
     unsubscribe.current?.();
@@ -315,16 +404,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const editWatchlist = useCallback(
     (mutate: (current: Watchlist) => Watchlist) => {
-      setEditedWatchlist((current) => {
-        const base = current ?? watchlist;
-        if (!base) return current;
-        const next = mutate(base);
-        // Never persist a watchlist the schema would reject.
-        const parsed = WatchlistSchema.safeParse(next);
-        return parsed.success ? parsed.data : current;
-      });
+      const base = editedWatchlist ?? watchlist;
+      if (!base) return;
+      const parsed = WatchlistSchema.safeParse(mutate(base));
+      if (!parsed.success) return;
+      const previous = editedWatchlist;
+      setEditedWatchlist(parsed.data);
+      // Chain onto any in-flight save so the last edit wins in order, and so
+      // startRun can wait for membership to settle server-side. Handled on
+      // both paths, so this promise never rejects.
+      watchlistSave.current = watchlistSave.current.then(
+        () => apiUpdateWatchlist(parsed.data),
+      ).then(
+        (saved) => {
+          setEditedWatchlist(saved);
+        },
+        (err: unknown) => {
+          setEditedWatchlist(previous);
+          push({
+            tone: "error",
+            title: "Watchlist update was not saved",
+            body: err instanceof ApiError ? err.message : "We couldn’t save this change. Check your connection and try again.",
+          });
+        },
+      );
     },
-    [watchlist],
+    [editedWatchlist, push, watchlist],
   );
 
   const addCompany = useCallback(
@@ -343,7 +448,36 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     (ticker: string) => {
       editWatchlist((current) => ({
         ...current,
+        // Dropping our own company clears the perspective with it; a stale
+        // ticker would otherwise keep framing every comparison.
+        user_company: current.user_company === ticker ? null : current.user_company,
         companies: current.companies.filter((c) => c.ticker !== ticker),
+      }));
+    },
+    [editWatchlist],
+  );
+
+  const addCompanies = useCallback(
+    (companies: Company[]) => {
+      editWatchlist((current) => {
+        const tracked = new Set(current.companies.map((c) => c.ticker));
+        const fresh = companies.filter((c) => !tracked.has(c.ticker));
+        const room = Math.max(0, MAX_COMPANIES - current.companies.length);
+        return fresh.length && room
+          ? { ...current, companies: [...current.companies, ...fresh.slice(0, room)] }
+          : current;
+      });
+    },
+    [editWatchlist],
+  );
+
+  const removeCompanies = useCallback(
+    (tickers: string[]) => {
+      const drop = new Set(tickers);
+      editWatchlist((current) => ({
+        ...current,
+        user_company: current.user_company && drop.has(current.user_company) ? null : current.user_company,
+        companies: current.companies.filter((c) => !drop.has(c.ticker)),
       }));
     },
     [editWatchlist],
@@ -358,15 +492,46 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [editWatchlist],
   );
 
+  const ourCompany = activeWatchlist?.user_company ?? null;
+
+  const setOurCompany = useCallback(
+    (ticker: string | null) => {
+      editWatchlist((current) => ({ ...current, user_company: ticker }));
+    },
+    [editWatchlist],
+  );
+
+  // ── Profile ─────────────────────────────────────────────────────────────
+  // Same rule as the watchlist: validate before keeping, so a bad edit (or a
+  // tampered localStorage entry) can never reach the rest of the app.
+  const profile = auth?.profile ?? editedProfile ?? (USE_MOCKS ? USER : PRIVATE_DEMO_PROFILE);
+
+  const updateProfile = useCallback(
+    async (patch: Partial<UserProfile>): Promise<string | null> => {
+      const next = { ...profile, ...patch };
+      const parsed = UserProfileSchema.safeParse(next);
+      if (!parsed.success) {
+        return parsed.error.issues[0]?.message ?? "That change is not valid.";
+      }
+      if (auth) {
+        try { await auth.updateProfile({ name: parsed.data.name, timezone: parsed.data.timezone }); }
+        catch (cause) { return cause instanceof Error ? cause.message : "Could not save your profile."; }
+      } else setEditedProfile(parsed.data);
+      return null;
+    },
+    [profile, auth],
+  );
+
   const resetDemoState = useCallback(() => {
-    clearLocalState();
+    clearLocalState(storageScope);
     setSeenIds([]);
     setRevealedIds([]);
     setLastCheckedAt(null);
     setEditedWatchlist(null);
+    setEditedProfile(null);
     setActiveRun(null);
     setReloadToken((n) => n + 1);
-  }, []);
+  }, [storageScope]);
 
   // Removing a competitor has to actually remove its signals, or editing the
   // watchlist would be cosmetic.
@@ -425,6 +590,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<StoreValue>(
     () => ({
+      mode,
       watchlist: activeWatchlist,
       signals: visibleSignals,
       aggregates: reconciledAggregates,
@@ -446,10 +612,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       resetDemoState,
       addCompany,
       removeCompany,
+      addCompanies,
+      removeCompanies,
       renameWatchlist,
       watchlistEdited: editedWatchlist !== null,
+      ourCompany,
+      setOurCompany,
+      profile,
+      storageScope,
+      updateProfile,
+      profileEdited: editedProfile !== null,
     }),
     [
+      mode,
       activeWatchlist,
       visibleSignals,
       editedWatchlist,
@@ -471,7 +646,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       resetDemoState,
       addCompany,
       removeCompany,
+      addCompanies,
+      removeCompanies,
       renameWatchlist,
+      ourCompany,
+      setOurCompany,
+      profile,
+      updateProfile,
+      editedProfile,
+      storageScope,
     ],
   );
 

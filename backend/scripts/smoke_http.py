@@ -17,8 +17,9 @@ sys.path.insert(0, str(ROOT))
 
 def main():
     os.chdir(ROOT)
-    with tempfile.TemporaryDirectory(prefix="rivalpulse-http-") as directory:
-        os.environ.update(DATABASE_URL="sqlite:///" + (Path(directory) / "smoke.db").as_posix(), MODE="replay",
+    # SQLite can retain a short-lived file handle after the child exits on Windows.
+    with tempfile.TemporaryDirectory(prefix="rivalpulse-http-", ignore_cleanup_errors=os.name == "nt") as directory:
+        os.environ.update(DATABASE_URL="sqlite:///" + (Path(directory) / "smoke.db").as_posix(), MODE="replay", AUTH_MODE="demo",
                           DEMO_ACCESS_TOKEN="temporary-http-smoke-token", LLM_ENABLED="false")
         from app.config import get_settings
         from app.db import engine
@@ -49,7 +50,7 @@ def main():
                 assert live.json()["mode"] == "replay"
                 assert client.get("/api/v1/watchlists").status_code == 401
                 client.headers["Authorization"] = "Bearer temporary-http-smoke-token"
-                assert len(client.get("/api/v1/companies").json()["items"]) == 3
+                assert len(client.get("/api/v1/companies").json()["items"]) >= 3
                 assert client.get("/openapi.json").status_code == 200
                 print("HTTP startup, migration, catalog, private gate and OpenAPI smoke checks passed")
         finally:

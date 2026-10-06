@@ -1,5 +1,6 @@
 import base64
 import json
+import re
 from datetime import datetime
 
 from sqlalchemy import and_, or_, select
@@ -12,8 +13,17 @@ from app.models import Company, Membership, Run, Signal, Source, Watchlist
 from app.providers import digest
 
 
+def workspace_id(db):
+    scope = db.info.get("workspace_id")
+    if scope:
+        return scope
+    if get_settings().auth_mode == "demo":
+        return get_settings().workspace_id
+    raise AppError("UNAUTHORIZED", "Authenticated workspace is required", 401)
+
+
 def owned(db, model, identifier):
-    row = db.scalar(select(model).where(model.id == str(identifier), model.workspace_id == get_settings().workspace_id))
+    row = db.scalar(select(model).where(model.id == str(identifier), model.workspace_id == workspace_id(db)))
     if not row:
         raise AppError("NOT_FOUND", "Resource not found", 404)
     return row
@@ -53,6 +63,35 @@ def replace_members(db, watchlist_id, ids):
         db.add(Membership(watchlist_id=watchlist_id, company_id=company_id))
 
 
+def scoped_symbols(query, user_company, companies):
+    """Watchlist symbols this investigation compares, in watchlist order.
+
+    Named companies plus our own; the whole list when the request names no
+    one ("compare all competitors"). A bare our-company reference ("research
+    my company") with nothing else named scopes to our company alone.
+    The comparison table is scoped to this set so "compare X to Y" does not
+    tabulate the entire watchlist.
+    """
+    ours = re.compile(r"\b(my company|our company|perusahaanku|perusahaan\s+(saya|kami|kita))\b", re.I)
+    matched = []
+    for company in companies:
+        names = [company.symbol, company.name, *(company.aliases or [])]
+        if any(name and re.search(r"(?<!\w)" + re.escape(name) + r"(?!\w)", query, re.I)
+               for name in names):
+            matched.append(company.symbol)
+    own = None
+    if user_company:
+        own = next((c.symbol for c in companies
+                    if c.symbol.lower() == user_company.strip().lower()), None)
+    if not matched:
+        if own and ours.search(query):
+            return [own]
+        return [c.symbol for c in companies]
+    if own and own not in matched:
+        matched.append(own)
+    return [c.symbol for c in companies if c.symbol in matched]
+
+
 def create_run(db, body, key):
     settings = get_settings()
     if key is not None and (not key.strip() or len(key) > 128):
@@ -60,13 +99,15 @@ def create_run(db, body, key):
     request_hash = digest({"body": body.model_dump(mode="json"), "mode": settings.mode})
 
     def prior_request():
-        prior = db.scalar(select(Run).where(Run.workspace_id == settings.workspace_id, Run.idempotency_key == key))
+        prior = db.scalar(select(Run).where(Run.workspace_id == workspace_id(db), Run.idempotency_key == key))
         if prior and prior.request_hash != request_hash:
             raise AppError("IDEMPOTENCY_CONFLICT", "Idempotency key was used with different inputs", 409)
         return prior
 
     if key and (prior := prior_request()):
         return prior
+    if settings.mode == "live" and not settings.sectors_api_key.get_secret_value().strip():
+        raise AppError("PROVIDER_CREDENTIALS_MISSING", "Configure a private Sectors API key before starting research", 503)
     watchlist = owned(db, Watchlist, body.watchlist_id)
     # Serialize input freezing with membership edits on PostgreSQL.
     db.refresh(watchlist, with_for_update=True)
@@ -78,17 +119,32 @@ def create_run(db, body, key):
             raise AppError("INVALID_PARENT_SIGNAL", "Parent signal must belong to the selected competitors and mode", 422)
     frozen = []
     for c in companies:
-        sources = db.scalars(select(Source).where(Source.company_id == c.id, Source.enabled.is_(True)).order_by(Source.id)).all()
+        # Oldest first, then by URL. Ordering by the random UUID alone made "the
+        # first two approved pages" vary between runs; the clock can tie on
+        # coarse-resolution platforms, so the unique URL is the final tiebreak.
+        sources = db.scalars(select(Source).where(Source.company_id == c.id, Source.enabled.is_(True))
+                             .order_by(Source.created_at, Source.url)).all()
         frozen.append({**company_json(c), "sources": [dict(id=s.id, url=s.url, domain=s.domain,
                                                         kind=s.kind, extraction=s.extraction) for s in sources]})
+    # Backend-authoritative our-company context: the agent and chat both read
+    # run inputs/query, so framing here works no matter which client queued
+    # the run. Frontend prefixing is a convenience, not the source of truth.
+    # Compared symbols come from the RAW request text: the prefix below would
+    # otherwise make our own company match every query.
+    raw_query = body.query or watchlist.objective
+    compared = scoped_symbols(raw_query, watchlist.user_company, companies)
+    query = raw_query
+    if watchlist.user_company and watchlist.user_company.lower() not in query.lower():
+        query = f"Our company is {watchlist.user_company}. Compare relative to our position. {query}"
     baseline = db.scalar(select(Run).where(Run.watchlist_id == watchlist.id, Run.mode == settings.mode,
                                           Run.status.in_(["completed", "partial"])).order_by(Run.created_at.desc()).limit(1))
-    row = Run(workspace_id=settings.workspace_id, watchlist_id=watchlist.id, idempotency_key=key,
-              request_hash=request_hash, query=body.query or watchlist.objective, mode=settings.mode,
+    row = Run(workspace_id=workspace_id(db), watchlist_id=watchlist.id, idempotency_key=key,
+              request_hash=request_hash, query=query, mode=settings.mode,
               baseline_id=baseline.id if baseline else None,
-              inputs={"schema_version": 1, "companies": frozen, "query": body.query or watchlist.objective,
+              inputs={"schema_version": 1, "companies": frozen, "query": query,
                       "parent_signal_id": str(body.parent_signal_id) if body.parent_signal_id else None,
-                      "replay_scenario": settings.replay_scenario, "watchlist_name": watchlist.name})
+                      "replay_scenario": settings.replay_scenario, "watchlist_name": watchlist.name,
+                      "user_company": watchlist.user_company, "compared_symbols": compared})
     db.add(row)
     try:
         db.commit()

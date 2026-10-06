@@ -8,10 +8,20 @@ Thumbs.db
 .idea/
 .vscode/
 
-# Secrets — anywhere in the tree
+# Secrets — anywhere in the tree. Only redacted templates may be committed.
 .env
 .env.*
+*.env
+*.env.*
 !.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets.json
+secrets.yaml
+secrets.yml
 
 # Python / backend (ready for whoever starts it)
 __pycache__/
@@ -21,34 +31,15 @@ venv/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
-*.egg-info/
-dist/
-htmlcov/
-.coverage
-.coverage.*
-coverage.xml
-*.db
-*.sqlite
 *.sqlite3
-
-# Local databases and exports
-*.dump
-*.backup
-
-# Private keys and certificates
-*.pem
-*.key
-*.p12
-*.pfx
 
 # Logs
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
 
 # Local agent config — personal, and next dev regenerates AGENTS.md anyway.
 AGENTS.md
 CLAUDE.md
 
+
+# Local verification artifacts
+.test-work/

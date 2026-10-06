@@ -56,6 +56,8 @@ def test_full_baseline_numeric_evidence_duplicate_and_revision(client, watchlist
         growth = next(m for m in card["financial_context"] if m["metric"] == "revenue_growth_percent")
         assert growth["value"] == "20.00"
         assert card["published_at"] < card["first_seen_at"][:10]
+        assert card["score_components"]["rubric_version"] == 2
+        assert 0.0 <= card["score_components"]["confidence"] <= 1.0
         with session() as db:
             snapshots = {s.id: s for s in db.scalars(select(Snapshot))}
             validate_card(card, snapshots)
@@ -75,6 +77,77 @@ def test_full_baseline_numeric_evidence_duplicate_and_revision(client, watchlist
         assert db.scalar(select(func.count()).select_from(Revision)) == 4
     fourth = execute(client, watchlist)
     assert all(c["change_status"] == "unchanged" for c in fourth["result"]["signals"])
+
+
+def test_first_run_summary_reports_the_baseline_it_established(client, watchlist):
+    first = execute(client, watchlist)
+    assert all(c["change_status"] == "baseline" for c in first["result"]["signals"])
+    summary = first["result"]["summary"]
+    assert "baseline observations" in summary and "reference baseline" in summary
+    for symbol in ("TLKM", "ISAT", "EXCL"):
+        assert symbol in summary
+
+
+def test_comparison_scopes_to_requested_companies(client, watchlist):
+    tickers = [c["ticker"] for c in watchlist["companies"]]
+    assert client.patch("/api/v1/watchlists/" + watchlist["id"],
+                        json={"user_company": "TLKM"}).status_code == 200
+
+    mentioned = client.post("/api/v1/research-runs", json={
+        "watchlist_id": watchlist["id"], "query": "compare my company to ISAT",
+    }, headers={"Idempotency-Key": "scoped-001"}).json()
+    with session() as db:
+        inputs = db.get(Run, mentioned["id"]).inputs
+    assert set(inputs["compared_symbols"]) == {"ISAT", "TLKM"}
+
+    execute_run(mentioned["id"])
+    scoped = client.get("/api/v1/research-runs/" + mentioned["id"]).json()
+    assert scoped["status"] in ("completed", "partial"), scoped["error_code"]
+    brief = scoped["result"]["financial_brief"]
+    assert brief and {r["symbol"] for r in brief["rows"]} == {"ISAT", "TLKM"}
+
+    blanket = client.post("/api/v1/research-runs", json={
+        "watchlist_id": watchlist["id"],
+        "query": "what changed across my competitors this week",
+    }, headers={"Idempotency-Key": "scoped-002"}).json()
+    with session() as db:
+        blanket_inputs = db.get(Run, blanket["id"]).inputs
+    assert set(blanket_inputs["compared_symbols"]) == set(tickers)
+
+
+def test_unset_perspective_is_flagged_when_request_names_it(client, watchlist):
+    first = client.post("/api/v1/research-runs", json={
+        "watchlist_id": watchlist["id"], "query": "research my company news",
+    }, headers={"Idempotency-Key": "ours-note-001"}).json()
+    execute_run(first["id"])
+    summary = client.get("/api/v1/research-runs/" + first["id"]).json()["result"]["summary"]
+    assert "no company perspective is set" in summary
+
+    assert client.patch("/api/v1/watchlists/" + watchlist["id"],
+                        json={"user_company": "TLKM"}).status_code == 200
+    second = client.post("/api/v1/research-runs", json={
+        "watchlist_id": watchlist["id"], "query": "research my company news",
+    }, headers={"Idempotency-Key": "ours-note-002"}).json()
+    execute_run(second["id"])
+    summary = client.get("/api/v1/research-runs/" + second["id"]).json()["result"]["summary"]
+    assert "no company perspective is set" not in summary
+
+
+def test_active_run_endpoint_resumes_in_flight_runs_only(client, watchlist):
+    from datetime import timedelta
+
+    from app.config import get_settings
+    from app.db import utcnow
+
+    assert client.get("/runs/active").status_code == 404
+    run_id = launch(client, watchlist)
+    active = client.get("/runs/active")
+    assert active.status_code == 200 and active.json()["id"] == run_id
+    assert active.json()["status"] == "queued"
+    with session() as db, db.begin():
+        row = db.get(Run, run_id)
+        row.created_at = utcnow() - timedelta(seconds=get_settings().run_timeout + 301)
+    assert client.get("/runs/active").status_code == 404
 
 
 def test_missing_financial_partial(client, watchlist, monkeypatch):
@@ -116,12 +189,11 @@ def test_live_replay_isolation_no_silent_fallback(client, watchlist, monkeypatch
     monkeypatch.setenv("MODE", "live")
     monkeypatch.setenv("SECTORS_API_KEY", "")
     get_settings.cache_clear()
-    # Avoid external public traffic while testing a live missing-credentials failure.
-    from app.errors import ProviderError
-    monkeypatch.setattr("app.agent.collect_public", lambda *a: (_ for _ in ()).throw(ProviderError()))
-    result = execute(client, watchlist)
-    assert result["mode"] == "live" and result["status"] == "partial"
-    assert result["result"]["signals"] == []
+    # Reject before queueing any tools, provider requests, or credit reservations.
+    response = client.post("/api/v1/research-runs", json={"watchlist_id": watchlist["id"]})
+    assert response.status_code == 503
+    assert response.json()["code"] == "PROVIDER_CREDENTIALS_MISSING"
+    assert client.get("/api/v1/health/ready").status_code == 503
     assert client.get("/api/v1/signals").json()["items"] == []
     assert len(client.get("/api/v1/signals?mode=replay").json()["items"]) == 3
 

@@ -1,6 +1,8 @@
 import type { z } from "zod";
 import type {
   AgentRunSchema,
+  AlertStatusSchema,
+  ChatReplySchema,
   CompanySchema,
   CreditUsageSchema,
   DashboardAggregatesSchema,
@@ -17,6 +19,7 @@ import type {
   SignalSchema,
   SignalTypeSchema,
   ToolCallSchema,
+  UserProfileSchema,
   WatchlistSchema,
 } from "./schemas";
 
@@ -46,6 +49,8 @@ export type CreditUsage = z.infer<typeof CreditUsageSchema>;
 export type DashboardAggregates = z.infer<typeof DashboardAggregatesSchema>;
 export type DashboardResponse = z.infer<typeof DashboardResponseSchema>;
 export type Range = z.infer<typeof RangeSchema>;
+export type UserProfile = z.infer<typeof UserProfileSchema>;
+export type AlertStatus = z.infer<typeof AlertStatusSchema>;
 
 /**
  * A signal decorated with local read state.
@@ -55,3 +60,4 @@ export type Range = z.infer<typeof RangeSchema>;
  * server field without any component changing.
  */
 export type SignalWithState = Signal & { seen: boolean };
+export type ChatReply = z.infer<typeof ChatReplySchema>;

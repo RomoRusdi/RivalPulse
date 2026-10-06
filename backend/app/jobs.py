@@ -1,18 +1,23 @@
 """PostgreSQL outbox reconciliation; Redis queue delivery is disposable and repeatable."""
 import logging
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from redis.exceptions import RedisError
 from rq import Queue, Worker
 from sqlalchemy import or_, select, update
 
 from app.config import get_settings
+from app.contracts import RunCreate
 from app.db import session, uid, utcnow
-from app.models import Run, RunStep
+from app.errors import AppError
+from app.models import Run, RunStep, Watchlist
 from app.providers import redis_connection
+from app.service import create_run
 
 log = logging.getLogger("rivalpulse.jobs")
+
+_last_sweep: datetime | None = None
 
 
 def enqueue(run_id):
@@ -34,6 +39,8 @@ def enqueue(run_id):
 def reconcile(enqueue_fn=enqueue):
     settings, now = get_settings(), utcnow()
     with session() as db, db.begin():
+        from app.email_verification import cleanup
+        cleanup(db)
         expired = list(db.scalars(select(Run).where(
             Run.status == "running", Run.started_at < now - timedelta(seconds=settings.run_timeout + 30),
         ).with_for_update(skip_locked=True)))
@@ -53,6 +60,46 @@ def reconcile(enqueue_fn=enqueue):
     return len(queued)
 
 
+def maybe_scheduled_sweep(now=None):
+    """Queue one bounded sweep of the default watchlist per interval.
+
+    Opt-in via SCHEDULED_SWEEP_ENABLED. Skips when another run is active, so
+    scheduled and manual investigations never overlap or double-spend. Costs
+    exactly one normal run's budget when it fires; the email itself is free
+    (built from the run's own evidence under the alert policy). The first
+    call only arms the timer, so enabling it never spends credits immediately.
+    """
+    settings = get_settings()
+    if settings.auth_mode != "demo" or not settings.scheduled_sweep_enabled:
+        return False
+    global _last_sweep
+    now = now or utcnow()
+    if _last_sweep is None or now - _last_sweep < timedelta(hours=settings.scheduled_sweep_interval_hours):
+        if _last_sweep is None:
+            _last_sweep = now
+        return False
+    with session() as db:
+        watchlist = db.scalar(select(Watchlist).where(Watchlist.workspace_id == settings.workspace_id)
+                              .order_by(Watchlist.created_at))
+        if watchlist is None:
+            return False
+        active = db.scalar(select(Run).where(Run.watchlist_id == watchlist.id,
+                                             Run.status.in_(["queued", "running"])).limit(1))
+        if active is not None:
+            return False
+        watchlist_id = watchlist.id
+    try:
+        with session() as db:
+            db.info["workspace_id"] = settings.workspace_id
+            run = create_run(db, RunCreate(watchlist_id=watchlist_id, query=None), None)
+    except AppError:
+        return False
+    _last_sweep = now
+    enqueue(run.id)
+    log.info("scheduled_sweep_queued", extra={"run_id": run.id})
+    return True
+
+
 def main():
     import sys
     from app.logging_config import configure_logging
@@ -63,6 +110,10 @@ def main():
                 reconcile()
             except Exception:
                 log.error("reconciliation_unavailable")
+            try:
+                maybe_scheduled_sweep()
+            except Exception:
+                log.error("scheduler_unavailable")
             time.sleep(5)
     else:
         connection = redis_connection()

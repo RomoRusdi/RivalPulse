@@ -3,7 +3,7 @@ import base64
 import hmac
 import json
 from contextlib import asynccontextmanager
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -13,19 +13,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.security import HTTPBearer
 from pydantic import Field
-from sqlalchemy import exists, func, or_, select, text
+from sqlalchemy import delete, exists, func, or_, select, text
+from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException
 
-from app import jobs
+from app import auth, chat as conversation, jobs
+from app.alerts import status as alert_status
+from app.allowance import allowance
 from app.compat import run_json as legacy_run, signal_json as legacy_signal
 from app.config import get_settings
-from app.contracts import ErrorBody, LegacyRunCreate, RunAccepted, RunCreate, Strict, WatchlistCreate, WatchlistPatch
-from app.contracts import CompanyOut, Page, RunDetail, SignalCard, SignalDetail, WatchlistOut
-from app.db import get_db, iso, session, uid, utcnow
+from app.contracts import ConversationSync, ErrorBody, LegacyRunCreate, LegacyWatchlistUpdate, RunAccepted, RunCreate, Strict, WatchlistCreate, WatchlistPatch
+from app.contracts import ChatReply, ChatRequest, CompanyOut, Page, RunDetail, SignalCard, SignalDetail, WatchlistOut
+from app.db import get_db, iso, migration_heads, session, uid, utcnow
 from app.errors import AppError
+from app.finding_feed import CATEGORIES, COLORS, FindingFeed, finding_page
+from app.financial_feed import FinancialSourceOut, RevenueFeed, financial_source, revenue_feed
 from app.logging_config import configure_logging
-from app.models import Company, CreditAccount, Membership, Revision, Run, RunSnapshot, RunStep, Signal, Watchlist
-from app.service import company_json, create_run, owned, page, replace_members, validate_companies, watchlist_json
+from app.models import Company, Conversation, Membership, Revision, Run, RunSnapshot, RunStep, Signal, Watchlist
+from app.service import company_json, create_run, owned, page, replace_members, validate_companies, watchlist_json, workspace_id
 
 
 @asynccontextmanager
@@ -36,12 +41,12 @@ async def lifespan(app):
 
 settings = get_settings()
 app = FastAPI(title="RivalPulse", version="0.1.0", lifespan=lifespan,
-              description="Private competitive intelligence. Replay is synthetic and explicitly labeled.",
+              description="Private competitive intelligence backed by Sectors v2. Replay data is for tests only.",
               responses={400: {"model": ErrorBody}, 401: {"model": ErrorBody}, 409: {"model": ErrorBody},
                          422: {"model": ErrorBody}, 503: {"model": ErrorBody}})
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_credentials=True,
-                   allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
-                   allow_headers=["Authorization", "Content-Type", "Idempotency-Key"], expose_headers=["X-Request-ID"])
+                   allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+                   allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-CSRF-Token", "X-Tab-Session"], expose_headers=["X-Request-ID"])
 
 
 @app.middleware("http")
@@ -64,7 +69,12 @@ async def context_and_limits(request, call_next):
 
 
 def error_response(request, exc):
-    headers = {"WWW-Authenticate": 'Basic realm="RivalPulse"'} if exc.status == 401 else None
+    # Cookie sessions use the app's login page. A Basic challenge on a fetch
+    # response opens the browser's native password dialog before the UI can
+    # handle the 401. Explicit demo API clients can still use bearer tokens.
+    headers = {"WWW-Authenticate": 'Bearer realm="RivalPulse"'} if (
+        exc.status == 401 and get_settings().auth_mode == "demo"
+    ) else None
     return JSONResponse(status_code=exc.status, headers=headers, content={"code": exc.code, "message": exc.message,
                          "retryable": exc.retryable, "request_id": getattr(request.state, "request_id", uid())})
 
@@ -92,7 +102,10 @@ async def internal_error(request, exc):
 bearer = HTTPBearer(auto_error=False)
 
 
-def access(request: Request, credentials=Depends(bearer)):
+def access(request: Request, db=Depends(get_db), credentials=Depends(bearer)):
+    if get_settings().auth_mode == "accounts":
+        return auth.authenticate(request, db)
+    db.info["workspace_id"] = get_settings().workspace_id
     expected = get_settings().demo_access_token.get_secret_value()
     if len(expected) < 16:
         raise AppError("ACCESS_NOT_CONFIGURED", "Set a demo access token of at least 16 characters", 503)
@@ -118,8 +131,18 @@ class Login(Strict):
     token: str = Field(min_length=16, max_length=256)
 
 
+class AlertStatus(Strict):
+    enabled: bool
+    provider: str
+    recipient: str | None
+    minimum_severity: Literal["medium", "high"]
+    delivery_policy: str
+
+
 @app.get("/demo/login", response_class=HTMLResponse, include_in_schema=False)
 def login_page():
+    if get_settings().auth_mode != "demo":
+        raise AppError("DEMO_DISABLED", "Use account login", 404)
     return """<!doctype html><html><meta charset="utf-8"><title>RivalPulse private demo</title>
     <body><h1>RivalPulse private demo</h1><form id="login"><label>Access token
     <input id="token" type="password" autocomplete="current-password" required></label><button>Sign in</button></form>
@@ -132,12 +155,27 @@ def login_page():
 
 @app.post("/demo/login", status_code=204)
 def login(body: Login, request: Request):
+    if get_settings().auth_mode != "demo":
+        raise AppError("DEMO_DISABLED", "Use account login", 404)
     expected = get_settings().demo_access_token.get_secret_value()
     if len(expected) < 16 or not hmac.compare_digest(body.token.encode(), expected.encode()):
         raise AppError("UNAUTHORIZED", "Access denied", 401)
     response = Response(status_code=204)
     response.set_cookie("rivalpulse_demo", expected, httponly=True, secure=request.url.scheme == "https",
                         samesite="strict", max_age=8 * 3600)
+    return response
+
+
+@app.post("/demo/logout", status_code=204)
+def logout(request: Request):
+    if get_settings().auth_mode != "demo":
+        raise AppError("DEMO_DISABLED", "Use account logout", 404)
+    # A cross-site POST must not clear another site's demo cookie.
+    origin = request.headers.get("origin")
+    if origin and origin != str(request.base_url).rstrip("/"):
+        raise AppError("ORIGIN_REJECTED", "Request origin not allowed", 403)
+    response = Response(status_code=204)
+    response.delete_cookie("rivalpulse_demo", path="/", samesite="strict")
     return response
 
 
@@ -154,16 +192,93 @@ def live():
 @app.get("/api/v1/health/ready", tags=["health"])
 def ready(db: DB):
     try:
-        revision = db.scalar(text("SELECT version_num FROM alembic_version"))
-        if revision != "20260922_provider_payload":
+        revisions = set(db.scalars(text("SELECT version_num FROM alembic_version")))
+        if not revisions or revisions != migration_heads():
             raise ValueError()
         from app.providers import redis_connection
         redis_connection().ping()
-        if len(get_settings().demo_access_token.get_secret_value()) < 16:
+        if get_settings().auth_mode == "demo" and len(get_settings().demo_access_token.get_secret_value()) < 16:
             raise ValueError()
     except Exception:
         raise AppError("NOT_READY", "Database, migration, Redis or access configuration is not ready", 503, True) from None
+    if get_settings().mode == "live" and not get_settings().sectors_api_key.get_secret_value().strip():
+        raise AppError("PROVIDER_CREDENTIALS_MISSING", "Configure a private Sectors API key before live research", 503)
     return {"status": "ready", "mode": get_settings().mode}
+
+
+@router.get("/alerts/status", tags=["alerts"], response_model=AlertStatus)
+def alerts_status(db: DB):
+    return alert_status(workspace_id(db))
+
+
+def conversation_json(row):
+    return {"id": row.id, "title": row.title, "createdAt": iso(row.created_at),
+            "updatedAt": iso(row.updated_at), "messages": row.messages}
+
+
+@router.get("/session", tags=["auth"])
+def current_session():
+    return {"authenticated": True, "mode": "accounts" if get_settings().auth_mode == "accounts" else "private-demo"}
+
+
+@router.post("/chat", tags=["agent"], response_model=ChatReply)
+def chat_reply(body: ChatRequest, db: DB):
+    """Conversation only: no provider calls, no credits, no research run."""
+    text, source, language = conversation.reply(
+        db, body.message, [turn.model_dump() for turn in body.history])
+    return {"reply": text, "source": source, "language": language}
+
+
+@router.get("/conversations", tags=["agent"])
+def conversations(db: DB):
+    rows = db.scalars(select(Conversation).where(
+        Conversation.workspace_id == workspace_id(db)
+    ).order_by(Conversation.updated_at.desc()).limit(30)).all()
+    return [conversation_json(row) for row in rows]
+
+
+@router.post("/conversations", tags=["agent"])
+def sync_conversation(body: ConversationSync, db: DB):
+    row = db.scalar(select(Conversation).where(
+        Conversation.id == str(body.id), Conversation.workspace_id == workspace_id(db)))
+    messages = [message.model_dump(mode="json", by_alias=True, exclude_none=True) for message in body.messages]
+    for message in messages:
+        run_data = message.get("run")
+        if run_data:
+            run = owned(db, Run, run_data.get("id", ""))
+            message["run"] = legacy_run(db, run)
+    if row:
+        # An old browser tab must not overwrite a more recent saved transcript.
+        if body.updated_at.replace(tzinfo=utcnow().tzinfo) < row.updated_at.replace(tzinfo=utcnow().tzinfo):
+            raise AppError("CONVERSATION_STALE", "Reload this conversation before saving changes", 409)
+        row.title, row.messages, row.updated_at = body.title, messages, body.updated_at
+    else:
+        row = Conversation(id=str(body.id), workspace_id=workspace_id(db), title=body.title,
+                           messages=messages, created_at=body.created_at, updated_at=body.updated_at)
+        db.add(row)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise AppError("CONVERSATION_CONFLICT", "Conversation cannot be saved", 409) from None
+    return conversation_json(row)
+
+
+@router.delete("/conversations", tags=["agent"], status_code=204)
+def clear_conversations(db: DB):
+    # Chat transcripts only; stored investigations and immutable evidence are
+    # not removed. Workspace scoping is enforced by the database predicate.
+    db.execute(delete(Conversation).where(Conversation.workspace_id == workspace_id(db)))
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.delete("/conversations/{conversation_id}", tags=["agent"], status_code=204)
+def delete_conversation(conversation_id: UUID, db: DB):
+    row = owned(db, Conversation, conversation_id)
+    db.delete(row)
+    db.commit()
+    return Response(status_code=204)
 
 
 @router.get("/companies", tags=["companies"], response_model=Page[CompanyOut])
@@ -178,7 +293,7 @@ def companies(db: DB, query: str = Query("", max_length=100), cursor: str | None
 @router.post("/watchlists", status_code=201, tags=["watchlists"], response_model=WatchlistOut)
 def create_watchlist(body: WatchlistCreate, db: DB):
     ids = validate_companies(db, body.company_ids)
-    row = Watchlist(workspace_id=get_settings().workspace_id, **body.model_dump(exclude={"company_ids"}))
+    row = Watchlist(workspace_id=workspace_id(db), **body.model_dump(exclude={"company_ids"}))
     db.add(row)
     db.flush()
     replace_members(db, row.id, ids)
@@ -188,7 +303,7 @@ def create_watchlist(body: WatchlistCreate, db: DB):
 
 @router.get("/watchlists", tags=["watchlists"], response_model=Page[WatchlistOut])
 def watchlists(db: DB, cursor: str | None = None, limit: Limit = 20):
-    rows, next_cursor = page(db, select(Watchlist).where(Watchlist.workspace_id == get_settings().workspace_id),
+    rows, next_cursor = page(db, select(Watchlist).where(Watchlist.workspace_id == workspace_id(db)),
                              Watchlist, cursor, limit)
     return {"items": [watchlist_json(db, row) for row in rows], "next_cursor": next_cursor}
 
@@ -196,6 +311,16 @@ def watchlists(db: DB, cursor: str | None = None, limit: Limit = 20):
 @router.get("/watchlists/{watchlist_id}", tags=["watchlists"], response_model=WatchlistOut)
 def get_watchlist(watchlist_id: UUID, db: DB):
     return watchlist_json(db, owned(db, Watchlist, watchlist_id))
+
+
+@router.get("/watchlists/{watchlist_id}/financials", tags=["watchlists"], response_model=RevenueFeed)
+def watchlist_financials(watchlist_id: UUID, db: DB):
+    return revenue_feed(db, owned(db, Watchlist, watchlist_id))
+
+
+@router.get("/financial-sources/{snapshot_id}", tags=["watchlists"], response_model=FinancialSourceOut)
+def financial_evidence(snapshot_id: UUID, db: DB):
+    return financial_source(db, snapshot_id)
 
 
 @router.patch("/watchlists/{watchlist_id}", tags=["watchlists"], response_model=WatchlistOut)
@@ -240,7 +365,7 @@ def get_run(run_id: UUID, db: DB):
 def history(watchlist_id: UUID, db: DB, cursor: str | None = None, limit: Limit = 20):
     owned(db, Watchlist, watchlist_id)
     rows, next_cursor = page(db, select(Run).where(Run.watchlist_id == str(watchlist_id),
-                                                 Run.workspace_id == get_settings().workspace_id), Run, cursor, limit)
+                                                 Run.workspace_id == workspace_id(db)), Run, cursor, limit)
     return {"items": [run_detail(db, r) for r in rows], "next_cursor": next_cursor}
 
 
@@ -253,7 +378,7 @@ def signal_query(db, watchlist_id=None, severity=None, mode=None):
     latest_id = select(Revision.id).where(Revision.signal_id == Signal.id).order_by(
         Revision.created_at.desc(), Revision.id.desc()).limit(1).correlate(Signal).scalar_subquery()
     query = select(Signal).join(Revision, Revision.id == latest_id).where(
-        Signal.workspace_id == get_settings().workspace_id, Signal.mode == (mode or get_settings().mode))
+        Signal.workspace_id == workspace_id(db), Signal.mode == (mode or get_settings().mode))
     if watchlist_id:
         owned(db, Watchlist, watchlist_id)
         query = query.where(exists(select(Membership.company_id).where(Membership.watchlist_id == str(watchlist_id),
@@ -279,12 +404,13 @@ def signal_detail(signal_id: UUID, db: DB):
             "first_seen_at": iso(signal.first_seen_at), "last_seen_at": iso(signal.last_seen_at)}
 
 
+app.include_router(auth.router)
 app.include_router(router)
 compat = APIRouter(dependencies=[Depends(access)], tags=["frontend compatibility"])
 
 
 def default_watchlist(db):
-    row = db.scalar(select(Watchlist).where(Watchlist.workspace_id == get_settings().workspace_id).order_by(Watchlist.created_at))
+    row = db.scalar(select(Watchlist).where(Watchlist.workspace_id == workspace_id(db)).order_by(Watchlist.created_at))
     if not row:
         raise AppError("WATCHLIST_REQUIRED", "Create a watchlist first or run the seed command", 409)
     return row
@@ -296,23 +422,22 @@ def dashboard(db: DB, range: Literal["week", "month"] = "week"):
     rows = db.scalars(signal_query(db, wl.id).where(Signal.last_seen_at >= utcnow() - timedelta(days=7 if range == "week" else 30))).all()
     cards = [latest_revision(db, s).card for s in rows]
     projected = [legacy_signal(c) for c in cards]
-    account = db.get(CreditAccount, "sectors")
     count = len(cards)
-    kinds = ["Pricing", "Product", "Partnership", "Campaign"]
+    kinds = CATEGORIES
     mix = [{"label": kind, "count": sum(c["type"] == kind for c in cards),
             "percent": 100 * sum(c["type"] == kind for c in cards) / count if count else 0,
-            "color": ["#fd7042", "#292929", "#8d9e9c", "#ccc3b7"][i]} for i, kind in enumerate(kinds)]
-    last = db.scalar(select(Run).where(Run.workspace_id == get_settings().workspace_id,
+            "color": COLORS[i]} for i, kind in enumerate(kinds)]
+    last = db.scalar(select(Run).where(Run.workspace_id == workspace_id(db),
                                       Run.mode == get_settings().mode).order_by(Run.created_at.desc()).limit(1))
     link_query = select(func.count()).select_from(RunSnapshot).join(Run).where(
-        Run.workspace_id == get_settings().workspace_id, Run.mode == get_settings().mode)
+        Run.workspace_id == workspace_id(db), Run.mode == get_settings().mode)
     total_links = db.scalar(link_query) or 0
     cache_hits = db.scalar(link_query.where(RunSnapshot.outcome == "cached")) or 0
     watchlist = watchlist_json(db, wl)
     return {"watchlist": watchlist, "signals": projected, "mode": get_settings().mode,
             "aggregates": {"companiesTracked": len(watchlist["companies"]), "signalsInRange": count,
                            "highSeverityCount": sum(c["severity"] == "high" for c in cards),
-                           "credits": {"used": account.used if account else 0, "total": get_settings().credit_total,
+                           "credits": {**allowance(db, workspace_id(db)),
                                        "cacheHitRate": cache_hits / total_links if total_links else 0},
                            "pipeline": [{"label": "Stored signals", "count": count, "percent": 100 if count else 0,
                                          "tone": "accent"}], "mix": mix, "mixTotal": count,
@@ -321,6 +446,41 @@ def dashboard(db: DB, range: Literal["week", "month"] = "week"):
                                                          "observedSignals": sum(len(c["observed_signals"]) for c in cards),
                                                          "hypotheses": sum(len(c["hypotheses"]) for c in cards)}},
                            "lastRunAt": iso(last.created_at) if last else ""}}
+
+
+@compat.get("/findings", response_model=FindingFeed)
+def findings(db: DB, period: Literal["today", "week", "month", "all", "custom"] = "month",
+             start: date | None = None, end: date | None = None, timezone: str = Query("UTC", max_length=80),
+             company: str | None = Query(None, pattern="^[A-Z]{4}$"),
+             category: Literal["Pricing", "Product", "Partnership", "Campaign"] | None = None,
+             cursor: str | None = Query(None, max_length=300), limit: Limit = 20):
+    wl = default_watchlist(db)
+    return finding_page(db, signal_query(db, wl.id), period=period, start=start, end=end, zone=timezone,
+                        company=company, category=category, cursor=cursor, limit=limit)
+
+
+@compat.patch("/watchlist")
+def update_default_watchlist(body: LegacyWatchlistUpdate, db: DB):
+    row = default_watchlist(db)
+    db.refresh(row, with_for_update=True)
+    if body.tickers is not None:
+        companies = db.scalars(select(Company).where(Company.symbol.in_(body.tickers))).all()
+        if len(companies) != len(body.tickers):
+            raise AppError("UNKNOWN_COMPANY", "One or more competitors are not available in the server catalog", 422)
+        replace_members(db, row.id, validate_companies(db, [company.id for company in companies]))
+    if body.name is not None:
+        row.name = body.name
+    # "user_company" in fields_set (even with null) means the user explicitly
+    # set or cleared their company. A plain `is not None` check would make
+    # "neutral" impossible to save.
+    if "user_company" in body.model_fields_set:
+        row.user_company = body.user_company.strip() if body.user_company else None
+    row.updated_at = utcnow()
+    db.commit()
+    projected = watchlist_json(db, row)
+    return {"id": projected["id"], "name": projected["name"], "user_company": projected["user_company"],
+            "companies": [{"ticker": company["ticker"], "name": company["name"], "industry": company["industry"]}
+                          for company in projected["companies"]]}
 
 
 @compat.get("/signals/{signal_id}")
@@ -336,14 +496,40 @@ def old_submit(body: LegacyRunCreate, db: DB, background: BackgroundTasks, idemp
     return legacy_run(db, run)
 
 
+@compat.get("/runs/active")
+def active_run(db: DB):
+    """The newest in-flight run on the default watchlist, if any.
+
+    Lets a reloaded page (or a second tab) resume watching a run whose stream
+    lived in another page lifetime, instead of orphaning it. Runs older than
+    the execution window plus grace are reconciler prey, never adopted.
+    """
+    cutoff = utcnow() - timedelta(seconds=get_settings().run_timeout + 300)
+    row = db.scalar(select(Run).where(Run.watchlist_id == default_watchlist(db).id,
+                                      Run.status.in_(["queued", "running"]),
+                                      Run.created_at > cutoff)
+                    .order_by(Run.created_at.desc()).limit(1))
+    if not row:
+        raise AppError("NO_ACTIVE_RUN", "No investigation is currently running", 404)
+    return legacy_run(db, row)
+
+
 @compat.get("/runs/{run_id}/stream")
-def stream(run_id: UUID, db: DB):
+def stream(run_id: UUID, request: Request, db: DB):
     owned(db, Run, run_id)
 
     async def events():
         for _ in range(300):
             with session() as read_db:
-                row = owned(read_db, Run, run_id)
+                try:
+                    if get_settings().auth_mode == "accounts":
+                        auth.authenticate(request, read_db, touch=False)
+                    else:
+                        read_db.info["workspace_id"] = workspace_id(db)
+                    row = owned(read_db, Run, run_id)
+                except AppError:
+                    yield 'event: auth-expired\ndata: {}\n\n'
+                    return
                 output, terminal = legacy_run(read_db, row), row.status not in ("queued", "running")
             yield "data: " + json.dumps(output) + "\n\n"
             if terminal:

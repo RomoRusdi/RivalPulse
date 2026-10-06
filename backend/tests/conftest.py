@@ -7,18 +7,36 @@ from app.config import get_settings
 from app.db import engine
 
 
+@pytest.fixture(autouse=True)
+def isolated_configuration(monkeypatch):
+    # Tests never inherit a developer's provider credentials or unsupported legacy mode.
+    monkeypatch.setenv("MODE", "replay")
+    monkeypatch.setenv("AUTH_MODE", "demo")
+    monkeypatch.setenv("EMAIL_VERIFICATION_ENABLED", "false")
+    monkeypatch.setenv("TAB_SESSION_REQUIRED", "false")
+    monkeypatch.setenv("SECTORS_API_KEY", "synthetic-test-key")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
 @pytest.fixture
 def env(tmp_path, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "sqlite:///" + (tmp_path / "test.db").as_posix())
     monkeypatch.setenv("MODE", "replay")
+    monkeypatch.setenv("AUTH_MODE", "demo")
     monkeypatch.setenv("REPLAY_SCENARIO", "baseline")
     monkeypatch.setenv("DEMO_ACCESS_TOKEN", "test-private-access-token")
     monkeypatch.setenv("LLM_ENABLED", "false")
+    monkeypatch.setenv("LLM_PLAN_ENABLED", "false")
     get_settings.cache_clear()
     engine.cache_clear()
     command.upgrade(Config("alembic.ini"), "head")
     from app.seed import seed
     seed()
+    import fakeredis
+    test_redis = fakeredis.FakeRedis()
+    monkeypatch.setattr("app.chat.redis_connection", lambda: test_redis)
     monkeypatch.setattr("app.jobs.enqueue", lambda run_id: True)
     yield get_settings()
     engine().dispose()

@@ -6,12 +6,11 @@ import { Search } from "lucide-react";
 import type { Route } from "next";
 import { SeverityPill, cx } from "@/components/ui/primitives";
 import { useStore } from "@/lib/store";
-import { RUN_HISTORY } from "@/lib/mock-data";
 import { shortDate } from "@/lib/format";
 
 interface Result {
   id: string;
-  group: "Signals" | "Companies" | "Runs";
+  group: "Findings" | "Companies" | "Research";
   title: string;
   meta: string;
   href: Route;
@@ -23,13 +22,13 @@ interface Result {
 const MAX_PER_GROUP = 4;
 
 /**
- * Top-bar search across signals, watchlist companies and past runs.
+ * Top-bar search across findings, watchlist companies and the current run.
  *
  * Everything it searches is already in memory, so this stays client-side. When
  * the corpus outgrows that, swap `results` for a debounced `GET /search`.
  */
 export function SearchField() {
-  const { signals, watchlist } = useStore();
+  const { signals, watchlist, activeRun } = useStore();
   const router = useRouter();
 
   const [query, setQuery] = useState("");
@@ -54,7 +53,7 @@ export function SearchField() {
       ) {
         matched.push({
           id: s.id,
-          group: "Signals",
+          group: "Findings",
           title: s.title,
           meta: `${s.company} · ${s.type}`,
           href: `/signals/${s.id}` as Route,
@@ -75,33 +74,33 @@ export function SearchField() {
           id: c.ticker,
           group: "Companies",
           title: `${c.ticker} · ${c.name}`,
-          meta: `${c.industry} · ${count} signal${count === 1 ? "" : "s"}`,
+          meta: `${c.industry} · ${count} finding${count === 1 ? "" : "s"}`,
           href: "/watchlists",
         });
       }
     }
 
-    for (const r of RUN_HISTORY) {
+    for (const r of activeRun ? [activeRun] : []) {
       if (r.query.toLowerCase().includes(q) || r.id.includes(q)) {
         matched.push({
           id: r.id,
-          group: "Runs",
+          group: "Research",
           title: r.query,
-          meta: `Run #${r.id} · ${r.at}`,
-          href: "/runs",
+          meta: r.status === "queued" || r.status === "running" ? "Research in progress" : r.status === "complete" ? "Research complete" : "Research interrupted",
+          href: "/",
         });
       }
     }
 
     // Cap each group so one noisy category can't crowd the others out.
     const capped: Result[] = [];
-    for (const group of ["Signals", "Companies", "Runs"] as const) {
+    for (const group of ["Findings", "Companies", "Research"] as const) {
       capped.push(
         ...matched.filter((m) => m.group === group).slice(0, MAX_PER_GROUP),
       );
     }
     return capped;
-  }, [query, signals, watchlist]);
+  }, [query, signals, watchlist, activeRun]);
 
   // Ctrl/Cmd+K focuses search from anywhere.
   useEffect(() => {
@@ -149,7 +148,7 @@ export function SearchField() {
           className="shrink-0 text-muted"
         />
         <span className="sr-only" id="search-hint">
-          Search companies, signals or runs. Press Control or Command K to focus.
+          Search companies, findings or current research. Press Control or Command K to focus.
         </span>
         <input
           ref={inputRef}
@@ -187,7 +186,7 @@ export function SearchField() {
               inputRef.current?.blur();
             }
           }}
-          placeholder="Search companies, signals or runs…"
+          placeholder="Search companies and findings…"
           className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-muted-strong"
         />
         <kbd className="hidden shrink-0 rounded-[6px] border border-border bg-card px-1.5 py-0.5 text-[11px] font-semibold text-muted sm:block">

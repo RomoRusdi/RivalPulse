@@ -56,6 +56,29 @@ def test_cache_explicit_sections_and_credit_cost(client, watchlist, monkeypatch)
     assert third.id == first.id and status == "cached" and len(requests) == 1
 
 
+def test_sectors_report_feeds_cited_annual_brief(client, watchlist, monkeypatch):
+    from app.research import financial_brief_for
+
+    def handler(request):
+        symbol = request.url.path.split("/")[-2]
+        return httpx.Response(200, json=replay_report(symbol, "baseline", {}))
+
+    provider, company, run_id = live_provider(client, watchlist, monkeypatch, handler)
+    snapshot, outcome = provider.report(company)
+    assert outcome == "fetched" and snapshot.provider == "sectors" and snapshot.mode == "live"
+    brief, claims = financial_brief_for(run_id)
+    row = next(row for row in brief.rows if row.symbol == company["symbol"])
+    assert {metric.metric for metric in row.metrics} == {
+        "revenue", "earnings", "revenue_yoy_percent", "earnings_yoy_percent"}
+    yoy = next(m for m in row.metrics if m.metric == "revenue_yoy_percent")
+    assert yoy.value == "+20.00%" and yoy.unit == "percent"
+    assert all(metric.source_url.startswith("https://api.sectors.app/v2/company/report/")
+               and metric.snapshot_id == snapshot.id for metric in row.metrics)
+    assert len(claims) == 2
+    with session() as db:
+        assert db.get(Run, run_id).credits == 2
+
+
 def test_central_budget_atomic_reservations(client, watchlist, monkeypatch):
     provider, company, run_id = live_provider(client, watchlist, monkeypatch, lambda r: httpx.Response(500))
     with session() as db, db.begin():
@@ -122,6 +145,15 @@ def test_normalization_nulls_periods_currency_and_growth():
     assert growth(a, b) == "20.00"
     for patch in ({"value": "0"}, {"currency": "IDR"}, {"period": "2023"}, {"comparison_basis": "merged"}):
         assert growth(a, {**b, **patch}) is None
+
+
+def test_retired_provider_mode_cannot_be_configured(monkeypatch):
+    from pydantic import ValidationError
+    monkeypatch.setenv("MODE", "yahoo")
+    get_settings.cache_clear()
+    with pytest.raises(ValidationError):
+        get_settings()
+    get_settings.cache_clear()
 
 
 def test_news_pagination_and_symbol_filter(client, watchlist, monkeypatch):
