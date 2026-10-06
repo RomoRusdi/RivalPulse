@@ -93,10 +93,7 @@ export function Sidebar({
         ) : (
           <>
             <div className="flex min-w-0 items-center gap-2.5">
-              <Logo size={26} />
-              <span className="truncate text-[17px] font-extrabold tracking-[-0.02em]">
-                RivalPulse
-              </span>
+              <Logo size={29} wordmark />
             </div>
             {onToggleCollapsed ? (
               <button

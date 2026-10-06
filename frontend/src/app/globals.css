@@ -76,6 +76,15 @@ html {
   height: 100%;
 }
 
+/* Shared timings keep forms, navigation and data surfaces calm and responsive. */
+:where(button, a, summary, input, textarea, select) {
+  transition: color 180ms var(--ease-enter), background-color 180ms var(--ease-enter), border-color 180ms var(--ease-enter), box-shadow 180ms var(--ease-enter);
+}
+:where(button, a, summary):focus-visible { box-shadow: 0 0 0 3px rgb(20 108 80 / .1); }
+:where(input, textarea, select):focus-visible { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgb(20 108 80 / .08); }
+.rp-card { animation: rp-page-enter 220ms var(--ease-enter) both; transition: border-color 180ms var(--ease-enter), box-shadow 180ms var(--ease-enter); }
+.rp-card:hover, .rp-card:focus-within { border-color: var(--color-neutral-300); }
+
 /* min-height, not height: signed-out pages size to their own content. */
 body {
   min-height: 100%;
@@ -372,3 +381,125 @@ g[role="button"]:focus-visible .rp-data-point { stroke-width: 5; }
 .rp-select-menu { animation: rp-select-enter 140ms var(--ease-enter) both; transform-origin: top; }
 @keyframes rp-select-enter { from { opacity: 0; transform: translateY(-3px) scale(0.99); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .rp-select-menu { animation: none; } }
+
+/* Jitter-inspired composer: a single rounded surface and gentle focus feedback. */
+.rp-agent-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 9px 10px;
+  border: 1px solid var(--color-border-frame);
+  border-radius: 26px;
+  background: linear-gradient(135deg, var(--color-card) 65%, #f5faf7);
+  box-shadow: inset 0 1px 0 white, 0 8px 24px -12px rgb(18 45 35 / .14);
+  transition: border-color 200ms var(--ease-enter), box-shadow 200ms var(--ease-enter);
+}
+.rp-agent-composer:hover {
+  border-color: var(--color-neutral-300);
+  box-shadow: inset 0 1px 0 white, 0 10px 28px -12px rgb(18 45 35 / .18);
+}
+.rp-agent-composer:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 4px rgb(20 108 80 / .08), 0 12px 30px -14px rgb(18 45 35 / .2);
+}
+.rp-agent-composer-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  align-self: flex-start;
+  width: 42px;
+  height: 42px;
+  margin-top: 7px;
+  border: 1px solid var(--color-accent-wash-border);
+  border-radius: 15px;
+  background: linear-gradient(145deg, #f5fbf7, var(--color-accent-wash));
+  color: var(--color-accent);
+  transition: transform 200ms var(--ease-enter), background-color 200ms var(--ease-enter);
+}
+.rp-agent-composer:focus-within .rp-agent-composer-mark { transform: rotate(-4deg); }
+.rp-agent-input {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  min-height: 56px;
+  max-height: 176px;
+  padding: 16px 0;
+  border: 0;
+  border-radius: 0;
+  resize: none;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 14px;
+  line-height: 24px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-neutral-300) transparent;
+}
+.rp-agent-input::placeholder { color: var(--color-muted); }
+/* The enclosing surface supplies the focus ring instead of a square inner box. */
+.rp-agent-input:focus-visible { outline: none; }
+.rp-agent-input:disabled { cursor: not-allowed; }
+.rp-agent-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 8px;
+  min-width: 46px;
+  min-height: 46px;
+  margin-bottom: 5px;
+  padding: 0 17px;
+  border: 1px solid rgb(13 80 60 / .2);
+  border-radius: 17px;
+  background: linear-gradient(145deg, #1c7c5d, var(--color-accent-hover));
+  color: white;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .18), 0 4px 10px rgb(20 108 80 / .18);
+  transition: opacity 180ms var(--ease-enter), transform 180ms var(--ease-enter), box-shadow 180ms var(--ease-enter);
+}
+.rp-agent-send svg { transition: transform 180ms var(--ease-enter); }
+.rp-agent-send:hover:not(:disabled) { box-shadow: inset 0 1px 0 rgb(255 255 255 / .18), 0 6px 14px rgb(20 108 80 / .25); }
+.rp-agent-send:hover:not(:disabled) svg { transform: translate(1px, -1px); }
+.rp-agent-send:active:not(:disabled) { transform: scale(.96); }
+.rp-agent-send:disabled {
+  cursor: not-allowed;
+  border-color: var(--color-divider);
+  background: var(--color-subtle);
+  color: var(--color-muted);
+  box-shadow: none;
+}
+.rp-agent-key {
+  padding: 2px 5px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: rgb(255 255 255 / .7);
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 1.3;
+}
+@media (max-width: 639px) {
+  .rp-agent-composer { gap: 9px; padding-inline: 8px; border-radius: 23px; }
+  .rp-agent-composer-mark { width: 36px; height: 36px; margin-top: 10px; border-radius: 13px; }
+  .rp-agent-input { font-size: 16px; }
+  .rp-agent-send { padding-inline: 0; border-radius: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rp-agent-composer-mark, .rp-agent-send, .rp-agent-send svg { transform: none !important; transition: none !important; }
+}
+
+@keyframes rp-opacity-enter { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .rp-page-enter, .rp-card, .rp-select-menu, .rp-point-inspector {
+    animation: rp-opacity-enter 120ms ease-out both !important;
+    transform: none !important;
+  }
+  :where(button, a, summary, input, textarea, select), .rp-card {
+    transform: none !important;
+    transition-property: opacity, color, background-color, border-color, box-shadow !important;
+    transition-duration: 120ms !important;
+  }
+  .rp-chart-line { stroke-dashoffset: 0 !important; }
+  .rp-chart-point { opacity: 1 !important; transform: none !important; }
+}

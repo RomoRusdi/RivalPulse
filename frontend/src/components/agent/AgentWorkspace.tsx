@@ -1,16 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useAgentToolbarSlot } from "@/components/shell/AgentToolbarSlot";
 import { useFocusTrap } from "@/lib/use-focus-trap";
 import {
   ArrowDown,
   ArrowRight,
   Check,
   Clock3,
-  FileSearch,
   FileSpreadsheet,
   History,
   LoaderCircle,
@@ -18,15 +16,18 @@ import {
   Plus,
   RefreshCw,
   Route,
-  Send,
   Square,
   Trash2,
   X,
 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
-import { Button, Pill, cx } from "@/components/ui/primitives";
+import { AgentPrompt } from "./AgentPrompt";
+import { AgentControls } from "./AgentControls";
+import { promptSuggestions } from "@/lib/prompt-suggestions";
+import { FinancialHistoryChart } from "@/components/dashboard/FinancialHistoryChart";
+import { Pill, cx } from "@/components/ui/primitives";
 import { useStore } from "@/lib/store";
-import { clock, compactFinancial, figureUnitSuffix, prettyBriefKind, BRIEF_KINDS, runFailureMessage } from "@/lib/format";
+import { clock, formatFinancial, prettyBriefKind, BRIEF_KINDS, runFailureMessage } from "@/lib/format";
 import { routeMessage, detectLanguage } from "@/lib/agent-router";
 import {
   type ChatMessage,
@@ -40,35 +41,18 @@ import type { AgentRun, Signal } from "@/lib/types";
 import { downloadRunXls } from "@/lib/export-xls";
 import { type ChatTurn, clearConversationHistory, deleteConversation, getConversationHistory, saveConversation, sendChat } from "@/lib/api";
 
-const STARTERS = [
-  {
-    eyebrow: "Market sweep",
-    prompt: "What changed across my competitors this week, and what should marketing investigate first?",
-  },
-  {
-    eyebrow: "Workspace command",
-    prompt: "Show me who is currently in my competitor watchlist.",
-  },
-  {
-    eyebrow: "Financial context",
-    prompt: "Compare competitor financial momentum and explain what it may mean for positioning.",
-  },
-];
-
 interface PendingRun {
   sessionId: string;
   messageId: string;
 }
 
-export function AgentWorkspace() {
-  const toolbarTarget = useAgentToolbarSlot();
+export function AgentWorkspace({ initialPrompt = "" }: { initialPrompt?: string }) {
   const store = useStore();
   const {
     activeRun,
     watchlist,
     signals,
     aggregates,
-    loading,
     error,
     reload,
     startRun,
@@ -80,7 +64,8 @@ export function AgentWorkspace() {
     renameWatchlist,
   } = store;
   const { setOurCompany, storageScope } = store;
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(initialPrompt);
+  const [composerVersion, setComposerVersion] = useState(0);
   // A conversational reply is being written; hold the composer so replies
   // land in the order they were asked.
   const [chatPending, setChatPending] = useState(false);
@@ -98,6 +83,7 @@ export function AgentWorkspace() {
   const clearingRef = useRef(false);
 
   const busy = activeRun?.status === "queued" || activeRun?.status === "running";
+
   const selectedSession = useMemo(
     () => sessions.find((session) => session.id === selectedSessionId) ?? null,
     [sessions, selectedSessionId],
@@ -403,23 +389,12 @@ export function AgentWorkspace() {
     });
   };
 
-  const submit = (event?: FormEvent) => {
-    event?.preventDefault();
-    launch(draft);
-  };
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      submit();
-    }
-  };
-
   const startNewChat = () => {
     if (!historyReady || busy || chatPending || clearingRef.current) return;
     dismissRun();
     setSelectedSessionId(null);
     setDraft("");
+    setComposerVersion((value) => value + 1);
     setHistoryOpen(false);
     stayAtBottom.current = true;
     setShowJump(false);
@@ -502,27 +477,33 @@ export function AgentWorkspace() {
     setShowJump(!stayAtBottom.current);
   };
 
+  const composerProps = {
+    suggestions: promptSuggestions(watchlist, signals),
+    draft,
+    onDraftChange: setDraft,
+    onSend: launch,
+    disabled: !historyReady || busy || chatPending || clearingHistory,
+    working: busy || chatPending,
+    notices: <>
+      {historyError ? (
+        <div role="alert" className="mb-2.5 rounded-field border border-accent-wash-border bg-accent-wash px-3 py-2 text-xs text-ink-2">{historyError}</div>
+      ) : null}
+      {error ? (
+        <div role="alert" className="mb-2.5 flex items-center justify-between gap-3 rounded-field border border-accent-wash-border bg-accent-wash px-3 py-2 text-xs text-ink-2">
+          <span>The agent could not reach its workspace data.</span>
+          <button type="button" onClick={reload} className="cursor-pointer font-extrabold text-accent-ink hover:text-accent">Retry connection</button>
+        </div>
+      ) : null}
+    </>,
+  };
+
   return (
-    <section className="relative flex h-full min-h-0 flex-col overflow-hidden bg-surface" aria-label="RivalPulse agent workspace">
-      {toolbarTarget ? createPortal(<>
-        <div className="mr-auto hidden min-w-0 lg:block">
-          <p title={selectedSession?.title ?? "New investigation"} className="max-w-[28ch] truncate text-xs font-semibold text-muted">
-            {selectedSession?.title ?? "New investigation"}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setHistoryOpen(true)} aria-label="History" title="History" className="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-2 rounded-field px-3 text-sm font-semibold text-ink-2 transition-console hover:bg-subtle"><History aria-hidden size={17} /><span className="hidden sm:inline">History</span></button>
-            <button
-              type="button"
-              onClick={startNewChat}
-              disabled={!historyReady || busy || chatPending || clearingHistory}
-              aria-label="New chat" title="New chat"
-              className="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-2 rounded-field bg-accent px-3 text-sm font-bold text-white transition-console hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              <Plus aria-hidden size={17} /><span className="hidden sm:inline">New chat</span>
-            </button>
-        </div>
-      </>, toolbarTarget) : null}
+    <section className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[#F3F7F5]" aria-label="RivalPulse agent workspace">
+      <header className="flex shrink-0 items-start justify-between gap-3 px-4 pt-5 pb-3 md:px-6">
+        <div className="min-w-0"><h1 className="text-[clamp(17px,2vw,22px)] font-bold leading-snug tracking-tight">What would you like to know today?</h1>
+          <p className="mt-1.5 text-xs leading-relaxed text-muted">{selectedSession?.title ?? "Explore your watchlist with cited research."}</p></div>
+        <AgentControls blocked={!historyReady || busy || chatPending || clearingHistory} onNew={startNewChat} onHistory={() => setHistoryOpen(true)} />
+      </header>
 
       <div
         ref={scrollRef}
@@ -535,18 +516,15 @@ export function AgentWorkspace() {
             liveRunId={activeRun?.id}
             onCancel={stopCurrentRun}
             onRetry={retryMessage}
-            onLaunch={launch}
+            onLaunch={setDraft}
           />
         ) : (
-          <Welcome
-            loading={loading}
-            companyNames={watchlist?.companies.map((company) => company.name) ?? []}
-            onLaunch={launch}
-          />
+          <div className="mx-auto w-full max-w-[900px] px-4 py-6 md:px-8"><p className="max-w-[55ch] text-sm leading-relaxed text-muted">Ask a question about your competitors, review recent findings, or compare reported financial performance.</p></div>
         )}
       </div>
 
-      {showJump && selectedSession ? (
+      <div className="relative z-10 max-h-[55%] shrink-0 overflow-y-auto px-4 pb-3 pt-2 md:px-6 md:pb-4">
+        {showJump && selectedSession ? (
         <button
           type="button"
           onClick={() => {
@@ -555,46 +533,12 @@ export function AgentWorkspace() {
             scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
           }}
           aria-label="Scroll to latest message"
-          className="absolute bottom-[122px] left-1/2 z-10 flex h-8 w-8 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full border border-border bg-card text-ink-2 shadow-sm transition-console hover:bg-subtle"
+          className="absolute -top-11 left-1/2 z-10 flex h-8 w-8 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full border border-border bg-card text-ink-2 shadow-sm transition-console hover:bg-subtle"
         >
           <ArrowDown aria-hidden size={15} />
         </button>
-      ) : null}
-
-      <div className="rp-glass-bar relative z-10 shrink-0 border-t border-divider px-4 py-3 md:px-6 md:py-4">
-        <div className="mx-auto w-full max-w-[860px]">
-          {historyError ? (
-            <div role="alert" className="mb-2.5 rounded-field border border-accent-wash-border bg-accent-wash px-3 py-2 text-xs text-ink-2">
-              {historyError}
-            </div>
-          ) : null}
-          {error ? (
-            <div className="mb-2.5 flex items-center justify-between gap-3 rounded-field border border-accent-wash-border bg-accent-wash px-3 py-2 text-xs text-ink-2">
-              <span>The agent could not reach its workspace data.</span>
-              <button type="button" onClick={reload} className="cursor-pointer font-extrabold text-accent-ink hover:text-accent">Retry connection</button>
-            </div>
-          ) : null}
-          <form onSubmit={submit} className="flex items-end gap-2 rounded-[16px] border border-neutral-300 bg-card p-2 shadow-[0_12px_32px_-24px_rgba(26,26,26,0.55)] transition-console focus-within:border-ink-2">
-            <textarea
-              autoFocus={!selectedSession}
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={!historyReady || busy || chatPending || clearingHistory}
-              rows={2}
-              placeholder={busy ? "RivalPulse is investigating…" : "Ask a question or give a command…"}
-              aria-label="Ask RivalPulse"
-              className="max-h-36 min-h-13 flex-1 resize-none bg-transparent px-2.5 py-2 text-[14px] leading-[1.55] text-ink outline-none placeholder:text-muted disabled:cursor-not-allowed"
-            />
-            <Button type="submit" variant="primary" size="sm" disabled={!historyReady || !draft.trim() || busy || chatPending || clearingHistory} aria-label="Send message">
-              <Send aria-hidden size={15} strokeWidth={2.2} />
-              <span className="hidden sm:inline">Send</span>
-            </Button>
-          </form>
-          <p className="mt-2 text-center text-[11px] text-muted">
-            Ask about your competitors or update your watchlist.
-          </p>
-        </div>
+        ) : null}
+        <AgentPrompt key={selectedSession?.id ?? composerVersion} {...composerProps} />
       </div>
 
       {historyOpen ? (
@@ -612,38 +556,6 @@ export function AgentWorkspace() {
         />
       ) : null}
     </section>
-  );
-}
-
-function Welcome({ loading, companyNames, onLaunch }: { loading: boolean; companyNames: string[]; onLaunch: (prompt: string) => void }) {
-  return (
-    <div className="mx-auto flex min-h-full w-full max-w-[900px] flex-col justify-center px-5 py-10 md:px-10 md:py-12">
-      <div className="max-w-[650px]">
-        <div className="mb-4 text-accent"><Logo size={38} plain /></div>
-        <p className="mb-2 text-[10px] font-extrabold uppercase tracking-[0.13em] text-accent-ink">Competitor research</p>
-        <h1 className="text-[clamp(27px,3.6vw,42px)] font-extrabold leading-[1.08] tracking-[-0.045em] text-ink">Understand your next competitive move.</h1>
-        <p className="mt-3 max-w-[620px] text-[14px] leading-[1.7] text-muted">
-          Ask about competitor activity, compare financial performance, or update your watchlist. Research results include sources and clearly marked coverage gaps.
-        </p>
-      </div>
-
-      <div className="mt-7 grid gap-2.5 md:grid-cols-3">
-        {STARTERS.map((starter) => (
-          <button key={starter.eyebrow} type="button" onClick={() => onLaunch(starter.prompt)} className="group cursor-pointer rounded-detail border border-border bg-card p-4 text-left transition-console hover:-translate-y-0.5 hover:border-neutral-300 active:translate-y-0">
-            <span className="text-[10px] font-extrabold uppercase tracking-[0.11em] text-accent-ink">{starter.eyebrow}</span>
-            <span className="mt-2 block text-[13px] font-bold leading-[1.5] text-ink-2">{starter.prompt}</span>
-            <ArrowRight aria-hidden size={14} className="mt-3 text-muted transition-console group-hover:translate-x-1 group-hover:text-accent" />
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted">
-        <span className="inline-flex items-center gap-1.5 font-bold text-ink-2"><FileSearch aria-hidden size={14} className="text-accent" /> Current scope</span>
-        {loading ? <span>Loading watchlist…</span> : companyNames.length ? companyNames.map((name) => (
-          <span key={name} className="rounded-full border border-divider bg-subtle px-2.5 py-1">{name}</span>
-        )) : <Link href="/watchlists" className="font-bold text-accent-ink no-underline hover:text-accent">Add competitors first</Link>}
-      </div>
-    </div>
   );
 }
 
@@ -741,7 +653,7 @@ function SignalLinkList({ items, total }: { items: Signal[]; total: number }) {
         {items.map((signal) => (
           <li key={signal.id} className="text-[13px] leading-[1.5]">
             <Link href={`/signals/${signal.id}`} title={signal.headline} className="font-bold text-accent-ink no-underline hover:text-accent">
-              <span className="line-clamp-3">{signal.company} · {signal.headline}</span>
+              <span className="break-words">{signal.headline.startsWith(signal.company) ? signal.headline : `${signal.company} · ${signal.headline}`}</span>
             </Link>
             <span className="text-muted"> — {signal.type}, {signal.severity} severity</span>
           </li>
@@ -839,6 +751,8 @@ function ResearchRunMessage({ run, live, onCancel, onRetry }: { run: AgentRun; l
             {produced || runSignals.length ? <Link href="/signals" className="inline-flex items-center gap-1.5 text-xs font-extrabold text-accent-ink no-underline hover:text-accent">Review findings <ArrowRight size={13} /></Link> : null}
           </div>
         </div>
+        {run.financialBrief || run.orchestration?.route === "financial_statements" || /\b(revenue|earnings|financial|profit|pendapatan|keuangan|laba)\b/i.test(run.query) ? <div className="mt-5 border-t border-divider pt-5"><FinancialHistoryChart series={run.financialBrief ? run.financialBrief.rows.map((row) => ({ company: row.symbol, note: row.comparison_note,
+          points: (row.revenue_history.length ? row.revenue_history : row.metrics.filter((metric) => metric.metric === "revenue")).map((metric) => ({ ...metric, basis: metric.comparison_basis, sourceUrl: metric.source_url, snapshotId: metric.snapshot_id })) })) : [...new Set(runSignals.map((signal) => signal.company))].map((company) => ({ company, points: runSignals.filter((signal) => signal.company === company).flatMap((signal) => signal.financialContext.rows?.filter((row) => row.metric === "revenue") ?? []) }))} /></div> : null}
       </div>
     );
   }
@@ -921,7 +835,7 @@ function FinancialEvidence({ brief }: { brief: NonNullable<AgentRun["financialBr
       <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-accent-ink">Cited annual statements {brief.period ? `· ${brief.period}` : "· periods vary"}</p>
       <ComparisonTable brief={brief} />
       <p className="mt-2 text-[10px] leading-4 text-muted">
-        Units unverified unless labeled — hover any figure for its provider-native value.
+        Verified IDR figures use trillions. Hover to inspect the source scale, or open the cited report for its original values.
       </p>
       {brief.rows.map((row) =>
         row.comparison_note !== "Reporting scope must be verified before growth comparisons." ? (
@@ -981,11 +895,11 @@ function ComparisonTable({ brief }: { brief: NonNullable<AgentRun["financialBrie
                 {brief.rows.map((row) => {
                   const metric = lookup.get(`${row.symbol}|${kind}|${period}`);
                   if (!metric) return <td key={row.symbol} className="px-3 py-2 text-right text-muted">—</td>;
-                  const full = `${metric.value} ${metric.currency ?? "currency unspecified"} (${metric.unit})`;
-                  const suffix = figureUnitSuffix(metric.currency, metric.unit);
+                  const full = `${formatFinancial(metric)} · source scale: ${metric.unit}`;
+
                   return (
                     <td key={row.symbol} className="px-3 py-2 text-right tabular-nums" title={full}>
-                      <span className="font-bold text-ink">{compactFinancial(metric.value)}</span>
+                      <span className="font-bold text-ink">{formatFinancial(metric)}</span>
                       <Link
                         href={`/financial-sources/${metric.snapshot_id}`}
                         aria-label={`View ${row.symbol} ${prettyBriefKind(kind)} ${period} financial source`}
@@ -995,9 +909,6 @@ function ComparisonTable({ brief }: { brief: NonNullable<AgentRun["financialBrie
                       >
                         ↗
                       </Link>
-                      {suffix ? (
-                        <span className="block text-[10px] font-semibold text-muted">{suffix.trim()}</span>
-                      ) : null}
                     </td>
                   );
                 })}

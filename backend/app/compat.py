@@ -2,7 +2,7 @@
 from datetime import timezone
 
 from sqlalchemy import select
-from app.classify import company_event
+from app.classify import company_event, signal_title
 
 from app.db import iso, utcnow
 from app.models import RunStep
@@ -42,9 +42,11 @@ def signal_json(card):
     scoped = [company_event({"text": observation["text"], "title": headline}, card["company"])
               for observation in observations] if news else []
     relevance_review = news and not any(event and event["type"] == card["type"] for event in scoped)
+    headline = signal_title({"title": headline, "text": observations[0]["text"] if observations else headline,
+                             "type": card["type"]}, card["company"], attributed=not relevance_review)
     return {
         "id": card["signal_id"], "company": card["company"]["symbol"], "companyName": card["company"]["name"],
-        "type": card["type"], "title": ({"replay": "[REPLAY] ", "yahoo": "[YAHOO TEST] "}.get(card["mode"], "")) + card["title"],
+        "type": card["type"], "title": ({"replay": "[REPLAY] ", "yahoo": "[YAHOO TEST] "}.get(card["mode"], "")) + headline,
         "subline": f"{card['mode']} · {card['change_status']} · {card['analysis_status']}",
         "headline": headline, "severity": card["severity"],
         "detectedAt": card["first_seen_at"][:10], "runId": card["run_id"], "storedAt": card["stored_at"],
@@ -58,6 +60,7 @@ def signal_json(card):
                      (("fact", "facts"), ("observed_signal", "observed_signals"), ("hypothesis", "hypotheses"))
                      for c in card[field]],
         "financialContext": {
+            "note": card["company"].get("comparison_note", ""),
             "seriesCaption": (("Yahoo Finance test data" if card["mode"] == "yahoo" else "Sectors annual revenue") +
                               "; source currency and unit shown in metrics"),
             "series": series,

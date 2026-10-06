@@ -159,6 +159,7 @@ class BriefCompany(Strict):
     name: str
     comparison_note: str
     metrics: list[BriefMetric]
+    revenue_history: list[BriefMetric] = Field(default_factory=list)
 
 
 class FinancialBrief(Strict):

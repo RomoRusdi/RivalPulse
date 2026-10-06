@@ -1,7 +1,6 @@
-"use client";
-
 import { AgentWorkspace } from "@/components/agent/AgentWorkspace";
 
-export default function AgentPage() {
-  return <AgentWorkspace />;
+export default async function AgentPage({ searchParams }: PageProps<"/">) {
+  const { prompt } = await searchParams;
+  return <AgentWorkspace initialPrompt={typeof prompt === "string" ? prompt.slice(0, 2000) : ""} />;
 }

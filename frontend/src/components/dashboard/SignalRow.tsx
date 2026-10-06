@@ -23,7 +23,7 @@ export function SignalRow({ signal, last = false, returnTo }: { signal: SignalWi
         <span className="text-muted">Added {findingDate(signal.addedAt, auth?.profile.timezone, signal.detectedAt)}</span>
         {signal.relevanceReview ? <span className="font-semibold text-accent-ink">Company relevance needs review</span> : null}
       </span>
-      <span title={signal.title} className="block text-[15px] font-bold leading-relaxed text-ink line-clamp-2">{signal.title}</span>
+      <span className="block break-words text-[15px] font-bold leading-relaxed text-ink">{signal.title}</span>
       <span className="mt-1.5 block text-xs leading-relaxed text-muted">{signal.companyName} · View supporting evidence</span>
     </span>
     <ChevronRight aria-hidden size={17} className="mt-7 shrink-0 text-muted transition-console group-hover:text-accent-ink" />

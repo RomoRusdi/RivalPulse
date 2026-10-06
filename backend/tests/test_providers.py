@@ -64,6 +64,9 @@ def test_sectors_report_feeds_cited_annual_brief(client, watchlist, monkeypatch)
         return httpx.Response(200, json=replay_report(symbol, "baseline", {}))
 
     provider, company, run_id = live_provider(client, watchlist, monkeypatch, handler)
+    # Test a stable reporting scope; EXCL's merger boundary now correctly withholds YoY.
+    with session() as db:
+        company = next(c for c in db.get(Run, run_id).inputs["companies"] if c["symbol"] == "TLKM")
     snapshot, outcome = provider.report(company)
     assert outcome == "fetched" and snapshot.provider == "sectors" and snapshot.mode == "live"
     brief, claims = financial_brief_for(run_id)
@@ -130,6 +133,27 @@ def test_credentials_fail_fast(client, watchlist, monkeypatch):
     assert len(calls) == 1
 
 
+@pytest.mark.parametrize("status,body,expected", [
+    (403, {}, "PROVIDER_ACCESS_DENIED"),
+    (429, {"error": "CREDITS_EXHAUSTED"}, "PROVIDER_QUOTA_EXHAUSTED"),
+    (429, {"error": "RATE_LIMIT_EXCEEDED"}, "PROVIDER_RATE_LIMITED"),
+    (503, {}, "PROVIDER_UNAVAILABLE"),
+])
+def test_provider_outcomes_and_retry_budget(client, watchlist, monkeypatch, status, body, expected):
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        return httpx.Response(status, json=body, headers={"Retry-After": "invalid"})
+
+    monkeypatch.setattr("app.providers.time.sleep", lambda _: None)
+    provider, company, _ = live_provider(client, watchlist, monkeypatch, handler)
+    with pytest.raises(ProviderError) as failure:
+        provider.report(company)
+    assert failure.value.code == expected
+    assert len(calls) == (3 if status >= 500 or expected == "PROVIDER_RATE_LIMITED" else 1)
+
+
 def test_normalization_nulls_periods_currency_and_growth():
     normalized = normalize_report({"symbol": "TLKM.JK", "financials": {"historical_financials": [
         {"year": 2025, "revenue": None, "earnings": "0"}, {"year": 2024, "revenue": "NaN"},
@@ -145,6 +169,19 @@ def test_normalization_nulls_periods_currency_and_growth():
     assert growth(a, b) == "20.00"
     for patch in ({"value": "0"}, {"currency": "IDR"}, {"period": "2023"}, {"comparison_basis": "merged"}):
         assert growth(a, {**b, **patch}) is None
+
+
+def test_retry_after_seconds_dates_and_invalid_values(monkeypatch):
+    from datetime import datetime, timezone
+    from app.providers import retry_delay
+
+    monkeypatch.setattr("app.providers.utcnow", lambda: datetime(2026, 10, 6, tzinfo=timezone.utc))
+    assert retry_delay("3", 0) == 3
+    assert retry_delay("999999", 0) == 8
+    assert retry_delay("Tue, 06 Oct 2026 00:00:04 GMT", 0) == 4
+    assert retry_delay("Mon, 05 Oct 2026 00:00:00 GMT", 0) == 0
+    for value in (None, "invalid", "NaN", "inf"):
+        assert retry_delay(value, 2) == 4
 
 
 def test_retired_provider_mode_cannot_be_configured(monkeypatch):

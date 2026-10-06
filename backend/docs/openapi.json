@@ -4063,6 +4063,28 @@
         ],
         "title": "Claim"
       },
+      "CollectionStatus": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "not_collected"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "title": "CollectionStatus"
+      },
       "CompanyOut": {
         "properties": {
           "id": {
@@ -4134,6 +4156,64 @@
           "comparison_note"
         ],
         "title": "CompanyOut"
+      },
+      "CompanyProfile": {
+        "properties": {
+          "industry": {
+            "type": "string",
+            "title": "Industry"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          }
+        },
+        "type": "object",
+        "required": [
+          "industry"
+        ],
+        "title": "CompanyProfile"
+      },
+      "ComparisonEligibility": {
+        "properties": {
+          "indexedCompanies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Indexedcompanies"
+          },
+          "absoluteCompanies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Absolutecompanies"
+          },
+          "excludedCompanies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Excludedcompanies"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          }
+        },
+        "type": "object",
+        "title": "ComparisonEligibility"
       },
       "ConversationMessageIn": {
         "properties": {
@@ -4488,6 +4568,17 @@
           "basis": {
             "type": "string",
             "title": "Basis"
+          },
+          "jsonPointer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jsonpointer"
           }
         },
         "type": "object",
@@ -4540,6 +4631,13 @@
             },
             "type": "array",
             "title": "Figures"
+          },
+          "performanceMetrics": {
+            "items": {
+              "$ref": "#/components/schemas/PerformanceMetric"
+            },
+            "type": "array",
+            "title": "Performancemetrics"
           }
         },
         "type": "object",
@@ -4619,6 +4717,28 @@
           "mix"
         ],
         "title": "FindingSummary"
+      },
+      "Freshness": {
+        "properties": {
+          "fetchedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetchedat"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "not_collected"
+          }
+        },
+        "type": "object",
+        "title": "Freshness"
       },
       "Hypothesis": {
         "properties": {
@@ -4849,6 +4969,123 @@
           "new_password"
         ],
         "title": "PasswordChange"
+      },
+      "PerformanceMetric": {
+        "properties": {
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "rawValue": {
+            "type": "string",
+            "title": "Rawvalue"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "periodKind": {
+            "type": "string",
+            "title": "Periodkind"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          },
+          "origin": {
+            "type": "string",
+            "title": "Origin"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis"
+          },
+          "snapshotId": {
+            "type": "string",
+            "title": "Snapshotid"
+          },
+          "jsonPointer": {
+            "type": "string",
+            "title": "Jsonpointer"
+          },
+          "sourceUrl": {
+            "type": "string",
+            "title": "Sourceurl"
+          },
+          "fetchedAt": {
+            "type": "string",
+            "title": "Fetchedat"
+          },
+          "transformation": {
+            "type": "string",
+            "title": "Transformation"
+          },
+          "displayStatus": {
+            "type": "string",
+            "title": "Displaystatus"
+          },
+          "comparisonStatus": {
+            "type": "string",
+            "title": "Comparisonstatus"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metric",
+          "rawValue",
+          "value",
+          "unit",
+          "periodKind",
+          "period",
+          "origin",
+          "currency",
+          "basis",
+          "snapshotId",
+          "jsonPointer",
+          "sourceUrl",
+          "fetchedAt",
+          "transformation",
+          "displayStatus",
+          "comparisonStatus",
+          "reasons"
+        ],
+        "title": "PerformanceMetric"
       },
       "ProfileOut": {
         "properties": {
@@ -5158,6 +5395,52 @@
             },
             "type": "array",
             "title": "Points"
+          },
+          "annualFigures": {
+            "items": {
+              "$ref": "#/components/schemas/FinancialSourceFigure"
+            },
+            "type": "array",
+            "title": "Annualfigures"
+          },
+          "performanceMetrics": {
+            "items": {
+              "$ref": "#/components/schemas/PerformanceMetric"
+            },
+            "type": "array",
+            "title": "Performancemetrics"
+          },
+          "snapshotId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshotid"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompanyProfile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "coverage": {
+            "type": "string",
+            "title": "Coverage",
+            "default": "not_collected"
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/Freshness"
+          },
+          "collectionStatus": {
+            "$ref": "#/components/schemas/CollectionStatus"
           }
         },
         "type": "object",
@@ -5196,6 +5479,14 @@
           "mode": {
             "type": "string",
             "title": "Mode"
+          },
+          "projectionVersion": {
+            "type": "integer",
+            "title": "Projectionversion",
+            "default": 2
+          },
+          "comparisonEligibility": {
+            "$ref": "#/components/schemas/ComparisonEligibility"
           }
         },
         "type": "object",

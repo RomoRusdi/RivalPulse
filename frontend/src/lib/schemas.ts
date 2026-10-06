@@ -49,15 +49,35 @@ export const RevenuePointSchema = z.object({
   snapshotId: z.string().nullable().optional().default(null),
   yoy: z.string().nullable(), index: z.string().nullable(), comparable: z.boolean(), limitation: z.string().nullable(),
 });
+export const FinancialFigureSchema = z.object({ metric: z.string(), period: z.string(), value: z.string(),
+  currency: z.string().nullable(), unit: z.string(), basis: z.string(), jsonPointer: z.string().nullable().optional() });
+export const PerformanceMetricSchema = z.object({
+  metric: z.string(), rawValue: z.string(), value: z.string().nullable(), unit: z.string(),
+  periodKind: z.string(), period: z.string().nullable(), origin: z.string(), currency: z.string().nullable(),
+  basis: z.string(), snapshotId: z.string(), jsonPointer: z.string(), sourceUrl: z.string(), fetchedAt: z.string(),
+  transformation: z.string(), displayStatus: z.string(), comparisonStatus: z.string(), reasons: z.array(z.string()),
+});
 export const RevenueFeedSchema = z.object({
-  companies: z.array(z.object({ ticker: z.string(), name: z.string(), note: z.string(), points: z.array(RevenuePointSchema) })),
+  companies: z.array(z.object({ ticker: z.string(), name: z.string(), note: z.string(), points: z.array(RevenuePointSchema),
+    annualFigures: z.array(FinancialFigureSchema).optional().default([]),
+    performanceMetrics: z.array(PerformanceMetricSchema).optional().default([]),
+    snapshotId: z.string().nullable().optional().default(null),
+    profile: z.object({ industry: z.string(), website: z.string().nullable() }).nullable().optional().default(null),
+    coverage: z.string().optional().default("not_collected"),
+    freshness: z.object({ fetchedAt: z.string().nullable(), status: z.string() }).optional().default({ fetchedAt: null, status: "not_collected" }),
+    collectionStatus: z.object({ status: z.string(), code: z.string().nullable() }).optional().default({ status: "not_collected", code: null }),
+  })),
   baseYear: z.number().int().nullable(), absoluteAvailable: z.boolean(), mode: z.string(),
+  projectionVersion: z.number().int().optional().default(1),
+  comparisonEligibility: z.object({ indexedCompanies: z.array(z.string()), absoluteCompanies: z.array(z.string()),
+    excludedCompanies: z.array(z.string()), reasons: z.array(z.string()) }).optional().default({
+      indexedCompanies: [], absoluteCompanies: [], excludedCompanies: [], reasons: [] }),
 });
 export const FinancialSourceSchema = z.object({
   id: z.string(), ticker: z.string(), name: z.string(), provider: z.string(), fetchedAt: z.string(),
   note: z.string(), points: z.array(RevenuePointSchema),
-  figures: z.array(z.object({ metric: z.string(), period: z.string(), value: z.string(),
-    currency: z.string().nullable(), unit: z.string(), basis: z.string() })).optional().default([]),
+  figures: z.array(FinancialFigureSchema).optional().default([]),
+  performanceMetrics: z.array(PerformanceMetricSchema).optional().default([]),
 });
 
 /**
@@ -85,6 +105,7 @@ export const EvidenceSchema = z.object({
 });
 
 export const FinancialContextSchema = z.object({
+  note: z.string().optional(),
   rows: z.array(z.object({ metric: z.string(), value: z.string(), currency: z.string().nullable(),
     unit: z.string(), period: z.string(), basis: z.string(), sourceUrl: z.string(),
     snapshotId: z.string().nullable().optional().default(null) })).optional(),
@@ -177,6 +198,12 @@ export const OrchestrationSchema = z.object({
   })).optional(),
 });
 
+const BriefMetricSchema = z.object({
+  metric: z.string(), value: z.string(), currency: z.string().nullable(),
+  unit: z.string(), period: z.string(), comparison_basis: z.string(),
+  source_url: z.string().url(), json_pointer: z.string(), snapshot_id: z.string(), claim_id: z.string(),
+});
+
 export const AgentRunSchema = z.object({
   id: z.string(),
   query: z.string(),
@@ -197,12 +224,8 @@ export const AgentRunSchema = z.object({
       symbol: z.string(),
       name: z.string(),
       comparison_note: z.string(),
-      metrics: z.array(z.object({
-        metric: z.string(), value: z.string(), currency: z.string().nullable(),
-        unit: z.string(), period: z.string(), comparison_basis: z.string(),
-        source_url: z.string().url(), json_pointer: z.string(),
-        snapshot_id: z.string(), claim_id: z.string(),
-      })),
+      metrics: z.array(BriefMetricSchema),
+      revenue_history: z.array(BriefMetricSchema).optional().default([]),
     })),
     interpretation: z.object({
       text: z.string(), supporting_claim_ids: z.array(z.string()),

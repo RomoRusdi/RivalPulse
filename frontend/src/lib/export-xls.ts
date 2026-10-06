@@ -1,5 +1,5 @@
 import type { AgentRun, Signal } from "./types";
-import { BRIEF_KINDS, compactFinancial, figureUnitSuffix, prettyBriefKind } from "./format";
+import { BRIEF_KINDS, formatFinancial, prettyBriefKind } from "./format";
 
 /** Escape for HTML-table based .xls (Excel opens it natively, no dependency). */
 function esc(value: unknown): string {
@@ -85,8 +85,7 @@ export function downloadRunXls(run: AgentRun, signals: Signal[]): void {
           ...brief.rows.map((r) => {
             const m = r.metrics.find((x) => x.metric === kind && x.period === period);
             if (!m) return "—";
-            const suffix = figureUnitSuffix(m.currency, m.unit);
-            return `${compactFinancial(m.value)}${suffix}`;
+            return formatFinancial(m);
           }),
         ]));
       }

@@ -26,6 +26,41 @@ SIGNAL_RULES = (
 MATCHERS = tuple((category, re.compile(rf"\b{pattern}\b", re.I)) for category, pattern in SIGNAL_RULES)
 
 
+def signal_title(event, company, attributed=True):
+    """A complete evidence-grounded event summary, never a fixed word/character slice.
+
+    Short source headlines are retained. Long prose uses the verified event category
+    and an explicit purpose clause when it fits; no business outcome is inferred.
+    """
+    symbol = normalized_text(company.get("symbol", ""))
+    title = normalized_text(event.get("title", ""))
+    text = normalized_text(event.get("text", "")) or title
+    kind = event.get("type") or classify(text)
+    if not attributed:
+        return f"{symbol} · {kind or 'Company'} activity in cited coverage; attribution needs review"
+    prefix = f"{symbol} · " if symbol and not re.match(rf"{re.escape(symbol)}\b", title, re.I) else ""
+    # A complete sentence/clause boundary can shorten prose without leaving half a phrase.
+    candidates = [title, *re.split(r"(?<=[.!?])\s+|\s+[—–]\s+", title)]
+    incomplete = re.compile(r"(?:\b(?:and|or|with|for|to|of|the|a|in|dan|untuk|dengan)|[,:;…])$", re.I)
+    for candidate in candidates:
+        if candidate and len(prefix + candidate) <= 120 and not incomplete.search(candidate) and not candidate.endswith("...") and classify(candidate) == kind:
+            return prefix + candidate.rstrip(".")
+    actions = {"Pricing": "announces a pricing change", "Partnership": "announces a partnership",
+               "Product": "announces a product or service update", "Campaign": "announces a campaign"}
+    action = actions.get(kind, "reports a company announcement")
+    if kind == "Pricing" and re.search(r"\bprice cut\b", text, re.I):
+        action = "announces a price reduction"
+    elif kind == "Product" and re.search(r"\b(?:launch\w*|meluncurkan|luncur\w*)\b", text, re.I):
+        action = "announces a product or service launch"
+    summary = f"{symbol} {action}".strip()
+    purpose = re.search(r"\b(?:to|for|untuk|guna)\s+[^.!?;]+[.!?]?$", text, re.I)
+    if purpose:
+        clause = purpose.group().rstrip(".!?")
+        if len(summary + " " + clause) <= 120 and not incomplete.search(clause):
+            summary += " " + clause
+    return summary
+
+
 def normalized_text(value):
     if not isinstance(value, str):
         return ""

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { DatabaseZap, Menu, Sparkles } from "lucide-react";
+import { DatabaseZap, Menu } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { DebugPanel } from "./DebugPanel";
 import { RunIndicator } from "./RunIndicator";
@@ -11,7 +11,6 @@ import { MobileDrawer } from "./MobileDrawer";
 import { UserMenu } from "./UserMenu";
 import { useStore } from "@/lib/store";
 import { DEMO_CONTROLS_ENABLED } from "@/lib/demo-settings";
-import { AgentToolbarSlot } from "./AgentToolbarSlot";
 
 /**
  * The app shell: sidebar + top bar + routed main, filling the viewport.
@@ -30,7 +29,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isAgentWorkspace = pathname === "/";
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
   const baseTitle = useRef<string | null>(null);
 
   // A run in progress must stay visible when this browser tab is not the
@@ -48,7 +46,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const toggleSidebar = () => setSidebarCollapsed((current) => !current);
 
   return (
-    <AgentToolbarSlot.Provider value={toolbarTarget}><div className="flex h-dvh w-full overflow-hidden bg-surface">
+    <div className="flex h-dvh w-full overflow-hidden bg-surface">
       {/* Keyboard users shouldn't have to tab the whole sidebar every page. */}
       <a
         href="#main"
@@ -82,21 +80,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Menu aria-hidden size={18} strokeWidth={1.5} />
           </button>
 
-          {isAgentWorkspace ? (
-            <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:flex-none">
-              <span className="shrink-0 text-accent-ink">
-                <Sparkles aria-hidden size={16} strokeWidth={1.8} />
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-[13px] font-extrabold text-ink">RivalPulse agent</p>
-                <p className="hidden truncate text-[11px] text-muted sm:block">Plans, investigates, compares, and cites</p>
-              </div>
-            </div>
-          ) : (
-            <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink-2">{pageLabel(pathname)}</p>
-          )}
-
-          {isAgentWorkspace ? <div ref={setToolbarTarget} className="flex shrink-0 items-center justify-end gap-2 sm:min-w-0 sm:flex-1" /> : null}
+          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink-2">{isAgentWorkspace ? "Agent" : pageLabel(pathname)}</p>
 
           {/* Account and run status stay at the right edge of the header. */}
           <div className="flex shrink-0 items-center gap-2.5 sm:ml-auto">
@@ -127,6 +111,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       {DEMO_CONTROLS_ENABLED ? <DebugPanel /> : null}
-    </div></AgentToolbarSlot.Provider>
+    </div>
   );
 }

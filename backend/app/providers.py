@@ -1,11 +1,12 @@
 """Bounded Sectors v2 calls with durable cache and conservative credit accounting."""
 import hashlib
 import json
+import math
 import random
 import re
 import time
 from datetime import timedelta, timezone
-from decimal import Decimal, InvalidOperation
+from email.utils import parsedate_to_datetime
 from importlib.resources import files
 
 import httpx
@@ -17,6 +18,8 @@ from app.classify import as_event
 from app.config import get_settings
 from app.db import session, utcnow
 from app.errors import ProviderError
+from app.financial_projection import PROJECTION_VERSION, annual_year, decimal_value, performance_metrics
+from app.financial_projection import growth as growth
 from app.models import CreditAccount, CreditReservation, ProviderCache, Run, RunSnapshot, Snapshot
 
 SECTORS_BASE = "https://api.sectors.app/v2"
@@ -31,13 +34,8 @@ def redis_connection():
 
 
 def number(value):
-    if value is None or isinstance(value, bool):
-        return None
-    try:
-        result = Decimal(str(value))
-        return str(result) if result.is_finite() else None
-    except InvalidOperation:
-        return None
+    result = decimal_value(value)
+    return str(result) if result is not None else None
 
 
 def normalize_report(payload, symbol):
@@ -57,8 +55,8 @@ def normalize_report(payload, symbol):
     if ((currency is not None and (not isinstance(currency, str) or not re.fullmatch(r"[A-Z]{3}", currency)))
             or not isinstance(unit, str) or not isinstance(basis, str) or len(unit) > 100 or len(basis) > 200):
         raise ProviderError("PROVIDER_INVALID_RESPONSE", "Invalid financial metadata", False)
-    for index, row in enumerate(rows):
-        if not isinstance(row, dict) or not str(row.get("year", "")).isdigit():
+    for index, row in enumerate(rows[:1000]):
+        if not isinstance(row, dict) or annual_year(row.get("year")) is None:
             continue
         for metric in ("revenue", "earnings", "total_assets", "total_equity", "ebitda"):
             value = number(row.get(metric))
@@ -66,28 +64,52 @@ def normalize_report(payload, symbol):
                 metrics.append(dict(metric=metric, value=value, period=str(row["year"]), currency=currency,
                                     unit=unit, comparison_basis=basis,
                                     pointer=f"/financials/historical_financials/{index}/{metric}"))
-    return {"schema_version": 1, "symbol": symbol, "name": payload.get("company_name"),
+    return {"schema_version": PROJECTION_VERSION, "symbol": symbol, "name": payload.get("company_name"),
             "overview": payload.get("overview") or {}, "metrics": metrics, "peers": payload.get("peers") or [],
+            "performance_metrics": performance_metrics(payload),
             "warnings": ([] if currency else ["Provider did not specify currency; monetary comparisons are disabled."])}
 
 
-def growth(current, previous):
-    """Only adjacent annual periods of the same known reporting basis and unit are comparable."""
+def response_error(response):
+    """Only allowlisted error tokens inform access/quota diagnosis; no body is exposed."""
+    body = bytearray()
+    for chunk in response.iter_bytes():
+        body.extend(chunk)
+        if len(body) > 8192:
+            break
     try:
-        for key in ("metric", "currency", "unit", "comparison_basis"):
-            if not current.get(key) or current.get(key) != previous.get(key):
-                return None
-        if current["comparison_basis"] == "reporting_scope_unverified" or current["unit"] == "provider_native_unspecified":
-            return None
-        if int(current["period"]) != int(previous["period"]) + 1:
-            return None
-        denominator = Decimal(previous["value"])
-        if denominator <= 0:
-            return None
-        return str(((Decimal(current["value"]) - denominator) / denominator * 100).quantize(Decimal("0.01")))
-    except (ValueError, InvalidOperation, KeyError, TypeError, AttributeError):
-        # Uncomparable figures mean "no growth fact", never a crashed run.
-        return None
+        data = json.loads(body) if len(body) <= 8192 else {}
+        token = str(data.get("code") or data.get("error") or "").upper() if isinstance(data, dict) else ""
+    except (ValueError, UnicodeError):
+        token = ""
+    if response.status_code == 401:
+        return ProviderError("PROVIDER_AUTH_FAILED", "Sectors rejected server credentials", False)
+    if token in {"QUOTA_EXCEEDED", "CREDIT_LIMIT_EXCEEDED", "INSUFFICIENT_CREDITS", "CREDITS_EXHAUSTED", "CREDIT_EXHAUSTED"}:
+        return ProviderError("PROVIDER_QUOTA_EXHAUSTED", "Sectors API credit allowance is exhausted", False)
+    if response.status_code == 403 or token in {"SUBSCRIPTION_REQUIRED", "PLAN_ACCESS_DENIED", "INSUFFICIENT_PLAN"}:
+        return ProviderError("PROVIDER_ACCESS_DENIED", "Sectors denied access to the requested data", False)
+    if response.status_code == 429:
+        return ProviderError("PROVIDER_RATE_LIMITED", "Sectors request rate limit was reached")
+    if response.status_code >= 500:
+        return ProviderError()
+    return ProviderError("PROVIDER_REQUEST_REJECTED", "Sectors request was rejected", False)
+
+
+def retry_delay(value, attempt):
+    try:
+        delay = float(value)
+        if math.isfinite(delay):
+            return max(0, min(8, delay))
+    except (ValueError, TypeError):
+        pass
+    try:
+        retry_at = parsedate_to_datetime(value)
+        if retry_at.tzinfo is None:
+            retry_at = retry_at.replace(tzinfo=timezone.utc)
+        return max(0, min(8, (retry_at - utcnow()).total_seconds()))
+    except (ValueError, TypeError, OverflowError):
+        pass
+    return min(8, 2 ** attempt)
 
 
 def ensure_active(db, run_id, token):
@@ -147,16 +169,12 @@ class Sectors:
                     with client.stream("GET", SECTORS_BASE + endpoint, params=params,
                                        headers={"Authorization": self.settings.sectors_api_key.get_secret_value()}) as response:
                         status = response.status_code
-                        if status in (401, 403):
-                            raise ProviderError("PROVIDER_AUTH_FAILED", "Sectors rejected server credentials", False)
-                        if status == 429 or status >= 500:
-                            wait = min(8, float(response.headers.get("Retry-After", 2 ** attempt)))
-                            if attempt < 2:
-                                time.sleep(max(0, wait) + random.uniform(0, .2))
-                                continue
-                            raise ProviderError()
                         if status != 200:
-                            raise ProviderError("PROVIDER_REQUEST_REJECTED", "Sectors request was rejected", False)
+                            error = response_error(response)
+                            if error.retryable and (status == 429 or status >= 500) and attempt < 2:
+                                time.sleep(retry_delay(response.headers.get("Retry-After"), attempt) + random.uniform(0, .2))
+                                continue
+                            raise error
                         body = bytearray()
                         for chunk in response.iter_bytes():
                             body.extend(chunk)
@@ -223,6 +241,7 @@ class Sectors:
             base_url = SECTORS_BASE + endpoint
             snapshot = Snapshot(company_id=company["id"], mode=mode, provider=provider_name,
                                 request_key=key, content_hash=digest(normalized), normalized=normalized,
+                                parser_version=str(normalized.get("schema_version", 1)),
                                 raw_payload=payload, url=base_url + "?" + str(httpx.QueryParams(params)))
             with session() as db, db.begin():
                 ensure_active(db, self.run_id, self.token)

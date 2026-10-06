@@ -75,6 +75,12 @@ export function runFailureMessage(code?: string): string {
     case "PROVIDER_CREDENTIALS_MISSING":
     case "PROVIDER_AUTH_FAILED":
       return "The research data connection needs attention. Contact your administrator before trying again.";
+    case "PROVIDER_ACCESS_DENIED":
+      return "Sectors denied access to the requested data. Check the API account’s access; stored evidence is retained.";
+    case "PROVIDER_QUOTA_EXHAUSTED":
+      return "The Sectors API credit allowance is exhausted. Stored evidence is retained; check the API account before retrying.";
+    case "PROVIDER_RATE_LIMITED":
+      return "Sectors limited the request rate. Wait a moment before retrying; stored evidence is retained.";
     case "PROVIDER_UNAVAILABLE":
     case "PROVIDER_REQUEST_REJECTED":
       return "Sectors could not serve the request. Wait a moment, then retry — collected evidence is kept.";
@@ -121,6 +127,8 @@ export function clock(seconds: number): string {
  * untouched, with the full original kept in the caller's title attribute.
  */
 export function compactFinancial(raw: string): string {
+  const structured = /^([+-]?[\d.,]+)\s+(IDR|Rp|USD|EUR|SGD)\s+(.+)$/i.exec(raw.trim());
+  if (structured) return formatFinancial({ value: structured[1], currency: structured[2], unit: structured[3] });
   const match = /^([+-]?[\d.,]+)\s*([\s\S]*)$/.exec(raw.trim());
   if (!match) return raw;
   const numeric = Number(match[1].replace(/,/g, ""));
@@ -158,6 +166,43 @@ export function compactFinancial(raw: string): string {
 }
 
 /** Raw provider metadata tokens are not user language — translate them. */
+export type FinancialAmount = { value: string | null; currency: string | null; unit: string };
+
+/** Only explicit source scales are supported; magnitude never establishes a scale. */
+export function financialScale(unit: string): number | null {
+  const key = unit.trim().toLowerCase().replace(/^(idr|rp|rupiah)\s*/, "").replace(/[_-]/g, " ").trim();
+  const scales: Record<string, number> = { "": 1, units: 1, unit: 1, absolute: 1, rupiah: 1,
+    thousands: 1e3, thousand: 1e3, "in thousands": 1e3, ribu: 1e3,
+    millions: 1e6, million: 1e6, "in millions": 1e6, juta: 1e6,
+    billions: 1e9, billion: 1e9, "in billions": 1e9, miliar: 1e9,
+    trillions: 1e12, trillion: 1e12, "in trillions": 1e12, triliun: 1e12 };
+  return unit.trim() ? scales[key] ?? null : null;
+}
+
+export function toIDR(amount: FinancialAmount): number | null {
+  if (!amount.currency || !/^(IDR|Rp|rupiah)$/i.test(amount.currency.trim()) || amount.value === null) return null;
+  const scale = financialScale(amount.unit);
+  const raw = amount.value.trim().replace(/,/g, "");
+  if (scale === null || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(raw)) return null;
+  const value = Number(raw) * scale;
+  return Number.isFinite(value) ? value : null;
+}
+
+export function formatIDR(rupiah: number): string {
+  return `IDR ${new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(rupiah / 1e12)}T`;
+}
+
+/** Shared by cards, source tables, charts and research answers. No exchange rate is assumed. */
+export function formatFinancial(amount: FinancialAmount): string {
+  if (amount.value === null) return "Conflicting source values";
+  const idr = toIDR(amount);
+  if (idr !== null) return formatIDR(idr);
+  const numeric = Number(amount.value.replace(/,/g, "").replace(/%$/, ""));
+  if (amount.unit === "percent") return Number.isFinite(numeric) ? `${amount.value.startsWith("+") && numeric >= 0 ? "+" : ""}${numeric.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : amount.value;
+  if (["ratio", "count", "shares", "times"].includes(amount.unit)) return `${amount.value} ${amount.unit}`;
+  return `${amount.value} ${amount.currency ?? "currency unspecified"} · ${humanizeFigureMeta(amount.unit) || "scale unspecified"}`;
+}
+
 export function humanizeFigureMeta(text: string): string {
   return text
     .replaceAll("provider_native_unspecified", "units as reported")

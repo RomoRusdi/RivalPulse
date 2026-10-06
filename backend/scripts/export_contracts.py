@@ -41,6 +41,8 @@ def main():
                         "findings": client.get("/findings?period=all").json(),
                         "financials": client.get("/api/v1/watchlists/" + watchlist["id"] + "/financials").json(),
                         "signal_detail": client.get("/api/v1/signals/" + detail["result"]["signals"][0]["signal_id"]).json()}
+            source_id = next(c["snapshotId"] for c in examples["financials"]["companies"] if c["snapshotId"])
+            examples["financial_source"] = client.get("/api/v1/financial-sources/" + source_id).json()
             output = ROOT / "docs"
             output.mkdir(exist_ok=True)
             (output / "openapi.json").write_text(json.dumps(app.openapi(), indent=2) + "\n", encoding="utf-8")

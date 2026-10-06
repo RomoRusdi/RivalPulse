@@ -13,12 +13,13 @@ from pydantic import ValidationError
 from app.agent import Agent, Tools, is_financial_question, planned_scope
 from app.alerts import send_digest
 from app.config import get_settings
-from app.classify import company_event
+from app.classify import company_event, signal_title
 from app.contracts import FinancialBrief, ResearchResult, SignalCard, ToolCall
 from app.db import iso, session, uid, utcnow
 from app.errors import ProviderError
 from app.models import Evidence, Revision, Run, RunSnapshot, RunStep, Signal, Snapshot
 from app.providers import digest, ensure_active, growth
+from app.financial_projection import scope_boundary
 from app.public_sources import normalized_text
 
 log = logging.getLogger("rivalpulse.research")
@@ -104,9 +105,16 @@ def recovery_plan(gaps, inputs, coverage=()):
             for company_id in entry["company_ids"]:
                 sweeps[company_id] = sweeps.get(company_id, 0) + 1
     actions = []
+    permanent_financial_failures = {company_id for entry in coverage
+                                   if entry.get("tool") == "get_company_metrics" and entry.get("code") in {
+                                       "PROVIDER_AUTH_FAILED", "PROVIDER_ACCESS_DENIED", "PROVIDER_QUOTA_EXHAUSTED",
+                                       "CREDIT_BUDGET_EXCEEDED", "PROVIDER_INVALID_RESPONSE", "PROVIDER_REQUEST_REJECTED"}
+                                   for company_id in entry.get("company_ids", [])}
     for gap in (g for g in gaps if g["recoverable"]):
         company = companies[gap["company_id"]]
         if gap["missing"] == "financial":
+            if company["id"] in permanent_financial_failures:
+                continue
             actions.append(ToolCall(name="get_company_metrics", company_ids=[company["id"]],
                                     reason=f"Retry unretrieved financial statements for {company['symbol']}"))
         else:
@@ -240,27 +248,9 @@ def comparison_note(brief):
 
 
 def yoy_percent(current, previous):
-    """Year-on-year change between adjacent annual periods, or None.
-
-    Weaker than growth() on purpose: a ratio cancels unknown-but-equal units,
-    so identical metadata suffices even when currency/unit are unspecified.
-    Anything labeled computed carries its basis in comparison_basis, and the
-    brief warns that scope is unverified. Positive denominator required, same
-    as growth(): turnarounds stay table-visible, never a claim.
-    """
-    for key in ("currency", "unit", "comparison_basis"):
-        if current.get(key) != previous.get(key):
-            return None
-    try:
-        if int(current["period"]) != int(previous["period"]) + 1:
-            return None
-        denominator = Decimal(previous["value"])
-        if denominator <= 0:
-            return None
-        pct = (Decimal(current["value"]) - denominator) / denominator * 100
-    except (InvalidOperation, ValueError, KeyError, TypeError, AttributeError):
-        return None
-    return ("+" if pct >= 0 else "") + str(pct.quantize(Decimal("0.01"))) + "%"
+    """Use the same verified annual arithmetic as the Competitors page."""
+    change = growth(current, previous)
+    return (("+" if Decimal(change) >= 0 else "") + change + "%") if change is not None else None
 
 
 def financial_brief_for(run_id):
@@ -309,7 +299,7 @@ def financial_brief_for(run_id):
                     continue
                 prior = next((m for m in available
                               if m["metric"] == metric_name and m["period"] == prior_period), None)
-                if not prior:
+                if not prior or scope_boundary(period, prior['period'], company['comparison_note'], current['comparison_basis']):
                     continue
                 change = yoy_percent(current, prior)
                 if change is None:
@@ -323,7 +313,13 @@ def financial_brief_for(run_id):
                                 "snapshot_id": current["snapshot_id"],
                                 "claim_id": f"financial-{company['symbol']}-{metric_name}-yoy-{period}"})
             rows.append({"symbol": company["symbol"], "name": company["name"],
-                         "comparison_note": company["comparison_note"], "metrics": metrics})
+                         "comparison_note": company["comparison_note"], "metrics": metrics,
+                         "revenue_history": [
+                             {**{key: metric[key] for key in ("metric", "value", "currency", "unit", "period", "comparison_basis")},
+                              "source_url": snapshot.url, "json_pointer": metric["pointer"], "snapshot_id": snapshot.id,
+                              "claim_id": f"financial-{company['symbol']}-revenue-{metric['period']}"}
+                             for metric in sorted(available, key=lambda entry: entry["period"]) if metric["metric"] == "revenue"
+                         ]})
         if unverified_basis:
             caveats.append("Year-on-year percentages are computed from as-reported values; "
                            "verify reporting scope before relying on them.")
@@ -385,7 +381,9 @@ def build_card(run, candidate, interpretation, signal, prior):
                               f"{metric['value']} {metric['currency'] or 'currency unspecified'} ({metric['unit']}).",
                               evidence_ids=[eid]))
         revenues = sorted([m for m in metrics if m["metric"] == "revenue"], key=lambda m: m["period"])
-        if len(revenues) >= 2 and (change := growth(revenues[-1], revenues[-2])) is not None:
+        if len(revenues) >= 2 and not scope_boundary(revenues[-1]["period"], revenues[-2]["period"],
+                                                    candidate["company"].get("comparison_note", ""),
+                                                    revenues[-1]["comparison_basis"]) and (change := growth(revenues[-1], revenues[-2])) is not None:
             refs = revenues[-1]["evidence_ids"] + revenues[-2]["evidence_ids"]
             metrics.append(dict(metric="revenue_growth_percent", value=change, currency=None, unit="percent",
                                 period=revenues[-1]["period"], comparison_basis="adjacent annual periods; " + revenues[-1]["comparison_basis"],
@@ -398,8 +396,8 @@ def build_card(run, candidate, interpretation, signal, prior):
     now = iso(utcnow())
     event = candidate["observations"][0][0]
     card = dict(schema_version=1, signal_id=signal.id, revision_id=revision_id,
-                company={k: candidate["company"][k] for k in ("id", "symbol", "name", "industry")},
-                mode=run.mode, type=event["type"], title=event["title"], analysis_status=status,
+                company={k: candidate["company"][k] for k in ("id", "symbol", "name", "industry", "comparison_note")},
+                mode=run.mode, type=event["type"], title=signal_title(event, candidate["company"]), analysis_status=status,
                 change_status="updated" if prior else candidate["change_status"], severity=severity,
                 score_components=scores, severity_reason=severity_reason,
                 facts=facts, observed_signals=observed,

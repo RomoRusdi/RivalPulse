@@ -17,7 +17,7 @@ export function Card({
   return (
     <section
       className={cx(
-        "rounded-card border border-border bg-card p-5",
+        "rp-card min-w-0 rounded-card border border-border bg-card p-5",
         className,
       )}
       {...rest}

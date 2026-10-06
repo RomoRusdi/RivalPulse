@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/primitives";
 import { useStore } from "@/lib/store";
 import { USE_MOCKS } from "@/lib/api";
-import { RevenueTrendGraph } from "@/components/dashboard/RevenueTrendGraph";
+import { CompetitorPerformanceSnapshot } from "@/components/dashboard/CompetitorPerformanceSnapshot";
 import {
   MAX_COMPANIES,
   MIN_COMPANIES,
@@ -52,7 +52,7 @@ export default function WatchlistsPage() {
         <div>
           <PageTitle>Competitors</PageTitle>
           <p className="mt-0.5 max-w-[68ch] text-sm text-muted">
-            Manage {MIN_COMPANIES}–{MAX_COMPANIES} competitors and compare their sourced annual revenue.
+            Manage {MIN_COMPANIES}–{MAX_COMPANIES} competitors and explore their reported performance and competitive signals.
           </p>
         </div>
         {USE_MOCKS && watchlistEdited ? (
@@ -154,7 +154,7 @@ export default function WatchlistsPage() {
         <Button size="sm" onClick={() => window.print()}>Print comparison</Button>
       </div>
 
-      <RevenueTrendGraph />
+      <CompetitorPerformanceSnapshot />
 
       {USE_MOCKS && watchlistEdited ? (
         <p className="text-[13px] text-muted">
@@ -242,7 +242,7 @@ function OurCompanyPicker({
       ]} />
       <span className="mt-1.5 block text-[12px] text-muted">
         {value
-          ? `Research is framed relative to ${value}.${selectedOutsideWatchlist ? " Your company is separate from the competitor watchlist." : " The graph marks it ★."}`
+          ? `Research is framed relative to ${value}.${selectedOutsideWatchlist ? " Your company is separate from the competitor watchlist." : " The performance snapshot marks it ★."}`
           : "Leave neutral, or pick your company — or type “my company is TLKM” in chat."}
       </span>
     </div>

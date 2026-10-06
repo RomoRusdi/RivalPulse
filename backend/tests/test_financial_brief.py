@@ -38,15 +38,19 @@ def test_financial_question_uses_real_snapshots_without_public_events(client, wa
     assert result["result"]["signals"] == []
     brief = result["result"]["financial_brief"]
     assert brief["period"] == "2025" and len(brief["rows"]) == 3
-    assert all({m["metric"] for m in row["metrics"]} == {
-        "revenue", "earnings", "revenue_yoy_percent", "earnings_yoy_percent",
-    } for row in brief["rows"])
+    for row in brief["rows"]:
+        expected = {"revenue", "earnings"}
+        if row["symbol"] != "EXCL":
+            expected |= {"revenue_yoy_percent", "earnings_yoy_percent"}
+        assert {m["metric"] for m in row["metrics"]} == expected
+        assert [metric["period"] for metric in row["revenue_history"]] == ["2024", "2025"]
+        assert all(metric["metric"] == "revenue" for metric in row["revenue_history"])
     assert all(m["unit"] == "percent" or not m["metric"].endswith("_yoy_percent")
                or m["value"].endswith("%") for row in brief["rows"] for m in row["metrics"])
     assert brief["interpretation"]["supporting_claim_ids"][0].startswith("financial-")
     with session() as db:
         for row in brief["rows"]:
-            for metric in row["metrics"]:
+            for metric in row["metrics"] + row["revenue_history"]:
                 source = db.get(Snapshot, metric["snapshot_id"])
                 assert source.mode == "replay" and source.url == metric["source_url"]
                 assert metric["json_pointer"] in {m["pointer"] for m in source.normalized["metrics"]}

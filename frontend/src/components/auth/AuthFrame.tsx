@@ -5,9 +5,9 @@ import { FaultyTerminal } from "@/components/auth/FaultyTerminal";
 export function AuthFrame({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh items-center justify-center bg-canvas px-5 py-8">
-      <div className="flex w-full max-w-[1120px] flex-wrap items-stretch overflow-hidden rounded-frame border border-border-frame bg-surface shadow-frame">
+      <div className="rp-page-enter flex w-full max-w-[1120px] flex-wrap items-stretch overflow-hidden rounded-frame border border-border-frame bg-surface shadow-frame">
         <div className="flex min-w-0 flex-[1_1_420px] flex-col gap-9 px-[clamp(24px,5vw,56px)] py-10">
-          <div className="flex items-center gap-2.5"><Logo size={26} /><span className="text-[17px] font-extrabold tracking-[-0.02em]">RivalPulse</span></div>
+          <div className="flex items-center gap-2.5"><Logo size={32} wordmark /></div>
           <div className="my-auto w-full">{children}</div>
           <p className="text-xs text-muted-strong">Information and analysis only. Not investment advice.</p>
         </div>

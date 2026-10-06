@@ -53,8 +53,12 @@ def test_full_baseline_numeric_evidence_duplicate_and_revision(client, watchlist
     assert all(c["change_status"] == "baseline" for c in cards)
     assert all(c["mode"] == "replay" for c in cards)
     for card in cards:
-        growth = next(m for m in card["financial_context"] if m["metric"] == "revenue_growth_percent")
-        assert growth["value"] == "20.00"
+        growth = next((m for m in card["financial_context"] if m["metric"] == "revenue_growth_percent"), None)
+        if card["company"]["symbol"] == "EXCL":
+            assert growth is None  # The 2025 merger changes the reporting scope.
+            assert "merger" in card["company"]["comparison_note"]
+        else:
+            assert growth["value"] == "20.00"
         assert card["published_at"] < card["first_seen_at"][:10]
         assert card["score_components"]["rubric_version"] == 2
         assert 0.0 <= card["score_components"]["confidence"] <= 1.0

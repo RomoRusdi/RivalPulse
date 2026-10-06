@@ -2,22 +2,19 @@
 import Link from "next/link";
 import { Select } from "@/components/ui/Select";
 import { useEffect, useId, useRef, useState } from "react";
-import { Card, CardHeader, ErrorCard, Skeleton, cx } from "@/components/ui/primitives";
+import { Card, CardHeader, cx } from "@/components/ui/primitives";
 import { useStore } from "@/lib/store";
 import { getRevenue } from "@/lib/api";
-import { compactFinancial, dashboardTime, humanizeFigureMeta, sourceHref } from "@/lib/format";
+import { formatFinancial, formatIDR, toIDR, dashboardTime, humanizeFigureMeta, sourceHref } from "@/lib/format";
 
 type Feed = Awaited<ReturnType<typeof getRevenue>>;
 type Point = Feed["companies"][number]["points"][number];
 const COLORS = ["#146C50", "#2867A0", "#7153A0", "#946419", "#466975"];
 const colorFor = (ticker: string) => COLORS[[...ticker].reduce((hash, letter) => (hash * 31 + letter.charCodeAt(0)) >>> 0, 0) % COLORS.length];
-const valueText = (p: Point) => p.value === null ? "Conflicting source values" : `${p.value} ${p.currency ?? "currency unspecified"} ${humanizeFigureMeta(p.unit)}`;
+const valueText = (p: Point) => formatFinancial(p);
 
-export function RevenueTrendGraph() {
-  const { watchlist, aggregates, activeRun } = useStore();
-  const [loaded, setLoaded] = useState<{ key: string; feed: Feed } | null>(null);
-  const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
-  const [attempt, setAttempt] = useState(0);
+export function RevenueTrendGraph({ feed }: { feed: Feed }) {
+  const { watchlist } = useStore();
   const [mode, setMode] = useState<"indexed" | "absolute">("indexed");
   const [activeYear, setActiveYear] = useState<number | null>(null);
   const [pinned, setPinned] = useState(false);
@@ -25,31 +22,17 @@ export function RevenueTrendGraph() {
   const inspectorId = useId();
   const chartRef = useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState(840);
-  const key = `${watchlist?.id}:${watchlist?.companies.map((c) => c.ticker).join(",")}:${aggregates?.lastRunAt}:${activeRun?.status}:${attempt}`;
-  useEffect(() => {
-    if (!watchlist) return;
-    const controller = new AbortController();
-    getRevenue(watchlist, controller.signal).then((feed) => {
-      if (!controller.signal.aborted) { setLoaded({ key, feed }); setFailure(null); }
-    }).catch((cause) => { if (!controller.signal.aborted) setFailure({ key, message: cause instanceof Error ? cause.message : "Financial reports could not be loaded." }); });
-    return () => controller.abort();
-    // The key captures membership and research updates, not hover state.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
   useEffect(() => {
     const node = chartRef.current;
     if (!node || !window.ResizeObserver) return;
     const observer = new ResizeObserver(([entry]) => setChartWidth(Math.max(360, Math.min(840, entry.contentRect.width))));
     observer.observe(node);
     return () => observer.disconnect();
-  }, [loaded?.key, key]);
-  if (failure?.key === key) return <ErrorCard message={failure.message} onRetry={() => setAttempt((count) => count + 1)} />;
-  if (!loaded || loaded.key !== key) return <Card><Skeleton className="h-64 w-full" /></Card>;
-  const feed = loaded.feed;
+  }, [feed]);
   const view = (mode === "absolute" && feed.absoluteAvailable) || (feed.baseYear === null && feed.absoluteAvailable) ? "absolute" : "indexed";
   const tracks = feed.companies.map((company, i) => ({ ...company, color: colorFor(company.ticker), dash: ["", "7 3", "2 3", "10 3 2 3", "5 4"][i % 5],
-    drawn: company.points.filter((p) => p.comparable && (view === "absolute" || p.index !== null))
-      .map((p) => ({ ...p, plotted: Number(view === "absolute" ? p.value : p.index) }))
+    drawn: company.points.filter((p) => p.comparable && (view === "absolute" ? toIDR(p) !== null : p.index !== null))
+      .map((p) => ({ ...p, plotted: Number(view === "absolute" ? toIDR(p) : p.index) }))
       .filter((p) => Number.isFinite(p.plotted) && p.plotted >= 0),
   }));
   const years = [...new Set(tracks.flatMap((t) => t.drawn.map((p) => p.year)))].sort((a, b) => a - b);
@@ -57,23 +40,24 @@ export function RevenueTrendGraph() {
   const charted = values.length > 0;
   const min = view === "absolute" ? 0 : Math.floor(Math.min(90, ...values) / 10) * 10;
   const max = view === "absolute" ? Math.max(1, ...values) * 1.1 : Math.ceil(Math.max(110, ...values) / 10) * 10;
-  const w = chartWidth, h = 310, left = 72, right = 24, top = 24, bottom = 40;
+  const w = chartWidth, h = 310, left = view === "absolute" ? 112 : 72, right = 24, top = 24, bottom = 40;
   const x = (year: number) => left + (years.length < 2 ? (w - left - right) / 2 : (year - years[0]) / (years.at(-1)! - years[0]) * (w - left - right));
   const y = (value: number) => h - bottom - (value - min) / Math.max(1, max - min) * (h - top - bottom);
   const selected = years.includes(activeYear ?? NaN) ? activeYear : null;
-  const units = tracks.flatMap((t) => t.drawn)[0];
   const choose = (year: number | null) => { setActiveYear(year); setPinned(year !== null); };
+  if (!charted) return null;
   return <Card className="min-w-0">
-    <CardHeader title="Revenue momentum" aside={<span className="text-xs font-semibold text-muted">Annual financial reports</span>} />
-    <p className="text-sm leading-relaxed text-muted">{view === "indexed" ? `Revenue indexed to ${feed.baseYear ?? "a shared reporting year"} = 100. Compare growth across verified reporting scopes.` : `Reported revenue in ${units?.currency ?? "the source currency"} · ${humanizeFigureMeta(units?.unit ?? "units as reported")}. The value axis starts at zero.`}</p>
+    <CardHeader title="Annual revenue comparison" aside={<span className="text-xs font-semibold text-muted">Verified reporting metadata</span>} />
+    <p className="text-sm leading-relaxed text-muted">{view === "indexed" ? `Revenue indexed to ${feed.baseYear ?? "a shared reporting year"} = 100. Compare growth across verified reporting scopes.` : "Reported revenue in IDR trillions, converted from verified source scales. The value axis starts at zero."}</p>
     <div className="my-4 flex flex-wrap items-center justify-between gap-3">
-      <div role="group" aria-label="Revenue chart view" className="inline-flex rounded-field border border-border bg-subtle p-1">{(["indexed", "absolute"] as const).map((option) => <button type="button" key={option} aria-pressed={view === option} disabled={option === "absolute" ? !feed.absoluteAvailable : feed.baseYear === null} onClick={() => { setMode(option); choose(null); }} className={cx("min-h-10 rounded-[7px] px-3 text-xs font-bold transition-console disabled:opacity-45", view === option ? "bg-card text-accent-ink shadow-sm" : "text-muted hover:text-ink")}>{option === "indexed" ? "Indexed growth" : "Reported revenue"}</button>)}</div>
+      <div role="group" aria-label="Revenue chart view" className="inline-flex rounded-field border border-border bg-subtle p-1">{(["indexed", "absolute"] as const).filter((option) => option === "absolute" ? feed.absoluteAvailable : feed.baseYear !== null).map((option) => <button type="button" key={option} aria-pressed={view === option} onClick={() => { setMode(option); choose(null); }} className={cx("min-h-10 rounded-[7px] px-3 text-xs font-bold transition-console", view === option ? "bg-card text-accent-ink shadow-sm" : "text-muted hover:text-ink")}>{option === "indexed" ? "Indexed growth" : "Reported revenue"}</button>)}</div>
       {charted ? <div className="flex items-center gap-2 text-xs font-semibold text-muted"><span className="shrink-0">Inspect year</span><Select className="min-w-40" label="Inspect reporting year" value={String(selected ?? "")} onChange={(year) => choose(year ? Number(year) : null)} options={[{ value: "", label: "Choose a year" }, ...years.map((year) => ({ value: String(year), label: String(year) }))]} /></div> : null}
     </div>
-    <div className="flex flex-wrap gap-x-5 gap-y-2">{tracks.map((t) => <span key={t.ticker} className="inline-flex items-center gap-2 text-xs font-bold"><svg aria-hidden width="20" height="5"><line x1="0" x2="20" y1="2" y2="2" stroke={t.color} strokeWidth="3" strokeDasharray={t.dash} /></svg>{t.ticker}{watchlist?.user_company === t.ticker ? " ★" : ""}<span className="font-normal text-muted">{t.drawn.length ? `${t.drawn.length} periods` : "comparison unavailable"}</span></span>)}</div>
+    <div className="flex flex-wrap gap-x-5 gap-y-2">{tracks.filter((t) => t.drawn.length).map((t) => <span key={t.ticker} className="inline-flex items-center gap-2 text-xs font-bold"><svg aria-hidden width="20" height="5"><line x1="0" x2="20" y1="2" y2="2" stroke={t.color} strokeWidth="3" strokeDasharray={t.dash} /></svg>{t.ticker}{watchlist?.user_company === t.ticker ? " ★" : ""}<span className="font-normal text-muted">{t.drawn.length} periods</span></span>)}</div>
+    {tracks.some((t) => !t.drawn.length) ? <p className="mt-2 text-xs text-muted">Excluded from this view: {tracks.filter((t) => !t.drawn.length).map((t) => t.ticker).join(", ")}. Their source figures remain in the performance snapshot.</p> : null}
     {charted ? <div ref={chartRef} className="relative mt-3" onPointerLeave={() => { if (!pinned) setActiveYear(null); }}>
       <svg key={view} role="group" aria-label={`Annual revenue, ${years[0]} to ${years.at(-1)}, ${view}`} viewBox={`0 0 ${w} ${h}`} className="rp-fade h-auto min-h-48 w-full">
-        {[0, 1, 2, 3, 4].map((tick) => { const value = min + (max - min) * tick / 4; return <g key={tick}><line x1={left} x2={w - right} y1={y(value)} y2={y(value)} stroke="var(--color-divider)" /><text x={left - 8} y={y(value) + 4} textAnchor="end" fontSize="12" fill="var(--color-muted)">{view === "indexed" ? value.toLocaleString("en", { maximumFractionDigits: 1 }) : compactFinancial(String(Number(value.toPrecision(3)))).replace("≈", "")}</text></g>; })}
+        {[0, 1, 2, 3, 4].map((tick) => { const value = min + (max - min) * tick / 4; return <g key={tick}><line x1={left} x2={w - right} y1={y(value)} y2={y(value)} stroke="var(--color-divider)" /><text x={left - 8} y={y(value) + 4} textAnchor="end" fontSize="12" fill="var(--color-muted)">{view === "indexed" ? value.toLocaleString("en", { maximumFractionDigits: 1 }) : formatIDR(value)}</text></g>; })}
         {selected !== null ? <line x1={x(selected)} x2={x(selected)} y1={top} y2={h - bottom} stroke="var(--color-muted)" strokeDasharray="3 5" /> : null}
         {tracks.map((t) => {
           const segments: typeof t.drawn[] = [];

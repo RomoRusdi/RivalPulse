@@ -1,4 +1,6 @@
 import { ImageResponse } from "next/og";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 /**
  * The social card. The one-minute teaser and social post are frontend
@@ -12,7 +14,8 @@ export const alt =
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-export default function OpengraphImage() {
+export default async function OpengraphImage() {
+  const logo = await readFile(path.join(process.cwd(), "public/brand/rivalpulse.png"));
   return new ImageResponse(
     (
       <div
@@ -27,25 +30,9 @@ export default function OpengraphImage() {
           border: "16px solid #122d23",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 14,
-              background: "#146c50",
-            }}
-          />
-          <div
-            style={{
-              fontSize: 36,
-              fontWeight: 800,
-              letterSpacing: "-0.02em",
-              color: "#17352b",
-            }}
-          >
-            RivalPulse
-          </div>
+        <div style={{ display: "flex", width: 360, height: 72, overflow: "hidden", position: "relative" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img alt="RivalPulse" src={`data:image/png;base64,${logo.toString("base64")}`} width={446} height={149} style={{ position: "absolute", left: -43, top: -34 }} />
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>

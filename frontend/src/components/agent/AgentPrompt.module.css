@@ -1,0 +1,21 @@
+.promptArea { width: 100%; color: var(--color-ink); }
+.column { width: 100%; max-width: 900px; margin-inline: auto; }
+.welcome { padding: 24px; }
+.recommendations { margin-bottom: 10px; }
+.label { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 11px; font-weight: 600; color: var(--color-accent-ink); }
+.cards { display: flex; flex-wrap: wrap; gap: 6px; }
+.card { min-height: 36px; padding: 7px 12px; border: 1px solid var(--color-accent-wash-border); border-radius: 20px; background: rgb(255 255 255 / .72); color: var(--color-accent-ink); font: inherit; font-size: 12px; text-align: left; transition: background-color 180ms var(--ease-enter), box-shadow 180ms var(--ease-enter); }
+.card:hover:not(:disabled), .card:focus-visible { background: var(--color-accent-wash); box-shadow: 0 2px 8px rgb(20 108 80 / .08); }
+.card:disabled { opacity: .5; cursor: not-allowed; }
+.composer { display: flex; align-items: flex-end; gap: 8px; padding: 7px 8px 7px 16px; border: 1px solid var(--color-border); border-radius: 19px; background: var(--color-card); box-shadow: 0 5px 18px -8px rgb(18 45 35 / .18); transition: border-color 180ms var(--ease-enter), box-shadow 180ms var(--ease-enter); }
+.composer:focus-within { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgb(20 108 80 / .08), 0 5px 18px -8px rgb(18 45 35 / .18); }
+.input { width: 100%; flex: 1; min-width: 0; min-height: 40px; max-height: 152px; padding: 9px 0; border: 0; resize: none; background: transparent; color: var(--color-ink); font: inherit; font-size: 14px; line-height: 22px; scrollbar-width: thin; }
+.input::placeholder { color: var(--color-muted); }
+.input:focus-visible { outline: none; box-shadow: none; }
+.input:disabled { cursor: not-allowed; }
+.send { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 7px; min-height: 40px; min-width: 40px; padding: 0 13px; border: 0; border-radius: 13px; background: var(--color-accent); color: white; font-size: 12px; font-weight: 700; transition: background-color 180ms var(--ease-enter), box-shadow 180ms var(--ease-enter); }
+.send:hover:not(:disabled), .send:focus-visible { background: var(--color-accent-hover); box-shadow: 0 3px 10px rgb(20 108 80 / .2); }
+.send:disabled { background: var(--color-subtle); color: var(--color-muted); cursor: not-allowed; }
+.hints { display: flex; justify-content: center; gap: 8px; margin: 8px 0 0; color: var(--color-muted); font-size: 10px; line-height: 1.5; }
+@media (max-width: 639px) { .welcome { padding: 16px; } .input { font-size: 16px; } .send { padding: 0 10px; } .send span { display: none; } .card { font-size: 11px; } }
+@media (prefers-reduced-motion: reduce) { .promptArea * { transform: none !important; transition-property: opacity, background-color, border-color, box-shadow; } }

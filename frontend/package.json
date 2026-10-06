@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:financial": "node --test tests/financial-data.test.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.47.0",
