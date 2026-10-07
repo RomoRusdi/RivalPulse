@@ -10,7 +10,7 @@ import { FinancialContext } from "@/components/signal/FinancialContext";
 import { useStore } from "@/lib/store";
 import { useOptionalAuth } from "@/lib/auth";
 import { getSignal } from "@/lib/api";
-import { findingDate, humanizeFigureMeta, sourceHref } from "@/lib/format";
+import { findingDate, humanizeFigureMeta, evidenceHref, evidenceLabel } from "@/lib/format";
 import { categoryStyle } from "@/lib/signal-categories";
 import type { Signal } from "@/lib/types";
 
@@ -42,7 +42,7 @@ function FindingDetail({ params }: PageProps<"/signals/[id]">) {
   if (!signal) return <>{backLink}<Skeleton className="h-80 w-full" /></>;
   const observations = signal.evidence.filter((item) => item.kind === "observed_signal");
   const facts = signal.evidence.filter((item) => item.kind === "fact" && !/^(revenue|earnings|total_assets|total_equity|ebitda|revenue_growth_percent) for \d{4}/i.test(item.text));
-  const sources = [...new Map((signal.sources ?? []).filter((item) => sourceHref(item.url)).map((item) => [item.url, item])).values()];
+  const sources = [...new Map((signal.sources ?? []).filter((item) => evidenceHref(item.url)).map((item) => [item.url, item])).values()];
   const exportSummary = () => {
     const text = [signal.headline, `${signal.company} · ${signal.type}`, `Added: ${signal.addedAt ?? signal.detectedAt}`,
       ...observations.map((item) => item.text), ...facts.map((item) => item.text), ...sources.map((item) => item.url)].join("\n\n");
@@ -58,19 +58,19 @@ function FindingDetail({ params }: PageProps<"/signals/[id]">) {
     {signal.relevanceReview ? <p role="status" className="rounded-field border border-accent-wash-border bg-accent-wash p-4 text-sm leading-relaxed text-accent-ink">Company relevance needs review. This stored article may discuss several companies; its announcement has not been confirmed as a change by {signal.company}. Review the original source before using it.</p> : null}
     <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,.75fr)_minmax(0,1.65fr)]">
       <div className="order-2 min-w-0 space-y-5 xl:order-1">
-      <Card><h2 className="text-lg font-bold">Sources</h2>{sources.length ? <ul className="mt-3 divide-y divide-divider">{sources.map((item, index) => <li key={item.url} className="py-3"><a href={sourceHref(item.url)!} target="_blank" rel="noopener noreferrer" className="flex min-h-8 items-center justify-between gap-3 text-sm font-semibold text-accent-ink"><span className="min-w-0 break-words">{item.source === "sectors_news" ? "Sectors company news" : item.source === "sectors" ? "Sectors financial report" : `Supporting source ${index + 1}`}</span><ExternalLink aria-hidden size={14} className="shrink-0" /></a><p className="mt-1 truncate text-xs text-muted">{new URL(item.url).hostname}</p></li>)}</ul> : <p className="mt-3 text-sm text-muted">Source links are unavailable in this older record.</p>}</Card>
+      <Card><h2 className="text-lg font-bold">Sources</h2>{sources.length ? <ul className="mt-3 divide-y divide-divider">{sources.map((item, index) => <li key={item.url} className="py-3"><a href={evidenceHref(item.url)!} target={item.url.startsWith("/") ? undefined : "_blank"} rel="noopener noreferrer" className="flex min-h-8 items-center justify-between gap-3 text-sm font-semibold text-accent-ink"><span className="min-w-0 break-words">{item.source === "sectors_news" ? "Sectors company news" : item.source === "sectors" ? "Company financials" : `Supporting source ${index + 1}`}</span><ExternalLink aria-hidden size={14} className="shrink-0" /></a><p className="mt-1 truncate text-xs text-muted">{evidenceLabel(item.url)}</p></li>)}</ul> : <p className="mt-3 text-sm text-muted">Source links are unavailable in this older record.</p>}</Card>
       {facts.length ? <details className="rounded-card border border-border bg-card p-5"><summary className="cursor-pointer text-sm font-bold">Supporting facts · {facts.length}</summary>{facts.map((item, index) => <p key={index} className="mt-3 text-sm leading-relaxed text-ink-2">{humanizeFigureMeta(item.text)}</p>)}</details> : null}
       </div>
       <div className="order-1 min-w-0 space-y-5 xl:order-2">
         <Card><h2 className="text-lg font-bold">What was observed</h2>
           <div className="mt-4 space-y-4">{observations.flatMap((item, index) => item.text.split(/\n\s*\n/).filter(Boolean).map((paragraph, part) => <p key={`${index}-${part}`} className="whitespace-pre-line break-words text-[15px] leading-[1.85] text-ink">{paragraph}</p>))}</div>
           {!observations.length ? <p className="mt-3 text-sm text-muted">Review the supporting evidence for this finding.</p> : null}
-          {sources.length ? <div className="mt-5 flex flex-wrap gap-2 border-t border-divider pt-4" aria-label="Observation evidence">{sources.map((source, index) => <a key={source.url} href={sourceHref(source.url)!} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-field border border-accent-wash-border bg-accent-wash px-3 text-xs font-bold text-accent-ink hover:bg-subtle focus-visible:bg-subtle">Evidence {index + 1} · {new URL(source.url).hostname}<ExternalLink size={13} aria-hidden /></a>)}</div> : null}
+          {sources.length ? <div className="mt-5 flex flex-wrap gap-2 border-t border-divider pt-4" aria-label="Observation evidence">{sources.map((source, index) => <a key={source.url} href={evidenceHref(source.url)!} target={source.url.startsWith("/") ? undefined : "_blank"} rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-field border border-accent-wash-border bg-accent-wash px-3 text-xs font-bold text-accent-ink hover:bg-subtle focus-visible:bg-subtle">Evidence {index + 1} · {evidenceLabel(source.url)}<ExternalLink size={13} aria-hidden /></a>)}</div> : null}
         </Card>
         <FinancialContext data={signal.financialContext} />
       </div>
     </div>
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-divider pt-4"><details className="max-w-full text-xs text-muted"><summary className="cursor-pointer font-semibold">Research record</summary><dl className="mt-3 space-y-2 break-all"><div><dt>Investigation</dt><dd>{signal.runId}</dd></div><div><dt>Stored at</dt><dd>{signal.storedAt}</dd></div>{signal.comparedAgainstRunId ? <div><dt>Compared with</dt><dd>{signal.comparedAgainstRunId}</dd></div> : null}</dl></details>
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-divider pt-4"><details className="max-w-full text-xs text-muted"><summary className="cursor-pointer font-semibold">Research record</summary><dl className="mt-3 space-y-2 break-all"><div><dt>Stored at</dt><dd>{signal.storedAt}</dd></div>{signal.comparedAgainstRunId ? <div><dt>Comparison</dt><dd>Compared with previous research</dd></div> : null}</dl></details>
       <div className="flex flex-wrap gap-2"><Button onClick={exportSummary}><FileDown aria-hidden size={14} className="mr-2" />Export finding</Button><Button variant="primary" onClick={() => {
         startRun(`Investigate ${signal.company} (${signal.companyName}) further, starting from this finding: ${signal.title}. Focus on ${signal.company}.`); router.push("/");
       }}>Investigate deeper</Button></div></div>

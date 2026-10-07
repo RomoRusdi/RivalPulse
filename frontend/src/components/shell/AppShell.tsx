@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, ViewTransition } from "react";
 import { usePathname } from "next/navigation";
 import { DatabaseZap, Menu } from "lucide-react";
 import { Sidebar } from "./Sidebar";
@@ -46,7 +46,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const toggleSidebar = () => setSidebarCollapsed((current) => !current);
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-surface">
+    <div className="rp-app-shell relative isolate h-dvh w-full overflow-hidden bg-surface" data-collapsed={sidebarCollapsed}>
       {/* Keyboard users shouldn't have to tab the whole sidebar every page. */}
       <a
         href="#main"
@@ -57,9 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Static sidebar from lg up, scrolling independently of main */}
       <div
-        className={`hidden h-full shrink-0 overflow-y-auto transition-[width] duration-200 ease-[var(--ease-enter)] lg:block ${
-          sidebarCollapsed ? "w-20" : "w-[244px]"
-        }`}
+        className="rp-scrollbar rp-desktop-sidebar hidden h-full min-w-0 overflow-x-hidden overflow-y-auto border-r border-border bg-sidebar lg:block"
       >
         <Sidebar collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebar} />
       </div>
@@ -69,7 +67,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <MobileDrawer onClose={() => setDrawerOpen(false)} />
       ) : null}
 
-      <div className="flex h-full min-w-0 flex-1 flex-col">
+      <div data-shell-pane className="flex h-full min-h-0 min-w-0 flex-col">
         <header className="rp-glass-bar relative z-20 flex shrink-0 flex-wrap items-center gap-3 border-b border-border px-4 py-3.5 md:px-[22px]">
           <button
             type="button"
@@ -99,14 +97,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main
           id="main"
           tabIndex={-1}
-          className={`min-w-0 flex-1 ${isAgentWorkspace ? "overflow-hidden p-0" : "overflow-y-auto p-4 md:p-[22px]"}`}
+          className={`rp-scrollbar min-w-0 flex-1 ${isAgentWorkspace ? "overflow-hidden p-0" : "overflow-y-auto p-4 md:p-[22px]"}`}
         >
+          <ViewTransition key={pathname} enter="rp-route" exit="rp-route" default="none">
           <div
             key={pathname}
-            className={`rp-page-enter min-w-0 ${isAgentWorkspace ? "h-full" : "flex flex-col gap-4"}`}
+            className={`rp-route-page min-w-0 ${isAgentWorkspace ? "h-full" : "flex flex-col gap-4"}`}
           >
             {children}
           </div>
+          </ViewTransition>
         </main>
       </div>
 

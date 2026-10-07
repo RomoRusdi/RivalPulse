@@ -7,6 +7,7 @@ from app.classify import company_event, signal_title
 from app.db import iso, utcnow
 from app.models import RunStep
 from app.research import STAGES
+from app.public_evidence import PublicFinancialBrief, public_link
 
 
 def try_float(value):
@@ -37,7 +38,7 @@ def signal_json(card):
         ref = next((references.get(identity) for identity in metric["evidence_ids"] if identity in references), {})
         rows.append({"metric": metric["metric"], "value": metric["value"], "currency": metric["currency"],
                      "unit": metric["unit"], "period": metric["period"], "basis": metric["comparison_basis"],
-                     "sourceUrl": ref.get("url_or_endpoint", ""), "snapshotId": ref.get("snapshot_id")})
+                     "snapshotId": ref.get("snapshot_id")})
     news = any(entry.get("source") == "sectors_news" for entry in card.get("evidence", []))
     scoped = [company_event({"text": observation["text"], "title": headline}, card["company"])
               for observation in observations] if news else []
@@ -52,7 +53,7 @@ def signal_json(card):
         "detectedAt": card["first_seen_at"][:10], "runId": card["run_id"], "storedAt": card["stored_at"],
         "addedAt": card["first_seen_at"], "publishedAt": card.get("published_at"),
         "relevanceReview": relevance_review,
-        "sources": [{"url": entry["url_or_endpoint"], "source": entry["source"],
+        "sources": [{"url": public_link(entry["url_or_endpoint"], entry.get("snapshot_id"), entry["source"]), "source": entry["source"],
                      "publishedAt": entry.get("published_at")} for entry in card.get("evidence", [])],
         "comparedAgainstRunId": card["compared_against_run_id"] or "",
         "evidence": [{"kind": kind, "source": "AI interpretation" if kind == "hypothesis" else "Stored evidence",
@@ -145,6 +146,6 @@ def run_json(db, run):
             if missing:
                 data["resultSummary"] += " Some evidence could not be verified; see source coverage in the run details."
         if run.result.get("financial_brief"):
-            data["financialBrief"] = run.result["financial_brief"]
+            data["financialBrief"] = PublicFinancialBrief.model_validate(run.result["financial_brief"]).model_dump()
         data["producedSignalIds"] = [c["signal_id"] for c in run.result["signals"] if c["change_status"] in ("new", "updated")]
     return data

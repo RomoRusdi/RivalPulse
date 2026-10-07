@@ -26,7 +26,7 @@ export function SignalMix({ mix, total, busy, category = "", onSelect }: {
             onClick={() => onSelect?.(entry.label)}
             className={cx("min-h-11 w-full rounded-field px-3 py-2 text-left transition-console disabled:cursor-default", selected ? "bg-subtle ring-1 ring-border" : "hover:bg-subtle")}>
             <span className="mb-1.5 flex items-center justify-between gap-3 text-sm"><span className="font-semibold">{entry.label}</span><span className="tabular-nums"><strong>{slice?.count ?? 0}</strong><span className="ml-3 text-xs text-muted">{Math.round(share)}%</span></span></span>
-            <span aria-hidden className="block h-2 overflow-hidden rounded-full bg-subtle"><span className="block h-full rounded-full transition-chart" style={{ width: `${Math.min(100, share)}%`, backgroundColor: entry.color }} /></span>
+            <span aria-hidden className="block h-2 overflow-hidden rounded-full bg-subtle"><span className="rp-spring-fill block h-full w-full origin-left rounded-full" style={{ transform: `scaleX(${Math.min(100, share) / 100})`, backgroundColor: entry.color }} /></span>
           </button>
         </li>;
       })}</ul>}

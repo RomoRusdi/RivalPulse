@@ -8,6 +8,7 @@ from sqlalchemy import select
 from app.config import get_settings
 from app.db import session
 from app.models import Run, RunSnapshot
+from app.public_evidence import public_payload
 
 
 def test_sql_persistence_and_actual_ai_http_boundary(client, watchlist, monkeypatch):
@@ -62,7 +63,9 @@ def test_sql_persistence_and_actual_ai_http_boundary(client, watchlist, monkeypa
         assert result["result"]["financial_brief"]["interpretation"]["supporting_claim_ids"]
         with session() as fresh_connection:
             stored = fresh_connection.get(Run, run_id)
-            assert stored.result == result["result"]
+            assert public_payload(stored.result) == result["result"]
+            assert all("json_pointer" in metric for row in stored.result["financial_brief"]["rows"]
+                       for metric in row["metrics"])
             assert stored.llm_calls == 2
             assert len(fresh_connection.scalars(select(RunSnapshot).where(RunSnapshot.run_id == run_id)).all()) == 3
     finally:

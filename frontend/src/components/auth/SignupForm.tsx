@@ -43,24 +43,24 @@ export function SignupForm() {
         <p className="mt-1.5 text-sm text-muted">Keep your team’s competitive research in one place.</p>
       </div>
       <fieldset disabled={busy} className="flex flex-col gap-3.5">
-        <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-ink-2">Your name
+        <label className="rp-field-focus flex flex-col gap-2 text-[13px] font-semibold text-ink-2">Your name
           <input name="name" required maxLength={80} autoComplete="name" className={FIELD} />
         </label>
         <CompanyPicker value={company} onChange={setCompany} />
-        <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-ink-2">Work email
+        <label className="rp-field-focus flex flex-col gap-2 text-[13px] font-semibold text-ink-2">Work email
           <input name="email" type="email" required maxLength={254} autoComplete="email" autoCapitalize="none" className={FIELD} />
         </label>
-        <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-ink-2">Password
+        <label className="rp-field-focus flex flex-col gap-2 text-[13px] font-semibold text-ink-2">Password
           <input name="password" type={show ? "text" : "password"} required minLength={15} maxLength={128} autoComplete="new-password" aria-describedby="password-hint" className={FIELD} />
         </label>
         <p id="password-hint" className="text-xs text-muted">Use 15–128 characters. A memorable passphrase works well.</p>
-        <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-ink-2">Confirm password
+        <label className="rp-field-focus flex flex-col gap-2 text-[13px] font-semibold text-ink-2">Confirm password
           <input name="confirm" type={show ? "text" : "password"} required minLength={15} maxLength={128} autoComplete="new-password" className={FIELD} />
         </label>
         <label className="flex items-center gap-2 text-[13px] text-ink-2"><input type="checkbox" checked={show} onChange={e => setShow(e.target.checked)} className="accent-accent" />Show passwords</label>
       </fieldset>
       {error && <p role="alert" className="rounded-field bg-accent-wash p-3 text-sm text-accent-ink">{error}</p>}
-      <button disabled={busy} className="cursor-pointer rounded-field bg-accent px-4 py-3 font-bold text-white transition-console hover:bg-accent-hover disabled:opacity-60">{busy ? "Creating workspace…" : "Create account"}</button>
+      <button disabled={busy} className="rp-press cursor-pointer rounded-field bg-accent px-4 py-3 font-bold text-white hover:bg-accent-hover disabled:opacity-60"><span className="rp-text-chunk" key={String(busy)}>{busy ? "Creating workspace…" : "Create account"}</span></button>
       <p className="text-[13px] text-muted">Already have an account? <Link href="/login" className="font-semibold text-accent-ink">Log in</Link></p>
     </form>
   );

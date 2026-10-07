@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { useFocusTrap } from "@/lib/use-focus-trap";
 import { cx } from "@/components/ui/primitives";
+import { reducedMotion } from "@/lib/motion";
 
 /** Must match `.rp-drawer-out` in globals.css. */
 const EXIT_MS = 220;
@@ -20,14 +21,40 @@ const EXIT_MS = 220;
  */
 export function MobileDrawer({ onClose }: { onClose: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [closing, setClosing] = useState(false);
+  // Capture before the navigation trap moves focus into the drawer.
+  useEffect(() => { opener.current = document.activeElement as HTMLElement | null; }, []);
 
   const requestClose = useCallback(() => {
+    if (closeTimer.current) return;
     setClosing(true);
-    setTimeout(onClose, EXIT_MS);
+    closeTimer.current = setTimeout(onClose, reducedMotion() ? 0 : EXIT_MS);
   }, [onClose]);
+  useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);
 
-  useFocusTrap(panelRef, requestClose);
+  useFocusTrap(panelRef, () => {
+    // Escape closes a nested Agent menu before dismissing navigation.
+    if (!panelRef.current?.querySelector('[role="menu"][data-open="true"]')) requestClose();
+  });
+
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const dismissHiddenDrawer = () => {
+      if (!desktop.matches) return;
+      // CSS hides this dialog at the desktop breakpoint. Unmount its trap too,
+      // and return keyboard users to visible content instead of a hidden opener.
+      const active = document.activeElement;
+      if (active === document.body || panelRef.current?.contains(active)) {
+        document.getElementById("main")?.focus({ preventScroll: true });
+      }
+      onClose();
+    };
+    dismissHiddenDrawer();
+    desktop.addEventListener("change", dismissHiddenDrawer);
+    return () => desktop.removeEventListener("change", dismissHiddenDrawer);
+  }, [onClose]);
 
   return (
     <div
@@ -44,12 +71,16 @@ export function MobileDrawer({ onClose }: { onClose: () => void }) {
         aria-label="Navigation"
         tabIndex={-1}
         className={cx(
-          "rp-drawer h-full w-[260px] max-w-[85vw] border-r border-border shadow-frame",
+          "rp-drawer rp-scrollbar h-full w-[260px] max-w-[85vw] overflow-y-auto overscroll-contain border-r border-border shadow-frame",
           closing && "rp-drawer-out",
         )}
         onClick={(e) => e.stopPropagation()}
       >
-        <Sidebar onNavigate={requestClose} />
+        <Sidebar onNavigate={requestClose} onAgentAction={() => {
+          requestClose();
+          // History records this persistent button as its focus return target.
+          opener.current?.focus({ preventScroll: true });
+        }} />
       </div>
     </div>
   );

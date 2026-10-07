@@ -1,0 +1,41 @@
+:root {
+  --motion-micro: 120ms;
+  --motion-standard: 250ms;
+  --motion-large: 400ms;
+  --motion-exit: 150ms;
+  --motion-sidebar: 240ms;
+  --motion-response-smooth: 450ms;
+  --motion-response-snappy: 350ms;
+  --motion-response-bouncy: 500ms;
+  --motion-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+  --spring-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+  --spring-snappy: cubic-bezier(0.16, 1, 0.3, 1);
+  --spring-bouncy: cubic-bezier(0.34, 1.2, 0.64, 1);
+  --motion-press: .97;
+  --motion-distance: 8px;
+  --motion-stagger: 30ms;
+}
+/* Sampled damped step responses: ζ≈1.0 / .85 / .7. Bezier fallbacks above. */
+@supports (animation-timing-function: linear(0, 1)) {
+  :root {
+    --spring-smooth: linear(0, .044, .145, .267, .389, .502, .601, .685, .754, .81, .854, .889, .916, .937, .953, .965, .974, .981, .986, .99, 1);
+    --spring-snappy: linear(0, .047, .158, .296, .438, .57, .685, .78, .855, .912, .953, .981, .999, 1.01, 1.015, 1.016, 1.015, 1.013, 1.01, 1.008, 1);
+    --spring-bouncy: linear(0, .057, .194, .365, .538, .693, .819, .914, .98, 1.02, 1.041, 1.046, 1.042, 1.034, 1.025, 1.016, 1.009, 1.003, .999, .997, 1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-response-smooth: 120ms;
+    --motion-response-snappy: 120ms;
+    --motion-response-bouncy: 120ms;
+    --motion-standard: 120ms;
+    --motion-large: 120ms;
+    --motion-exit: 100ms;
+    --motion-distance: 0px;
+    --motion-press: 1;
+    --motion-stagger: 0ms;
+    --spring-smooth: ease-out;
+    --spring-snappy: ease-out;
+    --spring-bouncy: ease-out;
+  }
+}

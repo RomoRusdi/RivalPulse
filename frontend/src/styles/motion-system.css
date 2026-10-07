@@ -1,0 +1,76 @@
+/* Short grid transitions coordinate shell layout without scaling live text. */
+.rp-app-shell { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+.rp-sidebar-label { opacity: 1; transition: opacity 100ms ease-out 100ms; }
+.rp-sidebar[data-collapsed="true"] .rp-sidebar-label { opacity: 0; pointer-events: none; transition-delay: 0ms; }
+.rp-sidebar-toggle svg { transition: transform var(--motion-sidebar) var(--motion-sheet); }
+.rp-sidebar[data-collapsed="true"] .rp-sidebar-toggle svg { transform: rotate(180deg); }
+@media (min-width: 1024px) {
+  .rp-app-shell { grid-template-columns: 244px minmax(0, 1fr); transition: grid-template-columns var(--motion-sidebar) var(--motion-sheet); }
+  .rp-app-shell[data-collapsed="true"] { grid-template-columns: 80px minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rp-app-shell, .rp-sidebar-label, .rp-sidebar-toggle svg { transition: none !important; }
+}
+.rp-press { transition: transform var(--motion-micro) var(--motion-sheet), opacity var(--motion-standard) var(--motion-sheet); }
+.rp-press:active:not(:disabled) { transform: scale(var(--motion-press)); }
+.rp-arrow { transition: transform var(--motion-micro) var(--motion-sheet); }
+:where(a, button):is(:hover, :focus-visible) .rp-arrow { transform: translateX(2px); }
+.rp-nav-indicator { opacity: 0; transform-origin: left center; transition: transform var(--motion-response-smooth) var(--spring-smooth), opacity var(--motion-micro) ease-out; }
+.rp-sidebar[data-marker-ready="true"] [data-nav-item][aria-current="page"] { background: transparent; }
+.rp-spring-fill { transition: transform var(--motion-response-smooth) var(--spring-smooth); }
+@starting-style { .rp-spring-fill { transform: scaleX(0); } }
+.rp-number-roll { animation: rp-number-enter var(--motion-standard) var(--spring-snappy) backwards; }
+@keyframes rp-number-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+.rp-expand { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows var(--motion-response-smooth) var(--spring-smooth), opacity var(--motion-exit) ease-out; }
+.rp-expand[data-open="true"] { grid-template-rows: 1fr; opacity: 1; transition-duration: var(--motion-response-smooth), var(--motion-standard); }
+.rp-expand > div { min-height: 0; overflow: hidden; }
+.rp-chevron { transition: transform var(--motion-response-snappy) var(--spring-snappy); }
+.rp-popover { opacity: 0; transform: scale(.96); pointer-events: none; transition: transform var(--motion-exit) var(--motion-sheet), opacity var(--motion-exit) ease-out; }
+.rp-popover[data-open="true"] { opacity: 1; transform: scale(1); pointer-events: auto; transition-duration: var(--motion-response-snappy), var(--motion-standard); transition-timing-function: var(--spring-snappy), var(--motion-sheet); }
+@starting-style { .rp-popover[data-open="true"] { opacity: 0; transform: scale(.96); } }
+.rp-message-enter { animation: rp-page-enter var(--motion-response-smooth) var(--spring-smooth) backwards; }
+.rp-text-chunk { animation: rp-opacity-enter var(--motion-micro) ease-out backwards; }
+.rp-chip { animation: rp-chip-enter var(--motion-response-snappy) var(--spring-snappy) backwards; animation-delay: calc(var(--chip-index, 0) * var(--motion-stagger)); }
+.rp-expand[data-open="false"] .rp-chip { animation: none; }
+@keyframes rp-chip-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+.rp-agent-heading { transform-origin: left center; transition: transform var(--motion-response-smooth) var(--spring-smooth); }
+.rp-agent-heading[data-compact="true"] { transform: scale(.86); }
+.rp-agent-header { z-index: 2; }
+.rp-agent-header::before { content: ""; position: absolute; inset: 0; background: rgb(243 247 245 / .86); backdrop-filter: blur(8px); opacity: 0; pointer-events: none; transition: opacity var(--motion-standard) ease-out; }
+.rp-agent-header[data-scrolled="true"]::before { opacity: 1; }
+.rp-agent-header > * { position: relative; }
+.rp-field-focus { position: relative; }
+.rp-field-focus::after { content: ""; position: absolute; inset-inline: 0; bottom: 0; height: 46px; border-radius: var(--radius-field); box-shadow: 0 0 0 3px rgb(20 108 80 / .1); opacity: 0; pointer-events: none; transition: opacity var(--motion-standard) var(--motion-sheet); }
+.rp-field-focus:focus-within::after { opacity: 1; }
+.rp-chat-scroll { overflow-anchor: none; }
+.rp-chat-scroll[data-scrolled="true"] { mask-image: linear-gradient(to bottom, transparent, black 12px); }
+:is(.rp-scrollbar, html) { scrollbar-width: thin; scrollbar-color: var(--color-neutral-300) transparent; }
+:is(.rp-scrollbar, html)::-webkit-scrollbar { width: 6px; height: 6px; }
+:is(.rp-scrollbar, html)::-webkit-scrollbar-track { background: transparent; }
+:is(.rp-scrollbar, html)::-webkit-scrollbar-thumb { border-radius: 8px; background: var(--color-neutral-300); }
+:is(.rp-scrollbar, html)::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
+
+/* React ViewTransition uses the browser API, skipping it when unsupported.
+   CSS entrance is the fallback; the persistent shell stays in place. */
+.rp-route-page { animation: rp-page-enter var(--motion-standard) var(--motion-sheet) backwards; }
+@supports (view-transition-name: match-element) { .rp-route-page { animation: none; } }
+::view-transition { pointer-events: none; }
+::view-transition-group(*) { animation: none; }
+::view-transition-old(root) { display: none; }
+::view-transition-new(root) { animation: none; }
+::view-transition-old(.rp-route) { animation: rp-route-exit var(--motion-exit) ease-out both; }
+::view-transition-new(.rp-route) { animation: rp-page-enter var(--motion-standard) var(--motion-sheet) both; }
+@keyframes rp-route-exit { to { opacity: 0; transform: translateY(calc(-1 * var(--motion-distance))); } }
+@media (max-width: 639px) { .rp-agent-heading[data-compact="true"] { transform: scale(.94); } }
+@media (prefers-reduced-transparency: reduce) { .rp-agent-header::before { background: var(--color-surface); backdrop-filter: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .rp-press:active:not(:disabled), :where(a, button):is(:hover, :focus-visible) .rp-arrow { transform: none; }
+  .rp-popover, .rp-popover[data-open="true"] { transform: none; }
+  .rp-number-roll, .rp-message-enter, .rp-chip, .rp-route-page { animation: rp-opacity-enter var(--motion-micro) ease-out backwards !important; animation-delay: 0ms !important; }
+  .rp-agent-heading, .rp-chevron, .rp-nav-indicator, .rp-spring-fill { transition: none !important; }
+  ::view-transition-old(.rp-route) { animation: rp-route-exit var(--motion-exit) ease-out both !important; }
+  ::view-transition-new(.rp-route) { animation: rp-opacity-enter var(--motion-micro) ease-out both !important; }
+  @starting-style { .rp-popover[data-open="true"] { transform: none; } .rp-spring-fill { transform: revert; } }
+}

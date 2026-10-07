@@ -26,10 +26,10 @@ export function LoginForm() {
     <div><h1 className="text-[28px] font-extrabold tracking-[-0.035em]">Welcome back</h1>
       <p className="mt-2 text-sm text-muted">Log in to continue your workspace’s research.</p></div>
     <fieldset disabled={busy} className="flex flex-col gap-4">
-      <label className="flex flex-col gap-2 text-[13px] font-semibold">Work email
+      <label className="rp-field-focus flex flex-col gap-2 text-[13px] font-semibold">Work email
         <input name="email" type="email" required maxLength={254} autoComplete="email" autoCapitalize="none" className={FIELD} /></label>
       <label className="flex flex-col gap-2 text-[13px] font-semibold">Password
-        <span className="flex rounded-field border border-border bg-subtle focus-within:border-accent">
+        <span className="rp-field-focus flex rounded-field border border-border bg-subtle focus-within:border-accent">
           <input name="password" type={show ? "text" : "password"} required maxLength={128} autoComplete="current-password" className="min-w-0 flex-1 bg-transparent px-3.5 py-3 text-sm outline-none" />
           <button type="button" onClick={() => setShow(v => !v)} aria-label={show ? "Hide password" : "Show password"} aria-pressed={show} className="cursor-pointer px-3">{show ? <EyeOff size={16} /> : <Eye size={16} />}</button>
         </span></label>
@@ -37,7 +37,7 @@ export function LoginForm() {
       <p className="text-xs leading-relaxed text-muted">Leave unchecked to require login when you close this tab and open RivalPulse again.</p>
     </fieldset>
     {error && <p role="alert" className="rounded-field bg-accent-wash p-3 text-sm text-accent-ink">{error}</p>}
-    <button disabled={busy} className="cursor-pointer rounded-field bg-accent px-4 py-3 font-bold text-white hover:bg-accent-hover disabled:opacity-60">{busy ? "Logging in…" : "Log in"}</button>
+    <button disabled={busy} className="rp-press cursor-pointer rounded-field bg-accent px-4 py-3 font-bold text-white hover:bg-accent-hover disabled:opacity-60"><span className="rp-text-chunk" key={String(busy)}>{busy ? "Logging in…" : "Log in"}</span></button>
     <p className="text-[13px] text-muted">New to RivalPulse? <Link href="/signup" className="font-semibold text-accent-ink">Create an account</Link></p>
   </form>;
 }

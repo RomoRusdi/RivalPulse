@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import select
 
 from app.db import session, utcnow
-from app.financial_projection import performance_metrics
+from app.financial_projection import performance_metrics, project_snapshot
 from app.models import Company, Run, RunSnapshot, RunStep, Snapshot
 from app.providers import normalize_report
 from app.research import recovery_plan, yoy_percent
@@ -41,7 +41,8 @@ def test_saved_legacy_payload_supplies_rates_without_metadata_or_provider_calls(
     company = next(c for c in feed["companies"] if c["ticker"] == "TLKM")
     rates = {m["metric"]: m for m in company["performanceMetrics"]}
     revenue = rates["yoy_quarter_revenue_growth"]
-    assert revenue["value"] == "12.35" and revenue["rawValue"] == "0.123456"
+    assert revenue["value"] == "12.35"
+    assert {"rawValue", "jsonPointer", "sourceUrl", "transformation"}.isdisjoint(revenue)
     assert revenue["period"] is None and revenue["periodKind"] == "quarter"
     assert revenue["reasons"] == ["period_unknown"] and revenue["comparisonStatus"] == "context_only"
     assert rates["yoy_quarter_earnings_growth"]["value"] == "-25.00"
@@ -54,7 +55,7 @@ def test_saved_legacy_payload_supplies_rates_without_metadata_or_provider_calls(
     with session() as db:
         saved = db.get(Snapshot, snapshot_id)
         assert saved.normalized == original and saved.parser_version == "1"
-        for metric in company["performanceMetrics"]:
+        for metric in project_snapshot(saved)[1]:
             value = saved.raw_payload
             for token in metric["jsonPointer"].split("/")[1:]:
                 value = value[int(token)] if isinstance(value, list) else value[token]

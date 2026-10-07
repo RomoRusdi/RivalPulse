@@ -1,21 +1,95 @@
-.promptArea { width: 100%; color: var(--color-ink); }
-.column { width: 100%; max-width: 900px; margin-inline: auto; }
-.welcome { padding: 24px; }
-.recommendations { margin-bottom: 10px; }
-.label { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 11px; font-weight: 600; color: var(--color-accent-ink); }
-.cards { display: flex; flex-wrap: wrap; gap: 6px; }
-.card { min-height: 36px; padding: 7px 12px; border: 1px solid var(--color-accent-wash-border); border-radius: 20px; background: rgb(255 255 255 / .72); color: var(--color-accent-ink); font: inherit; font-size: 12px; text-align: left; transition: background-color 180ms var(--ease-enter), box-shadow 180ms var(--ease-enter); }
-.card:hover:not(:disabled), .card:focus-visible { background: var(--color-accent-wash); box-shadow: 0 2px 8px rgb(20 108 80 / .08); }
-.card:disabled { opacity: .5; cursor: not-allowed; }
-.composer { display: flex; align-items: flex-end; gap: 8px; padding: 7px 8px 7px 16px; border: 1px solid var(--color-border); border-radius: 19px; background: var(--color-card); box-shadow: 0 5px 18px -8px rgb(18 45 35 / .18); transition: border-color 180ms var(--ease-enter), box-shadow 180ms var(--ease-enter); }
-.composer:focus-within { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgb(20 108 80 / .08), 0 5px 18px -8px rgb(18 45 35 / .18); }
-.input { width: 100%; flex: 1; min-width: 0; min-height: 40px; max-height: 152px; padding: 9px 0; border: 0; resize: none; background: transparent; color: var(--color-ink); font: inherit; font-size: 14px; line-height: 22px; scrollbar-width: thin; }
-.input::placeholder { color: var(--color-muted); }
+.promptArea { width: 100%; color: #10291e; font-family: var(--font-agent-inter), var(--font-manrope), sans-serif; --ask-ease: cubic-bezier(.22, 1, .36, 1); }
+/* Suggestions, composer and hints share one edge at every viewport size. */
+.column { width: 100%; max-width: 840px; margin-inline: auto; }
+.hero { margin-bottom: 40px; text-align: center; }
+.heading { margin: 0; font-size: 36px; font-weight: 600; line-height: 1.25; letter-spacing: -1px; text-wrap: balance; }
+.heading > span { display: inline-block; white-space: pre; animation: wordEnter 500ms var(--ask-ease) both; animation-delay: calc(var(--word-index) * 60ms); }
+.subtitle { margin: 16px 0 0; color: #6b7c74; font-size: 16px; line-height: 1.6; text-wrap: balance; animation: blurEnter 600ms var(--ask-ease) 300ms both; }
+.recommendationContent { padding: 4px 10px 28px; margin-inline: -10px; }
+.recommendations > div { overflow: visible; }
+.recommendations[data-open="false"] > div { overflow: hidden; padding: 0; }
+.label { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; color: #1f6b4a; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; }
+.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.cardEntrance { min-width: 0; }
+.welcome .cardEntrance { animation: cardEnter 600ms var(--spring-bouncy) both; animation-delay: calc(650ms + var(--card-index) * 120ms); }
+.card { position: relative; display: flex; align-items: flex-start; gap: 12px; width: 100%; min-height: 136px; padding: 20px 16px; border: 1.5px solid #dce8e2; border-radius: 16px; background: white; box-shadow: 0 4px 16px rgb(31 107 74 / .06); font: inherit; text-align: left; cursor: pointer; transition: transform 300ms var(--spring-bouncy), border-color 300ms var(--ask-ease), background-color 300ms var(--ask-ease), box-shadow 300ms var(--ask-ease); }
+.card:hover:not(:disabled), .card:focus-visible { z-index: 1; transform: scale(1.03); border-color: #1f6b4a; box-shadow: 0 6px 20px rgb(31 107 74 / .1); }
+.card:active:not(:disabled) { transform: scale(.98); transition-duration: 120ms; }
+.card[data-selected="true"] { border-color: #1f6b4a; background: #f2f8f5; }
+.card:disabled { opacity: .55; cursor: not-allowed; }
+.iconTile { display: flex; flex: 0 0 36px; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 10px; background: #e6f2ec; color: #1f6b4a; }
+.cardCopy { min-width: 0; }
+.cardTitle { display: block; margin: 0 0 8px; color: #10291e; font-size: 16px; font-weight: 600; line-height: 1.35; }
+.description { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; color: #6b7c74; font-size: 13px; line-height: 1.5; }
+.composer { position: relative; display: flex; align-items: flex-end; gap: 12px; width: 100%; max-width: 840px; min-height: 64px; margin-inline: auto; padding: 10px 12px; border: 0; outline: none; border-radius: 20px; background: white; box-shadow: 0 6px 24px rgb(31 107 74 / .1); }
+.welcome .composer { animation: promptEnter 700ms var(--ask-ease) 350ms both; }
+.composer::after { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; box-shadow: 0 8px 28px rgb(31 107 74 / .1); opacity: 0; transition: opacity 300ms var(--ask-ease); }
+.composer:focus-within::after { opacity: 1; }
+.pulseTile { display: flex; flex: 0 0 44px; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: #e6f2ec; color: #1f6b4a; }
+.pulseTile svg { width: 30px; height: 24px; }
+.welcome .pulseTile { animation: tileEnter 500ms var(--spring-bouncy) 700ms both; }
+.welcome .heartbeat { stroke-dasharray: 1; animation: heartbeatDraw 600ms var(--ask-ease) 850ms both; }
+.inputWell { position: relative; flex: 1; min-width: 0; }
+.inputBase { height: 44px; }
+.inputGrowth { display: grid; grid-template-rows: minmax(0, var(--composer-growth, 0fr)); transition: grid-template-rows var(--motion-response-smooth) var(--spring-smooth); }
+.growthClip { min-height: 0; overflow: hidden; }
+.growthSpace { height: 112px; }
+.input, .inputMirror { padding: 10px 0; font: inherit; font-size: 16px; font-weight: 500; line-height: 24px; overflow-wrap: anywhere; }
+.inputMirror { position: absolute; inset-inline: 0; top: 0; visibility: hidden; white-space: pre-wrap; pointer-events: none; }
+.input { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 44px; border: 0; resize: none; background: transparent; color: #10291e; caret-color: #1f6b4a; scrollbar-width: thin; }
+.input::placeholder { color: #8a9a92; font-weight: 400; transition: opacity 200ms ease-out; }
+.composer[data-filling="true"] .input::placeholder { opacity: 0; }
 .input:focus-visible { outline: none; box-shadow: none; }
 .input:disabled { cursor: not-allowed; }
-.send { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 7px; min-height: 40px; min-width: 40px; padding: 0 13px; border: 0; border-radius: 13px; background: var(--color-accent); color: white; font-size: 12px; font-weight: 700; transition: background-color 180ms var(--ease-enter), box-shadow 180ms var(--ease-enter); }
-.send:hover:not(:disabled), .send:focus-visible { background: var(--color-accent-hover); box-shadow: 0 3px 10px rgb(20 108 80 / .2); }
-.send:disabled { background: var(--color-subtle); color: var(--color-muted); cursor: not-allowed; }
-.hints { display: flex; justify-content: center; gap: 8px; margin: 8px 0 0; color: var(--color-muted); font-size: 10px; line-height: 1.5; }
-@media (max-width: 639px) { .welcome { padding: 16px; } .input { font-size: 16px; } .send { padding: 0 10px; } .send span { display: none; } .card { font-size: 11px; } }
-@media (prefers-reduced-motion: reduce) { .promptArea * { transform: none !important; transition-property: opacity, background-color, border-color, box-shadow; } }
+.send { position: relative; isolation: isolate; display: flex; flex: 0 0 96px; align-items: center; justify-content: center; gap: 8px; width: 96px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 12px; background: #e9f1ed; color: #4b5e55; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: transform 300ms var(--spring-bouncy), color 300ms var(--ask-ease); }
+.send::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: #1f6b4a; opacity: 0; transition: opacity 300ms var(--ask-ease); }
+.send[data-active="true"] { color: white; }
+.send[data-active="true"]::before { opacity: 1; }
+.send:hover:not(:disabled) { transform: translateY(-1px); }
+.send:active:not(:disabled) { transform: scale(.94); transition-duration: 120ms; }
+.send:disabled { cursor: not-allowed; }
+.send > span { min-width: 38px; }
+.card:focus-visible, .send:focus-visible { outline: 2px solid #1f6b4a; outline-offset: 4px; }
+.hints { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; width: 100%; max-width: 840px; margin: 12px auto 0; color: #6b7c74; font-size: 12px; line-height: 1.5; }
+.hints p { margin: 0; }
+.welcome .hints { animation: fadeEnter 400ms ease-out 1000ms both; }
+.shortcuts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
+.shortcuts kbd { padding: 2px 6px; border: 1px solid #d5e2db; border-radius: 6px; background: white; color: #4b5e55; font: inherit; }
+.outgoingQuery { position: absolute; inset: 0; overflow: hidden; padding: 10px 0; background: white; font-size: 16px; line-height: 24px; white-space: nowrap; text-overflow: ellipsis; pointer-events: none; animation: queryExit 350ms var(--ask-ease) both; }
+.flyingPlane { position: absolute; left: 12px; top: 13px; pointer-events: none; animation: planeExit 450ms var(--ask-ease) both; }
+.composer[data-sending="true"] .pulseTile { animation: pulseSend 500ms var(--ask-ease); }
+.composer[data-sending="true"] .input { animation: fadeEnter 250ms ease-out 180ms backwards; }
+.composer[data-sending="true"] .sendIcon { animation: fadeEnter 200ms ease-out 350ms backwards; }
+.compact .cards { display: flex; flex-wrap: wrap; gap: 8px; }
+.compact .card { width: auto; min-height: 36px; padding: 8px 12px; border-radius: 20px; }
+.compact .cardTitle { margin: 0; font-size: 12px; }
+.compact .description, .compact .iconTile { display: none; }
+.compact .recommendationContent { padding-bottom: 12px; }
+.compact .label { font-size: 11px; letter-spacing: .75px; }
+.compact .hints { margin-top: 8px; }
+@keyframes wordEnter { from { opacity: 0; transform: translateY(16px); filter: blur(5px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes blurEnter { from { opacity: 0; transform: translateY(12px); filter: blur(4px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes promptEnter { from { opacity: 0; transform: translateY(40px); filter: blur(5px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes cardEnter { from { opacity: 0; transform: translateY(32px); } to { opacity: 1; transform: none; } }
+@keyframes tileEnter { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
+@keyframes heartbeatDraw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes fadeEnter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes queryExit { to { opacity: 0; transform: translateY(-16px); filter: blur(4px); } }
+@keyframes planeExit { to { opacity: 0; transform: translate(24px, -24px) rotate(-12deg); } }
+@keyframes pulseSend { 0%, 100% { transform: scale(1); } 45% { transform: scale(1.12); } }
+@media (max-width: 1100px) { .cards { gap: 12px; } .card { gap: 10px; padding: 16px 12px; } .iconTile { flex-basis: 32px; width: 32px; height: 32px; } }
+@media (max-width: 767px) {
+  .hero { margin-bottom: 28px; } .heading { font-size: 30px; } .subtitle { font-size: 14px; }
+  .cards { grid-template-columns: 1fr; gap: 12px; } .card { min-height: 96px; padding: 16px; }
+  .iconTile { flex-basis: 36px; width: 36px; height: 36px; } .cardTitle { margin-bottom: 4px; font-size: 15px; } .description { -webkit-line-clamp: 2; }
+  .recommendationContent { padding-bottom: 20px; } .composer { gap: 10px; padding: 10px; border-radius: 18px; }
+  .pulseTile { flex-basis: 36px; width: 36px; height: 44px; border-radius: 10px; } .pulseTile svg { width: 28px; }
+  .send { flex-basis: 44px; width: 44px; padding: 0; } .send > span { display: none; }
+  .flyingPlane { left: 13px; } .hints { gap: 8px; } .shortcuts { font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .heading > span, .subtitle, .welcome .composer, .welcome .cardEntrance, .welcome .pulseTile, .welcome .heartbeat, .welcome .hints, .composer[data-sending="true"] .pulseTile, .composer[data-sending="true"] .input, .composer[data-sending="true"] .sendIcon { animation: fadeEnter 120ms ease-out both !important; animation-delay: 0ms !important; }
+  .outgoingQuery, .flyingPlane { animation: fadeEnter 120ms ease-out reverse both !important; }
+  .card:hover:not(:disabled), .card:focus-visible, .card:active:not(:disabled), .send:hover:not(:disabled), .send:active:not(:disabled) { transform: none; }
+  .inputGrowth { transition: none; } .card, .send { transition-property: opacity; }
+}

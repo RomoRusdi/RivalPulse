@@ -23,7 +23,7 @@ export default function SectorsPage() {
         <div className="rounded-card bg-ink-strong p-5 text-surface md:px-[22px]">
           <p className="text-xs font-bold uppercase tracking-wider text-muted-on-dark">Workspace research remaining</p>
           <p className="mt-2 text-[23px] font-extrabold tracking-tight">{percent}% <span className="text-base font-medium text-muted-on-dark">remaining · {credits.available.toLocaleString()} research credits available</span></p>
-          <div role="meter" aria-label="Usable research allowance remaining" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} className="mt-4 h-3 overflow-hidden rounded-bar bg-white/10"><div className="h-full rounded-bar bg-accent transition-chart" style={{ width: `${percent}%` }} /></div>
+          <div role="meter" aria-label="Usable research allowance remaining" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} className="mt-4 h-3 overflow-hidden rounded-bar bg-white/10"><div className="rp-spring-fill h-full w-full origin-left rounded-bar bg-accent" style={{ transform: `scaleX(${percent / 100})` }} /></div>
           <p className="mt-3 text-[13px] leading-relaxed text-muted-on-dark">Your workspace allowance is shared by its members. Available credits also respect the research provider’s remaining capacity. These are research credits, rather than AI tokens.</p>
           {credits.providerLimited ? <p className="mt-2 text-xs text-muted-on-dark">Provider capacity currently limits the amount available to this workspace.</p> : null}
           {credits.available === 0 ? <p role="status" className="mt-2 text-sm font-semibold">Research allowance exhausted. Existing evidence remains available.</p> : null}

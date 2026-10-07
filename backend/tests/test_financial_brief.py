@@ -49,7 +49,10 @@ def test_financial_question_uses_real_snapshots_without_public_events(client, wa
                or m["value"].endswith("%") for row in brief["rows"] for m in row["metrics"])
     assert brief["interpretation"]["supporting_claim_ids"][0].startswith("financial-")
     with session() as db:
-        for row in brief["rows"]:
+        saved_run = db.get(Run, run_id)
+        assert all({"source_url", "json_pointer"}.isdisjoint(metric)
+                   for row in brief["rows"] for metric in row["metrics"] + row["revenue_history"])
+        for row in saved_run.result["financial_brief"]["rows"]:
             for metric in row["metrics"] + row["revenue_history"]:
                 source = db.get(Snapshot, metric["snapshot_id"])
                 assert source.mode == "replay" and source.url == metric["source_url"]

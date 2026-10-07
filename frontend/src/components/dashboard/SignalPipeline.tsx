@@ -61,8 +61,8 @@ export function SignalPipeline() {
                 className="h-[22px] flex-1 overflow-hidden rounded-bar bg-subtle"
               >
                 <div
-                  className={`h-full rounded-bar transition-chart ${TONE[stage.tone]}`}
-                  style={{ width: mounted ? `${stage.percent}%` : "0%" }}
+                  className={`rp-spring-fill h-full w-full origin-left rounded-bar ${TONE[stage.tone]}`}
+                  style={{ transform: `scaleX(${mounted ? stage.percent / 100 : 0})` }}
                 />
               </div>
               <span className="w-16 shrink-0 text-right text-sm font-bold">

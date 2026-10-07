@@ -19,7 +19,6 @@ class RevenuePoint(BaseModel):
     currency: str | None
     unit: str
     basis: str
-    sourceUrl: str
     fetchedAt: str
     snapshotId: str | None = None
     yoy: str | None = None
@@ -30,7 +29,6 @@ class RevenuePoint(BaseModel):
 
 class PerformanceMetric(BaseModel):
     metric: str
-    rawValue: str
     value: str | None
     unit: str
     periodKind: str
@@ -39,10 +37,7 @@ class PerformanceMetric(BaseModel):
     currency: str | None
     basis: str
     snapshotId: str
-    jsonPointer: str
-    sourceUrl: str
     fetchedAt: str
-    transformation: str
     displayStatus: str
     comparisonStatus: str
     reasons: list[str]
@@ -55,7 +50,6 @@ class FinancialSourceFigure(BaseModel):
     currency: str | None
     unit: str
     basis: str
-    jsonPointer: str | None = None
 
 
 class CollectionStatus(BaseModel):
@@ -110,6 +104,7 @@ class FinancialSourceOut(BaseModel):
     provider: str
     fetchedAt: str
     note: str
+    freshness: Freshness = Field(default_factory=Freshness)
     points: list[RevenuePoint]
     figures: list[FinancialSourceFigure]
     performanceMetrics: list[PerformanceMetric] = Field(default_factory=list)
@@ -257,6 +252,8 @@ def revenue_feed(db, watchlist):
 
 
 def financial_source(db, snapshot_id):
+    from datetime import timezone
+    from app.db import utcnow
     from app.models import Company
     snapshot = db.scalar(select(Snapshot).join(RunSnapshot).join(Run, Run.id == RunSnapshot.run_id).where(
         Snapshot.id == str(snapshot_id), Run.workspace_id == workspace_id(db),
@@ -270,5 +267,9 @@ def financial_source(db, snapshot_id):
         raise AppError("NOT_FOUND", "Financial evidence is unavailable", 404)
     return {"id": snapshot.id, "ticker": company.symbol, "name": company.name,
             "provider": "Sectors" if "api.sectors.app" in snapshot.url else "Stored research source",
-            "fetchedAt": iso(snapshot.fetched_at), "points": points, "figures": figures,
+            "fetchedAt": iso(snapshot.fetched_at),
+            "freshness": {"fetchedAt": iso(snapshot.fetched_at), "status": "historical" if
+                          (utcnow() - snapshot.fetched_at.replace(tzinfo=timezone.utc)).total_seconds()
+                          > get_settings().cache_seconds else "stored"},
+            "points": points, "figures": figures,
             "performanceMetrics": performance, "note": company.comparison_note}

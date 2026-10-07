@@ -128,7 +128,7 @@ type ButtonVariant = "primary" | "neutral" | "dark";
 // `active:scale-[0.98]` is deliberately near-imperceptible: buttons are pressed
 // dozens of times a day, and anything more legible would start to feel slow.
 const BUTTON_BASE =
-  "inline-flex items-center justify-center gap-2 rounded-field transition-console cursor-pointer active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100";
+  "rp-press inline-flex items-center justify-center gap-2 rounded-field cursor-pointer disabled:cursor-not-allowed disabled:opacity-60";
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   primary: "bg-accent text-white font-bold hover:bg-accent-hover",

@@ -2,6 +2,7 @@ import { StoreProvider } from "@/lib/store";
 import { ToastProvider } from "@/components/ui/Toast";
 import { AppShell } from "@/components/shell/AppShell";
 import { AuthBoundary } from "@/lib/auth";
+import { AgentNavigationProvider } from "@/components/agent/AgentNavigation";
 
 /**
  * Everything behind the app chrome: sidebar, top bar, store and toasts.
@@ -14,7 +15,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
     <AuthBoundary>
       <ToastProvider>
         <StoreProvider>
-          <AppShell>{children}</AppShell>
+          <AgentNavigationProvider><AppShell>{children}</AppShell></AgentNavigationProvider>
         </StoreProvider>
       </ToastProvider>
     </AuthBoundary>

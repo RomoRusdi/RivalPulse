@@ -4,7 +4,7 @@ import { Select } from "@/components/ui/Select";
 import { useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/primitives";
-import { formatFinancial, humanizeFigureMeta, sourceHref } from "@/lib/format";
+import { FinancialValue } from "@/components/ui/FinancialValue";
 import { FinancialHistoryChart } from "@/components/dashboard/FinancialHistoryChart";
 import type { FinancialContext as FinancialContextData } from "@/lib/types";
 
@@ -22,9 +22,8 @@ export function FinancialContext({ data }: { data: FinancialContextData }) {
   if (!rows.length) return <Card><h2 className="text-lg font-bold">Financial context</h2><p className="mt-2 text-sm text-muted">No verified financial figures were available for this finding.</p></Card>;
   const renderRows = (entries: typeof rows) => <dl className="divide-y divide-divider">{entries.map((item, index) => <div key={`${item.metric}-${item.period}-${index}`} className="grid gap-1 py-3 sm:grid-cols-[minmax(120px,1fr)_minmax(0,2fr)]">
     <dt className="text-sm text-muted">{LABELS[item.metric] ?? item.metric.replaceAll("_", " ")}<span className="ml-2 text-xs">{item.period}</span></dt>
-    <dd className="min-w-0"><p title={formatFinancial(item)} className="break-words text-sm font-bold tabular-nums">{formatFinancial(item)}</p>
-      <p className="mt-1 text-xs font-normal text-muted">{item.unit === "percent" ? "Percentage" : item.currency ? `Source scale: ${item.currency} · ${humanizeFigureMeta(item.unit)}` : `Currency unspecified · ${humanizeFigureMeta(item.unit)}`}</p>
-      {item.snapshotId ? <Link href={`/financial-sources/${item.snapshotId}`} className="mt-1 inline-flex min-h-8 items-center text-xs font-semibold text-accent-ink">View financial source →</Link> : sourceHref(item.sourceUrl) && new URL(item.sourceUrl).hostname !== "api.sectors.app" ? <a href={sourceHref(item.sourceUrl)!} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex min-h-8 items-center text-xs font-semibold text-accent-ink">View financial source ↗</a> : null}
+    <dd className="min-w-0"><FinancialValue amount={item} />
+      {item.snapshotId ? <Link href={`/financial-sources/${item.snapshotId}`} className="mt-1 inline-flex min-h-8 items-center text-xs font-semibold text-accent-ink">Company financials →</Link> : null}
     </dd></div>)}</dl>;
   return <Card className="min-w-0">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold">Financial context</h2><p className="mt-1 text-xs leading-relaxed text-muted">Annual reporting context, separate from this announcement.</p></div>

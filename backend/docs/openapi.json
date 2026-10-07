@@ -2494,7 +2494,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RunDetail"
+                  "$ref": "#/components/schemas/PublicRunDetail"
                 }
               }
             }
@@ -2610,7 +2610,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Page_RunDetail_"
+                  "$ref": "#/components/schemas/Page_PublicRunDetail_"
                 }
               }
             }
@@ -2774,7 +2774,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Page_SignalCard_"
+                  "$ref": "#/components/schemas/Page_PublicSignalCard_"
                 }
               }
             }
@@ -2862,7 +2862,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SignalDetail"
+                  "$ref": "#/components/schemas/PublicSignalDetail"
                 }
               }
             }
@@ -3799,104 +3799,6 @@
         ],
         "title": "AlertStatus"
       },
-      "BriefCompany": {
-        "properties": {
-          "symbol": {
-            "type": "string",
-            "title": "Symbol"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "comparison_note": {
-            "type": "string",
-            "title": "Comparison Note"
-          },
-          "metrics": {
-            "items": {
-              "$ref": "#/components/schemas/BriefMetric"
-            },
-            "type": "array",
-            "title": "Metrics"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "symbol",
-          "name",
-          "comparison_note",
-          "metrics"
-        ],
-        "title": "BriefCompany"
-      },
-      "BriefMetric": {
-        "properties": {
-          "metric": {
-            "type": "string",
-            "title": "Metric"
-          },
-          "value": {
-            "type": "string",
-            "title": "Value"
-          },
-          "currency": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Currency"
-          },
-          "unit": {
-            "type": "string",
-            "title": "Unit"
-          },
-          "period": {
-            "type": "string",
-            "title": "Period"
-          },
-          "comparison_basis": {
-            "type": "string",
-            "title": "Comparison Basis"
-          },
-          "source_url": {
-            "type": "string",
-            "title": "Source Url"
-          },
-          "json_pointer": {
-            "type": "string",
-            "title": "Json Pointer"
-          },
-          "snapshot_id": {
-            "type": "string",
-            "title": "Snapshot Id"
-          },
-          "claim_id": {
-            "type": "string",
-            "title": "Claim Id"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "metric",
-          "value",
-          "currency",
-          "unit",
-          "period",
-          "comparison_basis",
-          "source_url",
-          "json_pointer",
-          "snapshot_id",
-          "claim_id"
-        ],
-        "title": "BriefMetric"
-      },
       "ChatReply": {
         "properties": {
           "reply": {
@@ -3978,62 +3880,6 @@
           "content"
         ],
         "title": "ChatTurn"
-      },
-      "Citation": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "snapshot_id": {
-            "type": "string",
-            "title": "Snapshot Id"
-          },
-          "source": {
-            "type": "string",
-            "title": "Source"
-          },
-          "url_or_endpoint": {
-            "type": "string",
-            "title": "Url Or Endpoint"
-          },
-          "excerpt_or_json_pointer": {
-            "type": "string",
-            "title": "Excerpt Or Json Pointer"
-          },
-          "published_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Published At"
-          },
-          "fetched_at": {
-            "type": "string",
-            "title": "Fetched At"
-          },
-          "cache_status": {
-            "type": "string",
-            "title": "Cache Status"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "id",
-          "snapshot_id",
-          "source",
-          "url_or_endpoint",
-          "excerpt_or_json_pointer",
-          "published_at",
-          "fetched_at",
-          "cache_status"
-        ],
-        "title": "Citation"
       },
       "Claim": {
         "properties": {
@@ -4398,53 +4244,6 @@
         ],
         "title": "ErrorBody"
       },
-      "FinancialBrief": {
-        "properties": {
-          "period": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Period"
-          },
-          "rows": {
-            "items": {
-              "$ref": "#/components/schemas/BriefCompany"
-            },
-            "type": "array",
-            "title": "Rows"
-          },
-          "interpretation": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/FinancialInterpretation"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "caveats": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Caveats"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "period",
-          "rows",
-          "caveats"
-        ],
-        "title": "FinancialBrief"
-      },
       "FinancialInterpretation": {
         "properties": {
           "text": {
@@ -4568,17 +4367,6 @@
           "basis": {
             "type": "string",
             "title": "Basis"
-          },
-          "jsonPointer": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Jsonpointer"
           }
         },
         "type": "object",
@@ -4617,6 +4405,9 @@
           "note": {
             "type": "string",
             "title": "Note"
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/Freshness"
           },
           "points": {
             "items": {
@@ -4860,11 +4651,11 @@
         ],
         "title": "Page[CompanyOut]"
       },
-      "Page_RunDetail_": {
+      "Page_PublicRunDetail_": {
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/RunDetail"
+              "$ref": "#/components/schemas/PublicRunDetail"
             },
             "type": "array",
             "title": "Items"
@@ -4887,13 +4678,13 @@
           "items",
           "next_cursor"
         ],
-        "title": "Page[RunDetail]"
+        "title": "Page[PublicRunDetail]"
       },
-      "Page_SignalCard_": {
+      "Page_PublicSignalCard_": {
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/SignalCard"
+              "$ref": "#/components/schemas/PublicSignalCard"
             },
             "type": "array",
             "title": "Items"
@@ -4916,7 +4707,7 @@
           "items",
           "next_cursor"
         ],
-        "title": "Page[SignalCard]"
+        "title": "Page[PublicSignalCard]"
       },
       "Page_WatchlistOut_": {
         "properties": {
@@ -4976,10 +4767,6 @@
             "type": "string",
             "title": "Metric"
           },
-          "rawValue": {
-            "type": "string",
-            "title": "Rawvalue"
-          },
           "value": {
             "anyOf": [
               {
@@ -5033,21 +4820,9 @@
             "type": "string",
             "title": "Snapshotid"
           },
-          "jsonPointer": {
-            "type": "string",
-            "title": "Jsonpointer"
-          },
-          "sourceUrl": {
-            "type": "string",
-            "title": "Sourceurl"
-          },
           "fetchedAt": {
             "type": "string",
             "title": "Fetchedat"
-          },
-          "transformation": {
-            "type": "string",
-            "title": "Transformation"
           },
           "displayStatus": {
             "type": "string",
@@ -5068,7 +4843,6 @@
         "type": "object",
         "required": [
           "metric",
-          "rawValue",
           "value",
           "unit",
           "periodKind",
@@ -5077,10 +4851,7 @@
           "currency",
           "basis",
           "snapshotId",
-          "jsonPointer",
-          "sourceUrl",
           "fetchedAt",
-          "transformation",
           "displayStatus",
           "comparisonStatus",
           "reasons"
@@ -5231,6 +5002,649 @@
         ],
         "title": "ProgressStep"
       },
+      "PublicBriefCompany": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "comparison_note": {
+            "type": "string",
+            "title": "Comparison Note"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/PublicBriefMetric"
+            },
+            "type": "array",
+            "title": "Metrics"
+          },
+          "revenue_history": {
+            "items": {
+              "$ref": "#/components/schemas/PublicBriefMetric"
+            },
+            "type": "array",
+            "title": "Revenue History"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "name",
+          "comparison_note",
+          "metrics"
+        ],
+        "title": "PublicBriefCompany"
+      },
+      "PublicBriefMetric": {
+        "properties": {
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "period": {
+            "type": "string",
+            "title": "Period"
+          },
+          "comparison_basis": {
+            "type": "string",
+            "title": "Comparison Basis"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "claim_id": {
+            "type": "string",
+            "title": "Claim Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metric",
+          "value",
+          "currency",
+          "unit",
+          "period",
+          "comparison_basis",
+          "snapshot_id",
+          "claim_id"
+        ],
+        "title": "PublicBriefMetric"
+      },
+      "PublicCitation": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "default": ""
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "fetched_at": {
+            "type": "string",
+            "title": "Fetched At"
+          },
+          "cache_status": {
+            "type": "string",
+            "title": "Cache Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "snapshot_id",
+          "source",
+          "published_at",
+          "fetched_at",
+          "cache_status"
+        ],
+        "title": "PublicCitation"
+      },
+      "PublicFinancialBrief": {
+        "properties": {
+          "period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/PublicBriefCompany"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "interpretation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FinancialInterpretation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "caveats": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Caveats"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period",
+          "rows",
+          "caveats"
+        ],
+        "title": "PublicFinancialBrief"
+      },
+      "PublicResearchResult": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "title": "Schema Version",
+            "default": 1
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "live",
+              "yahoo",
+              "replay"
+            ],
+            "title": "Mode"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "partial",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "generated_at": {
+            "type": "string",
+            "title": "Generated At"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "coverage": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Coverage"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "signals": {
+            "items": {
+              "$ref": "#/components/schemas/PublicSignalCard"
+            },
+            "type": "array",
+            "title": "Signals"
+          },
+          "financial_brief": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicFinancialBrief"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "disclaimer": {
+            "type": "string",
+            "title": "Disclaimer",
+            "default": "Information and business analysis only; no investment recommendations or trade execution."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "mode",
+          "status",
+          "generated_at",
+          "summary",
+          "coverage",
+          "warnings",
+          "signals"
+        ],
+        "title": "PublicResearchResult"
+      },
+      "PublicRunDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "watchlist_id": {
+            "type": "string",
+            "title": "Watchlist Id"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "live",
+              "yahoo",
+              "replay"
+            ],
+            "title": "Mode"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "partial",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "heartbeat_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heartbeat At"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "estimated_credits": {
+            "type": "integer",
+            "title": "Estimated Credits"
+          },
+          "external_calls": {
+            "type": "integer",
+            "title": "External Calls"
+          },
+          "llm_calls": {
+            "type": "integer",
+            "title": "Llm Calls"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Inputs"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicResearchResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "progress": {
+            "items": {
+              "$ref": "#/components/schemas/ProgressStep"
+            },
+            "type": "array",
+            "title": "Progress"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "watchlist_id",
+          "mode",
+          "status",
+          "stage",
+          "query",
+          "created_at",
+          "started_at",
+          "finished_at",
+          "heartbeat_at",
+          "attempts",
+          "estimated_credits",
+          "external_calls",
+          "llm_calls",
+          "inputs",
+          "plan",
+          "error_code",
+          "result",
+          "progress"
+        ],
+        "title": "PublicRunDetail"
+      },
+      "PublicSignalCard": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "title": "Schema Version",
+            "default": 1
+          },
+          "signal_id": {
+            "type": "string",
+            "title": "Signal Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
+          "company": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Company"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "live",
+              "yahoo",
+              "replay"
+            ],
+            "title": "Mode"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "change_status": {
+            "type": "string",
+            "enum": [
+              "baseline",
+              "new",
+              "updated",
+              "unchanged"
+            ],
+            "title": "Change Status"
+          },
+          "analysis_status": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "incomplete"
+            ],
+            "title": "Analysis Status"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Severity"
+          },
+          "score_components": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Score Components"
+          },
+          "severity_reason": {
+            "type": "string",
+            "title": "Severity Reason"
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/Claim"
+            },
+            "type": "array",
+            "title": "Facts"
+          },
+          "observed_signals": {
+            "items": {
+              "$ref": "#/components/schemas/Claim"
+            },
+            "type": "array",
+            "title": "Observed Signals"
+          },
+          "hypotheses": {
+            "items": {
+              "$ref": "#/components/schemas/Hypothesis"
+            },
+            "type": "array",
+            "title": "Hypotheses"
+          },
+          "financial_context": {
+            "items": {
+              "$ref": "#/components/schemas/FinancialMetric"
+            },
+            "type": "array",
+            "title": "Financial Context"
+          },
+          "why_marketing_should_care": {
+            "$ref": "#/components/schemas/Hypothesis"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/PublicCitation"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "compared_against_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compared Against Run Id"
+          },
+          "first_seen_at": {
+            "type": "string",
+            "title": "First Seen At"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "stored_at": {
+            "type": "string",
+            "title": "Stored At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "signal_id",
+          "revision_id",
+          "company",
+          "mode",
+          "type",
+          "title",
+          "change_status",
+          "analysis_status",
+          "severity",
+          "score_components",
+          "severity_reason",
+          "facts",
+          "observed_signals",
+          "hypotheses",
+          "financial_context",
+          "why_marketing_should_care",
+          "evidence",
+          "run_id",
+          "compared_against_run_id",
+          "first_seen_at",
+          "published_at",
+          "stored_at"
+        ],
+        "title": "PublicSignalCard"
+      },
+      "PublicSignalDetail": {
+        "properties": {
+          "signal": {
+            "$ref": "#/components/schemas/PublicSignalCard"
+          },
+          "revisions": {
+            "items": {
+              "$ref": "#/components/schemas/PublicSignalCard"
+            },
+            "type": "array",
+            "title": "Revisions"
+          },
+          "first_seen_at": {
+            "type": "string",
+            "title": "First Seen At"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "title": "Last Seen At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "signal",
+          "revisions",
+          "first_seen_at",
+          "last_seen_at"
+        ],
+        "title": "PublicSignalDetail"
+      },
       "Register": {
         "properties": {
           "email": {
@@ -5285,95 +5699,6 @@
           "name"
         ],
         "title": "Register"
-      },
-      "ResearchResult": {
-        "properties": {
-          "schema_version": {
-            "type": "integer",
-            "title": "Schema Version",
-            "default": 1
-          },
-          "run_id": {
-            "type": "string",
-            "title": "Run Id"
-          },
-          "mode": {
-            "type": "string",
-            "enum": [
-              "live",
-              "yahoo",
-              "replay"
-            ],
-            "title": "Mode"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "completed",
-              "partial",
-              "failed"
-            ],
-            "title": "Status"
-          },
-          "generated_at": {
-            "type": "string",
-            "title": "Generated At"
-          },
-          "summary": {
-            "type": "string",
-            "title": "Summary"
-          },
-          "coverage": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Coverage"
-          },
-          "warnings": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Warnings"
-          },
-          "signals": {
-            "items": {
-              "$ref": "#/components/schemas/SignalCard"
-            },
-            "type": "array",
-            "title": "Signals"
-          },
-          "financial_brief": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/FinancialBrief"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "disclaimer": {
-            "type": "string",
-            "title": "Disclaimer",
-            "default": "Information and business analysis only; no investment recommendations or trade execution."
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "run_id",
-          "mode",
-          "status",
-          "generated_at",
-          "summary",
-          "coverage",
-          "warnings",
-          "signals"
-        ],
-        "title": "ResearchResult"
       },
       "RevenueCompany": {
         "properties": {
@@ -5534,10 +5859,6 @@
             "type": "string",
             "title": "Basis"
           },
-          "sourceUrl": {
-            "type": "string",
-            "title": "Sourceurl"
-          },
           "fetchedAt": {
             "type": "string",
             "title": "Fetchedat"
@@ -5599,7 +5920,6 @@
           "currency",
           "unit",
           "basis",
-          "sourceUrl",
           "fetchedAt"
         ],
         "title": "RevenuePoint"
@@ -5672,166 +5992,6 @@
           "watchlist_id"
         ],
         "title": "RunCreate"
-      },
-      "RunDetail": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "watchlist_id": {
-            "type": "string",
-            "title": "Watchlist Id"
-          },
-          "mode": {
-            "type": "string",
-            "enum": [
-              "live",
-              "yahoo",
-              "replay"
-            ],
-            "title": "Mode"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "queued",
-              "running",
-              "completed",
-              "partial",
-              "failed"
-            ],
-            "title": "Status"
-          },
-          "stage": {
-            "type": "string",
-            "title": "Stage"
-          },
-          "query": {
-            "type": "string",
-            "title": "Query"
-          },
-          "created_at": {
-            "type": "string",
-            "title": "Created At"
-          },
-          "started_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Started At"
-          },
-          "finished_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Finished At"
-          },
-          "heartbeat_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Heartbeat At"
-          },
-          "attempts": {
-            "type": "integer",
-            "title": "Attempts"
-          },
-          "estimated_credits": {
-            "type": "integer",
-            "title": "Estimated Credits"
-          },
-          "external_calls": {
-            "type": "integer",
-            "title": "External Calls"
-          },
-          "llm_calls": {
-            "type": "integer",
-            "title": "Llm Calls"
-          },
-          "inputs": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Inputs"
-          },
-          "plan": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/AgentPlan"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "error_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Code"
-          },
-          "result": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ResearchResult"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "progress": {
-            "items": {
-              "$ref": "#/components/schemas/ProgressStep"
-            },
-            "type": "array",
-            "title": "Progress"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "id",
-          "watchlist_id",
-          "mode",
-          "status",
-          "stage",
-          "query",
-          "created_at",
-          "started_at",
-          "finished_at",
-          "heartbeat_at",
-          "attempts",
-          "estimated_credits",
-          "external_calls",
-          "llm_calls",
-          "inputs",
-          "plan",
-          "error_code",
-          "result",
-          "progress"
-        ],
-        "title": "RunDetail"
       },
       "SessionOut": {
         "properties": {
@@ -5906,211 +6066,6 @@
           "sessionExpiresAt"
         ],
         "title": "SessionOut"
-      },
-      "SignalCard": {
-        "properties": {
-          "schema_version": {
-            "type": "integer",
-            "title": "Schema Version",
-            "default": 1
-          },
-          "signal_id": {
-            "type": "string",
-            "title": "Signal Id"
-          },
-          "revision_id": {
-            "type": "string",
-            "title": "Revision Id"
-          },
-          "company": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Company"
-          },
-          "mode": {
-            "type": "string",
-            "enum": [
-              "live",
-              "yahoo",
-              "replay"
-            ],
-            "title": "Mode"
-          },
-          "type": {
-            "type": "string",
-            "title": "Type"
-          },
-          "title": {
-            "type": "string",
-            "title": "Title"
-          },
-          "change_status": {
-            "type": "string",
-            "enum": [
-              "baseline",
-              "new",
-              "updated",
-              "unchanged"
-            ],
-            "title": "Change Status"
-          },
-          "analysis_status": {
-            "type": "string",
-            "enum": [
-              "complete",
-              "incomplete"
-            ],
-            "title": "Analysis Status"
-          },
-          "severity": {
-            "type": "string",
-            "enum": [
-              "low",
-              "medium",
-              "high"
-            ],
-            "title": "Severity"
-          },
-          "score_components": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Score Components"
-          },
-          "severity_reason": {
-            "type": "string",
-            "title": "Severity Reason"
-          },
-          "facts": {
-            "items": {
-              "$ref": "#/components/schemas/Claim"
-            },
-            "type": "array",
-            "title": "Facts"
-          },
-          "observed_signals": {
-            "items": {
-              "$ref": "#/components/schemas/Claim"
-            },
-            "type": "array",
-            "title": "Observed Signals"
-          },
-          "hypotheses": {
-            "items": {
-              "$ref": "#/components/schemas/Hypothesis"
-            },
-            "type": "array",
-            "title": "Hypotheses"
-          },
-          "financial_context": {
-            "items": {
-              "$ref": "#/components/schemas/FinancialMetric"
-            },
-            "type": "array",
-            "title": "Financial Context"
-          },
-          "why_marketing_should_care": {
-            "$ref": "#/components/schemas/Hypothesis"
-          },
-          "evidence": {
-            "items": {
-              "$ref": "#/components/schemas/Citation"
-            },
-            "type": "array",
-            "title": "Evidence"
-          },
-          "run_id": {
-            "type": "string",
-            "title": "Run Id"
-          },
-          "compared_against_run_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Compared Against Run Id"
-          },
-          "first_seen_at": {
-            "type": "string",
-            "title": "First Seen At"
-          },
-          "published_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Published At"
-          },
-          "stored_at": {
-            "type": "string",
-            "title": "Stored At"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "signal_id",
-          "revision_id",
-          "company",
-          "mode",
-          "type",
-          "title",
-          "change_status",
-          "analysis_status",
-          "severity",
-          "score_components",
-          "severity_reason",
-          "facts",
-          "observed_signals",
-          "hypotheses",
-          "financial_context",
-          "why_marketing_should_care",
-          "evidence",
-          "run_id",
-          "compared_against_run_id",
-          "first_seen_at",
-          "published_at",
-          "stored_at"
-        ],
-        "title": "SignalCard"
-      },
-      "SignalDetail": {
-        "properties": {
-          "signal": {
-            "$ref": "#/components/schemas/SignalCard"
-          },
-          "revisions": {
-            "items": {
-              "$ref": "#/components/schemas/SignalCard"
-            },
-            "type": "array",
-            "title": "Revisions"
-          },
-          "first_seen_at": {
-            "type": "string",
-            "title": "First Seen At"
-          },
-          "last_seen_at": {
-            "type": "string",
-            "title": "Last Seen At"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "signal",
-          "revisions",
-          "first_seen_at",
-          "last_seen_at"
-        ],
-        "title": "SignalDetail"
       },
       "ToolCall": {
         "properties": {

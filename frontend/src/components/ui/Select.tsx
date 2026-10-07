@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import { cx } from "./primitives";
+import { useReversiblePresence } from "@/lib/motion";
 
 type Option = { value: string; label: string; description?: string; disabled?: boolean };
 
@@ -16,9 +17,9 @@ export function Select({ value, onChange, options, label, disabled = false, clas
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const search = useRef({ text: "", time: 0 });
-  const [open, setOpen] = useState(false);
+  const { open, present, setOpen } = useReversiblePresence();
   const [active, setActive] = useState(0);
-  const [position, setPosition] = useState({ left: 0, top: 0, width: 0, maxHeight: 240 });
+  const [position, setPosition] = useState({ left: 0, top: 0, width: 0, maxHeight: 240, transformOrigin: "top center" });
   const selected = options.findIndex((option) => option.value === value);
   const locate = () => {
     const rect = trigger.current?.getBoundingClientRect();
@@ -29,7 +30,7 @@ export function Select({ value, onChange, options, label, disabled = false, clas
     const flip = below < Math.min(height, 180) && above > below;
     const maxHeight = Math.max(80, Math.min(height, flip ? above : below));
     setPosition({ left: Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 8)),
-      width: Math.min(rect.width, window.innerWidth - 16), top: flip ? rect.top - maxHeight - 6 : rect.bottom + 6, maxHeight });
+      width: Math.min(rect.width, window.innerWidth - 16), top: flip ? rect.top - maxHeight - 6 : rect.bottom + 6, maxHeight, transformOrigin: flip ? "bottom center" : "top center" });
   };
   const show = () => {
     if (!options.some((option) => !option.disabled)) return;
@@ -89,7 +90,7 @@ export function Select({ value, onChange, options, label, disabled = false, clas
       <span className="min-w-0 truncate">{options[selected]?.label ?? "Select an option"}</span>
       <ChevronDown aria-hidden size={16} className={cx("shrink-0 text-muted transition-console", open && "rotate-180")} />
     </button>
-    {open ? createPortal(<div ref={menu} id={id} role="listbox" aria-label={label} className="rp-select-menu fixed z-[80] overflow-y-auto overscroll-contain rounded-detail border border-border bg-card p-1.5 shadow-frame" style={position}>
+    {present ? createPortal(<div ref={menu} id={id} role="listbox" aria-label={label} data-open={open} inert={!open} aria-hidden={!open} className="rp-popover rp-scrollbar fixed z-[80] overflow-y-auto overscroll-contain rounded-detail border border-border bg-card p-1.5 shadow-frame" style={position}>
       {options.map((option, index) => <div key={option.value} id={`${id}-${index}`} role="option" aria-selected={value === option.value} aria-disabled={option.disabled || undefined}
         onPointerDown={(event) => { event.preventDefault(); choose(index); }} onPointerMove={() => { if (!option.disabled) setActive(index); }}
         className={cx("flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-field px-3 py-2.5 text-sm", active === index && "bg-accent-wash", option.disabled && "cursor-not-allowed opacity-45")}>

@@ -7,7 +7,7 @@ export function visibleDestination(href: string) {
 }
 
 export function pageLabel(path: string) {
-  if (path.startsWith("/financial-sources/")) return "Competitors / Financial source";
+  if (path.startsWith("/financial-sources/")) return "Competitors / Company financials";
   if (path.startsWith("/signals/")) return "What changed / Finding";
   return ({ "/signals": "What changed", "/watchlists": "Competitors", "/settings": "Settings",
     "/profile": "Profile", "/sectors": "Research allowance", "/actions": "Recommended actions",

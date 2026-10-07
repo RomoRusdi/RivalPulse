@@ -5,10 +5,9 @@ import { useEffect, useRef, useState } from "react";
 /**
  * The "faulty terminal" background on the sign-in panel.
  *
- * A grid of procedural 3x5 glyphs whose bits reshuffle over time, brightness
- * modulated by a drifting fBm field, plus scanlines, frame flicker, occasional
- * glitch bands, a red-channel offset, a vignette, and a glow that follows the
- * cursor.
+ * A static frame of the existing procedural 3x5 glyph artwork. Drawing only
+ * on resize preserves the visual identity without flicker or an idle GPU loop
+ * behind password entry. Page entrances supply the short opacity transition.
  *
  * Ported from the prototype's vanilla custom element. The shader below is the
  * source of truth for the effect and is kept verbatim — treat it as an asset,
@@ -107,12 +106,15 @@ export function FaultyTerminal({
     };
 
     const program = gl.createProgram()!;
-    gl.attachShader(program, compile(gl.VERTEX_SHADER, VERTEX_SHADER));
-    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAGMENT_SHADER));
+    const vertex = compile(gl.VERTEX_SHADER, VERTEX_SHADER);
+    const fragment = compile(gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
+    gl.attachShader(program, vertex);
+    gl.attachShader(program, fragment);
     gl.linkProgram(program);
     gl.useProgram(program);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(
       gl.ARRAY_BUFFER,
       new Float32Array([-1, -1, 3, -1, -1, 3]),
@@ -134,73 +136,31 @@ export function FaultyTerminal({
     };
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const mouse = { x: 0.5, y: 0.5, on: 0, target: 0 };
-
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
       canvas.width = Math.max(1, rect.width * dpr);
       canvas.height = Math.max(1, rect.height * dpr);
       gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.uniform2f(u.res, canvas.width, canvas.height);
+      gl.uniform1f(u.time, 4);
+      gl.uniform3fv(u.tint, toRgb(tint));
+      gl.uniform3fv(u.bg, toRgb(bg));
+      gl.uniform2f(u.mouse, .5, .5);
+      gl.uniform1f(u.mouseOn, 0);
+      gl.uniform1f(u.cell, cell * dpr);
+      gl.uniform1f(u.bright, brightness);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
     resize();
 
-    // The canvas is pointer-events:none, so track the cursor on window.
-    const onPointerMove = (e: PointerEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = 1 - (e.clientY - rect.top) / rect.height;
-      mouse.target = x >= 0 && x <= 1 && y >= 0 && y <= 1 ? 1 : 0;
-      if (mouse.target) {
-        mouse.x = x;
-        mouse.y = y;
-      }
-    };
-    window.addEventListener("pointermove", onPointerMove);
-
-    const reduceMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-
-    const started = performance.now();
-    let frameId = 0;
-    let running = true;
-
-    const draw = (now: number) => {
-      mouse.on += (mouse.target - mouse.on) * 0.08;
-      gl.uniform2f(u.res, canvas.width, canvas.height);
-      // Reduced motion: one static frame at a fixed point in the animation.
-      gl.uniform1f(u.time, reduceMotion ? 4 : (now - started) / 1000);
-      gl.uniform3fv(u.tint, toRgb(tint));
-      gl.uniform3fv(u.bg, toRgb(bg));
-      gl.uniform2f(u.mouse, mouse.x, mouse.y);
-      gl.uniform1f(u.mouseOn, mouse.on);
-      gl.uniform1f(u.cell, cell * dpr);
-      gl.uniform1f(u.bright, brightness);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-      if (!reduceMotion && running) frameId = requestAnimationFrame(draw);
-    };
-    frameId = requestAnimationFrame(draw);
-
-    // Don't burn GPU on a tab nobody is looking at.
-    const onVisibility = () => {
-      if (document.hidden) {
-        running = false;
-        cancelAnimationFrame(frameId);
-      } else if (!reduceMotion && !running) {
-        running = true;
-        frameId = requestAnimationFrame(draw);
-      }
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-
     return () => {
-      running = false;
-      cancelAnimationFrame(frameId);
       observer.disconnect();
-      window.removeEventListener("pointermove", onPointerMove);
-      document.removeEventListener("visibilitychange", onVisibility);
+      gl.deleteBuffer(buffer);
+      gl.deleteProgram(program);
+      gl.deleteShader(vertex);
+      gl.deleteShader(fragment);
     };
   }, [ready, tint, bg, cell, brightness]);
 

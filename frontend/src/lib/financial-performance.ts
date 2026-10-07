@@ -12,7 +12,7 @@ export function financialFigureText(figure: { value: string | null; currency: st
 }
 
 export function performancePeriod(metric: { period: string | null; periodKind: string }) {
-  return metric.period ? (metric.periodKind === "annual" ? `FY${metric.period}` : metric.period) : "Quarter not supplied";
+  return metric.period ? (metric.periodKind === "annual" ? `FY${metric.period}` : metric.period) : "Quarter unknown";
 }
 
 export function percentageText(value: string | null, signed = true) {

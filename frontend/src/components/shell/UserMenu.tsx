@@ -10,6 +10,7 @@ import { cx } from "@/components/ui/primitives";
 import { useOptionalAuth } from "@/lib/auth";
 import { useStore } from "@/lib/store";
 import { signOutDemo } from "@/lib/api";
+import { useReversiblePresence } from "@/lib/motion";
 
 const ITEMS: { href: Route; label: string; icon: typeof User }[] = [
   { href: "/profile", label: "Profile", icon: User },
@@ -26,7 +27,7 @@ export function UserMenu() {
   const { profile } = useStore();
   const auth = useOptionalAuth();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const { open, present, setOpen } = useReversiblePresence();
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -40,7 +41,7 @@ export function UserMenu() {
     };
     window.addEventListener("mousedown", onPointerDown);
     return () => window.removeEventListener("mousedown", onPointerDown);
-  }, [open]);
+  }, [open, setOpen]);
 
   const close = (returnFocus = true) => {
     setOpen(false);
@@ -88,7 +89,7 @@ export function UserMenu() {
   };
 
   return (
-    <div ref={containerRef} className="relative shrink-0">
+    <div ref={containerRef} className="relative shrink-0" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
       <button
         ref={triggerRef}
         type="button"
@@ -108,12 +109,14 @@ export function UserMenu() {
         <Avatar name={profile.name} size="md" />
       </button>
 
-      {open ? (
+      {present ? (
         <div
           role="menu"
           aria-label="Account"
           onKeyDown={onMenuKeyDown}
-          className="rp-modal absolute right-0 z-50 mt-2 w-[236px] rounded-field border border-border bg-card p-1 shadow-frame"
+          data-open={open} inert={!open} aria-hidden={!open}
+          className="rp-popover absolute right-0 z-50 mt-2 w-[236px] rounded-field border border-border bg-card p-1 shadow-frame"
+          style={{ transformOrigin: "top right" }}
         >
           <div className="flex items-center gap-2.5 border-b border-divider px-2.5 py-2.5">
             <Avatar name={profile.name} size="sm" />

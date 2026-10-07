@@ -59,7 +59,8 @@ def test_projection_preserves_financial_metadata_and_links(client, watchlist):
     item = client.get('/findings?period=all').json()['items'][0]
     assert item['addedAt'] and item['sources']
     for metric in item['financialContext']['rows']:
-        assert {'value', 'currency', 'unit', 'period', 'basis', 'sourceUrl'} <= metric.keys()
+        assert {'value', 'currency', 'unit', 'period', 'basis', 'snapshotId'} <= metric.keys()
+        assert 'sourceUrl' not in metric
 
 
 def test_browse_requires_authentication_and_never_calls_provider(env):

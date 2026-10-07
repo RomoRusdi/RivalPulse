@@ -15,12 +15,75 @@ function load(name) {
   modules.set(file, compiledModule.exports);
   return compiledModule.exports;
 }
-const { formatFinancial, formatIDR, toIDR } = load("format");
+const { formatFinancial, formatIDR, toIDR, evidenceHref } = load("format");
 const { revenueSeries } = load("revenue-series");
 const { promptSuggestions } = load("prompt-suggestions");
 const { routeMessage } = load("agent-router");
+const { financialDisplay } = load("financial-display");
+const { downloadRunXls } = load("export-xls");
 const amount = (value, unit = "units", currency = "IDR") => ({ value, currency, unit });
 const point = (period, value, extra = {}) => ({ ...amount(value), period, basis: "consolidated", sourceUrl: "https://example.com/report", ...extra });
+
+test("compact financial labels preserve exact decimal strings and verified scales", () => {
+  const original = "112006326000000.0000123456789";
+  const display = financialDisplay({ ...amount(original), period: "2025" });
+  assert.equal(display.short, "Rp 112.01T");
+  assert.ok(display.exact.startsWith(original));
+  assert.equal(display.period, "2025");
+  assert.equal(display.status, "verified");
+  assert.equal(financialDisplay(amount("112006326", "millions")).short, "Rp 112.01T");
+  assert.equal(financialDisplay(amount("-4426618000000")).short, "Rp -4.43T");
+  assert.equal(financialDisplay(amount("0")).short, "Rp 0.00");
+  assert.equal(financialDisplay(amount("1.005")).short, "Rp 1.01");
+  assert.equal(financialDisplay(amount("-0.0001")).short, "Rp 0.00");
+});
+test("unverified financial labels do not invent a currency or apply an unknown scale", () => {
+  const display = financialDisplay(amount("112006326000000", "provider_native_unspecified", null));
+  assert.equal(display.short, "≈112.01 trillion reported units");
+  assert.equal(display.qualification, "Unit unverified");
+  assert.equal(financialDisplay(amount("1200", "provider_native_unspecified")).short, "≈1.20 thousand reported units");
+  assert.equal(financialDisplay(amount("1200", "millions", null)).short, "≈1.20 thousand reported units");
+  assert.equal(financialDisplay(amount("1200", "units", "USD")).short, "USD 1.20K");
+});
+test("compact values handle conflicts, huge decimals, invalid input and rates distinctly", () => {
+  assert.equal(financialDisplay(amount(null)).status, "conflict");
+  assert.equal(financialDisplay(amount("1e100")).short, "Rp 1.00e100");
+  for (const value of ["NaN", "Infinity", "1e999", "not a number"]) {
+    assert.equal(financialDisplay(amount(value)).status, "invalid");
+  }
+  assert.equal(financialDisplay(amount("-12.50", "percent", null)).short, "-12.50%");
+});
+test("saved evidence links reject old API endpoints and credential query strings", () => {
+  assert.equal(evidenceHref("https://api.sectors.app/v2/company/report/TLKM?key=private"), null);
+  assert.equal(evidenceHref("https://example.com/report.pdf?token=private#page=1"), "https://example.com/report.pdf");
+  assert.equal(evidenceHref("https://user:private@example.com/report"), null);
+  assert.equal(evidenceHref("/financial-sources/12345678-1234-1234-1234-123456789012"), "/financial-sources/12345678-1234-1234-1234-123456789012");
+  assert.equal(evidenceHref("//malicious.example"), null);
+});
+test("financial exports retain exact decimals as Excel text and omit provider diagnostics", async () => {
+  const previous = { document: globalThis.document, create: URL.createObjectURL, revoke: URL.revokeObjectURL, timeout: globalThis.setTimeout };
+  let blob, clicked = false;
+  try {
+    globalThis.document = { createElement: () => ({ click: () => { clicked = true; }, remove: () => {} }), body: { appendChild: () => {} } };
+    URL.createObjectURL = (value) => { blob = value; return "blob:synthetic"; };
+    URL.revokeObjectURL = () => {};
+    globalThis.setTimeout = (callback) => { callback(); return 0; };
+    downloadRunXls({ id: "synthetic-run", query: "Synthetic report", status: "complete", financialBrief: {period:"2025", caveats:[], rows:[{
+      symbol:"TEST", name:"Synthetic company", metrics:[{metric:"revenue",period:"2025",value:"112006326000000.0000123456789", currency:"IDR",unit:"units",comparison_basis:"consolidated",
+        source_url:"https://api.sectors.app/v2/report?key=never-export",json_pointer:"/financials/private"}], revenue_history:[]}] } }, []);
+    const text = await blob.text();
+    assert.ok(clicked);
+    assert.ok(text.includes("Rp 112.01T"));
+    assert.ok(text.includes("112006326000000.0000123456789"));
+    assert.ok(text.includes("mso-number-format:'\\@'"));
+    assert.ok(!/api\.sectors|never-export|json_pointer|\/financials\/private/.test(text));
+  } finally {
+    globalThis.document = previous.document;
+    URL.createObjectURL = previous.create;
+    URL.revokeObjectURL = previous.revoke;
+    globalThis.setTimeout = previous.timeout;
+  }
+});
 
 test("all verified source scales produce identical IDR formatting", () => {
   for (const [value, unit] of [["10751850000000000", "units"], ["10751850000", "millions"], ["10751850", "billions"], ["10751.85", "trillions"]]) {

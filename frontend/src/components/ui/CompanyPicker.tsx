@@ -6,11 +6,12 @@ import { apiRequest } from "@/lib/http";
 import { CompanySchema } from "@/lib/schemas";
 import type { Company } from "@/lib/types";
 import { cx } from "./primitives";
+import { useReversiblePresence } from "@/lib/motion";
 
 export function CompanyPicker({ value, onChange }: { value: Company | null; onChange: (company: Company | null) => void }) {
   const id = useId();
   const host = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
+  const { open, present, setOpen } = useReversiblePresence();
   const [query, setQuery] = useState("");
   const [rows, setRows] = useState<Company[]>([]);
   const [active, setActive] = useState(0);
@@ -31,11 +32,11 @@ export function CompanyPicker({ value, onChange }: { value: Company | null; onCh
     const close = (event: PointerEvent) => { if (!host.current?.contains(event.target as Node)) setOpen(false); };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
-  }, []);
+  }, [setOpen]);
   const choose = (company: Company | null) => { onChange(company); setOpen(false); setQuery(""); };
   return <div ref={host} className="relative min-w-0">
     <label htmlFor={`${id}-input`} className="mb-1.5 block text-[13px] font-semibold text-ink-2">Workspace company</label>
-    <div className="relative"><Search aria-hidden size={15} className="pointer-events-none absolute top-3.5 left-3.5 text-muted" />
+    <div className="rp-field-focus relative"><Search aria-hidden size={15} className="pointer-events-none absolute top-3.5 left-3.5 text-muted" />
       <input id={`${id}-input`} role="combobox" aria-expanded={open} aria-autocomplete="list" aria-controls={`${id}-list`} aria-activedescendant={open ? `${id}-option-${active}` : undefined}
         autoComplete="off" value={open ? query : value ? `${value.ticker} · ${value.name}` : "Neutral — compare competitors only"}
         onFocus={() => { setOpen(true); setLoading(true); setActive(0); }}
@@ -49,7 +50,7 @@ export function CompanyPicker({ value, onChange }: { value: Company | null; onCh
         }} className="min-h-11 w-full truncate rounded-field border border-border bg-subtle pr-9 pl-10 text-sm outline-none focus:border-accent focus:bg-card" />
       <ChevronDown aria-hidden size={14} className="pointer-events-none absolute top-3.5 right-3 text-muted" />
     </div>
-    {open ? <div className="rp-modal absolute inset-x-0 top-full z-30 mt-1.5 max-h-64 overflow-y-auto rounded-detail border border-border bg-card p-1.5 shadow-lg">
+    {present ? <div data-open={open} inert={!open} aria-hidden={!open} style={{ transformOrigin: "top center" }} className="rp-popover rp-scrollbar absolute inset-x-0 top-full z-30 mt-2 max-h-64 overflow-y-auto rounded-detail border border-border bg-card p-2 shadow-lg">
       <ul id={`${id}-list`} role="listbox" aria-label="Workspace company">
         {[null, ...rows].map((company, index) => <li id={`${id}-option-${index}`} key={company?.ticker ?? "neutral"} role="option" aria-selected={value?.ticker === company?.ticker}
           onPointerDown={(event) => { event.preventDefault(); choose(company); }} onPointerMove={() => setActive(index)}

@@ -33,7 +33,7 @@ def test_latest_reports_have_real_years_exact_values_and_shared_base(client, wat
     assert track['points'][-1]['value'] == '123456789012345.67'
     assert track['points'][1]['index'] == '100.00'
     assert track['points'][-1]['index'] == '112.23'
-    assert track['points'][-1]['sourceUrl'] == 'https://example.com/TLKM'
+    assert 'sourceUrl' not in track['points'][-1]
     assert track['points'][-1]['fetchedAt']
 
 

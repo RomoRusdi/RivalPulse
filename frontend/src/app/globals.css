@@ -1,27 +1,23 @@
 @import "tailwindcss";
+@import "../styles/motion-tokens.css";
+@import "../styles/motion-system.css";
 
-/* ── RivalPulse "Console" design tokens ───────────────────────────────────
-   Source of truth for the finance-green visual direction;
-   all body and label text meets 4.5:1. Do not reintroduce #8A8781 / #9A968E
-   for text — decorative use only. */
+/* RivalPulse Console palette. Decorative and text colors are unchanged. */
 @theme {
   --color-canvas: #e8eeea;
   --color-surface: #f5f8f6;
   --color-card: #ffffff;
   --color-sidebar: #eef4f0;
   --color-subtle: #eef4f0;
-
   --color-border: #d7e2dc;
   --color-border-frame: #c3d3c9;
   --color-divider: #e6eee9;
-
   --color-ink: #17352b;
   --color-ink-strong: #122d23;
   --color-ink-2: #40584b;
   --color-muted: #56685e;
   --color-muted-strong: #4b6356;
   --color-muted-on-dark: #b5c9bd;
-
   --color-accent: #146c50;
   --color-accent-hover: #0f573f;
   --color-accent-ink: #0d503c;
@@ -29,477 +25,98 @@
   --color-accent-wash-border: #b8dcc9;
   --color-accent-bright: #8de0b5;
   --color-error: #b42318;
-
   --color-neutral-300: #b7cbbf;
   --color-neutral-200: #d3e0d8;
   --color-neutral-100: #e6eee9;
   --color-dot-idle: #bccfc3;
-
   --font-sans: var(--font-manrope), system-ui, sans-serif;
-
   --radius-bar: 6px;
   --radius-field: 10px;
   --radius-user: 12px;
   --radius-detail: 14px;
   --radius-card: 16px;
   --radius-frame: 18px;
-
   --shadow-frame: 0 24px 60px -34px rgb(26 26 26 / 0.55);
   --shadow-step: 0 0 0 4px rgb(31 30 28 / 0.12);
-
-  --ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
-
-  --animate-step-pulse: step-pulse 1.6s var(--ease-enter) infinite;
-  --animate-shimmer: shimmer 1.4s ease-in-out infinite;
-
-  @keyframes step-pulse {
-    0%,
-    100% {
-      box-shadow: 0 0 0 4px rgb(31 30 28 / 0.12);
-    }
-    50% {
-      box-shadow: 0 0 0 7px rgb(31 30 28 / 0.05);
-    }
-  }
-
-  @keyframes shimmer {
-    0% {
-      background-position: 100% 50%;
-    }
-    100% {
-      background-position: 0% 50%;
-    }
-  }
+  --ease-enter: var(--motion-sheet);
+  --animate-step-pulse: step-pulse 1.6s ease-in-out infinite;
+  @keyframes step-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .72; } }
 }
 
-html {
-  height: 100%;
-}
-
-/* Shared timings keep forms, navigation and data surfaces calm and responsive. */
-:where(button, a, summary, input, textarea, select) {
-  transition: color 180ms var(--ease-enter), background-color 180ms var(--ease-enter), border-color 180ms var(--ease-enter), box-shadow 180ms var(--ease-enter);
-}
-:where(button, a, summary):focus-visible { box-shadow: 0 0 0 3px rgb(20 108 80 / .1); }
-:where(input, textarea, select):focus-visible { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgb(20 108 80 / .08); }
-.rp-card { animation: rp-page-enter 220ms var(--ease-enter) both; transition: border-color 180ms var(--ease-enter), box-shadow 180ms var(--ease-enter); }
-.rp-card:hover, .rp-card:focus-within { border-color: var(--color-neutral-300); }
-
-/* min-height, not height: signed-out pages size to their own content. */
-body {
-  min-height: 100%;
-}
-
-body {
-  /* The shell is full-bleed, so `surface` is the ground, not `canvas`.
-     `canvas` stays in the palette for anything that sits behind the app. */
-  background: var(--color-surface);
-  color: var(--color-ink);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-}
-
-/* Every interactive element shares one focus ring. */
-:where(a, button, [role="button"], input, [tabindex]):focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-/* 120–160ms ease-out on background/colour, per the handoff. `transform` rides
-   along so `active:scale-*` gets press feedback at the same cadence. */
-@utility transition-console {
-  transition-property: background-color, color, border-color, box-shadow,
-    opacity, transform;
-  transition-duration: 160ms;
-  transition-timing-function: var(--ease-enter);
-}
-
-/* Bars and donuts animate from 0 on first mount over 500ms. */
-@utility transition-chart {
-  transition-property: width, height, opacity, transform;
-  transition-duration: 500ms;
-  transition-timing-function: var(--ease-enter);
-}
-
-@utility skeleton {
-  background-color: var(--color-subtle);
-  border-radius: var(--radius-bar);
-  background-image: linear-gradient(
-    90deg,
-    rgb(20 108 80 / 0) 25%,
-    rgb(211 232 221 / 0.95) 37%,
-    rgb(20 108 80 / 0) 63%
-  );
-  background-size: 400% 100%;
-  animation: var(--animate-shimmer);
-}
-
-/* ── Motion ──────────────────────────────────────────────────────────────
-   Entrances are bridged by `@starting-style`, so they need no JS and retarget
-   smoothly if re-triggered. Exits toggle a `-out` class and the component
-   delays its unmount long enough for the transition to play — a dismissable
-   surface must leave the way it arrived.
-
-   Only `transform` and `opacity` animate. Nothing here moves data the user is
-   trying to read. */
-
-.rp-fade {
-  transition: opacity 150ms var(--ease-enter);
-}
-@starting-style {
-  .rp-fade {
-    opacity: 0;
-  }
-}
-.rp-fade-out {
-  opacity: 0;
-  transition-duration: 150ms;
-  transition-timing-function: ease-in;
-}
-
-/* Modal: stays centred, so it scales in place rather than from an origin. */
-.rp-modal {
-  transition:
-    opacity 200ms var(--ease-enter),
-    transform 200ms var(--ease-enter);
-}
-@starting-style {
-  .rp-modal {
-    opacity: 0;
-    transform: scale(0.97);
-  }
-}
-.rp-modal-out {
-  opacity: 0;
-  transform: scale(0.97);
-  transition-duration: 160ms;
-  transition-timing-function: ease-in;
-}
-
-/* Drawer: slides from the edge it is anchored to, in percentages so the
-   distance follows the panel width. */
-.rp-drawer {
-  transition: transform 250ms var(--ease-enter);
-}
-@starting-style {
-  .rp-drawer {
-    transform: translateX(-100%);
-  }
-}
-.rp-drawer-out {
-  transform: translateX(-100%);
-  transition-duration: 220ms;
-  transition-timing-function: ease-in;
-}
-
-/* Toast: enters and exits through the bottom edge it lives on. */
-.rp-toast {
-  transition:
-    opacity 260ms var(--ease-enter),
-    transform 260ms var(--ease-enter);
-}
-@starting-style {
-  .rp-toast {
-    opacity: 0;
-    transform: translateY(8px) scale(0.98);
-  }
-}
-.rp-toast-out {
-  opacity: 0;
-  transform: translateY(8px) scale(0.98);
-  transition-duration: 200ms;
-  transition-timing-function: ease-in;
-}
-
-/* Route changes retain the shell and softly settle only the new content.
-   This keeps navigation responsive without making the whole app slide. */
-.rp-page-enter {
-  animation: rp-page-enter 220ms var(--ease-enter) both;
-}
-
-@keyframes rp-page-enter {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Financial comparison lines draw once when their range or route mounts. */
-.rp-chart-line {
-  stroke-dasharray: 600;
-  stroke-dashoffset: 600;
-  animation: rp-chart-draw 700ms var(--ease-enter) forwards;
-}
-
-.rp-chart-point {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: rp-chart-point 380ms 480ms var(--ease-enter) both;
-}
-
-@keyframes rp-chart-draw {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes rp-chart-point {
-  from {
-    opacity: 0;
-    transform: scale(0.5);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* Agent execution uses a CI-style rail: completed stages stay solid while
-   only the active edge moves. This communicates direction without making the
-   labels themselves jump around. */
-.rp-run-progress-active {
-  background-image: linear-gradient(
-    90deg,
-    var(--color-accent) 0%,
-    #8de0b5 45%,
-    var(--color-accent) 70%
-  );
-  background-size: 220% 100%;
-  animation: rp-progress-scan 1.5s linear infinite;
-}
-
-.rp-pipeline-flow {
-  background-image: linear-gradient(
-    180deg,
-    var(--color-accent) 0 35%,
-    var(--color-accent-wash-border) 55%,
-    var(--color-neutral-200) 78%
-  );
-  background-size: 100% 220%;
-  animation: rp-pipeline-flow 1.3s linear infinite;
-}
-
-@keyframes rp-progress-scan {
-  to {
-    background-position: -220% 0;
-  }
-}
-
-@keyframes rp-pipeline-flow {
-  to {
-    background-position: 0 220%;
-  }
-}
-
-/* A signal a run just found, settling into the top of the feed. Applied only
-   to rows revealed live — never to the list on load. */
-.rp-row-new {
-  transition:
-    opacity 300ms var(--ease-enter),
-    transform 300ms var(--ease-enter);
-}
-@starting-style {
-  .rp-row-new {
-    opacity: 0;
-    transform: translateY(-6px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-  }
-
-  /* Entrances still fade. Movement is what causes trouble, not opacity, so
-     these keep a short cross-fade instead of snapping into place. */
-  .rp-fade,
-  .rp-fade-out,
-  .rp-modal,
-  .rp-modal-out,
-  .rp-drawer,
-  .rp-drawer-out,
-  .rp-toast,
-  .rp-toast-out,
-  .rp-row-new {
-    transition-property: opacity !important;
-    transition-duration: 120ms !important;
-    transform: none !important;
-  }
-
-  @starting-style {
-    .rp-modal,
-    .rp-drawer,
-    .rp-toast,
-    .rp-row-new {
-      transform: none;
-      opacity: 0;
-    }
-  }
-}
-
-/* Shared interaction states. Forest green anchors brand and active actions. */
+html { height: 100%; }
+body { min-height: 100%; background: var(--color-surface); color: var(--color-ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 button, a, input, select, summary, textarea { -webkit-tap-highlight-color: transparent; }
 button:not(:disabled), summary { cursor: pointer; }
-:where(a, button, input, select, textarea, summary):focus-visible {
-  outline: 2px solid var(--color-accent-ink);
-  outline-offset: 3px;
-}
+:where(a, button, [role="button"], input, textarea, select, summary, [tabindex]):focus-visible { outline: 2px solid var(--color-accent-ink); outline-offset: 3px; border-radius: 4px; }
+:where(input, textarea, select):focus-visible { border-color: var(--color-accent); }
 ::selection { background: var(--color-accent-wash-border); color: var(--color-ink); }
 
-/* Frosted bars use a restrained tint; research surfaces remain opaque. */
-.rp-glass-bar {
-  background: linear-gradient(120deg, rgb(255 255 255 / .9), rgb(230 243 236 / .92));
-  -webkit-backdrop-filter: blur(12px) saturate(125%);
-  backdrop-filter: blur(12px) saturate(125%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / .75), 0 1px 8px rgb(18 45 35 / .03);
+@utility transition-console {
+  transition-property: opacity, transform, scale;
+  transition-duration: var(--motion-micro);
+  transition-timing-function: var(--motion-sheet);
 }
-@supports not (backdrop-filter: blur(1px)) {
-  .rp-glass-bar { background: var(--color-surface); }
+@utility transition-chart {
+  transition-property: opacity, transform;
+  transition-duration: var(--motion-large);
+  transition-timing-function: var(--spring-smooth);
 }
-@media (prefers-reduced-transparency: reduce) {
-  .rp-glass-bar { background: var(--color-surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
+@utility skeleton {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background-color: var(--color-subtle);
+  border-radius: var(--radius-bar);
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgb(211 232 221 / .95) 50%, transparent 100%);
+    animation: rp-shimmer 1.4s ease-in-out infinite;
+  }
 }
-.rp-drawer-right { transition: transform 280ms var(--ease-enter), opacity 220ms var(--ease-enter); }
-@starting-style { .rp-drawer-right { transform: translateX(100%); opacity: 0; } }
-.rp-drawer-right-out { transform: translateX(100%); opacity: 0; transition-duration: 220ms; }
-.rp-data-point { transition: r 160ms var(--ease-enter), stroke-width 160ms var(--ease-enter); }
+
+.rp-card, .rp-page-enter, .rp-point-inspector { animation: rp-page-enter var(--motion-large) var(--spring-smooth) backwards; }
+.rp-card:hover, .rp-card:focus-within { border-color: var(--color-neutral-300); }
+.rp-fade { transition: opacity var(--motion-standard) var(--motion-sheet); }
+.rp-fade-out { opacity: 0; transition-duration: var(--motion-exit); }
+.rp-modal { transition: opacity var(--motion-standard) var(--motion-sheet), transform var(--motion-response-snappy) var(--spring-snappy); }
+.rp-modal-out { opacity: 0; transform: scale(.97); transition-duration: var(--motion-exit); }
+.rp-drawer, .rp-drawer-right { transition: transform var(--motion-response-smooth) var(--motion-sheet), opacity var(--motion-standard) var(--motion-sheet); }
+.rp-drawer-out { transform: translateX(-100%); opacity: 0; transition-duration: var(--motion-exit); }
+.rp-drawer-right-out { transform: translateX(100%); opacity: 0; transition-duration: var(--motion-exit); }
+.rp-toast { transition: opacity var(--motion-standard) var(--motion-sheet), transform var(--motion-response-snappy) var(--spring-snappy); }
+.rp-toast-out { opacity: 0; transform: translateY(var(--motion-distance)) scale(.98); transition-duration: var(--motion-exit); }
+.rp-row-new { transition: opacity var(--motion-standard) var(--motion-sheet), transform var(--motion-response-smooth) var(--spring-smooth); }
+@starting-style {
+  .rp-fade { opacity: 0; }
+  .rp-modal { opacity: 0; transform: scale(.97); }
+  .rp-drawer { opacity: 0; transform: translateX(-100%); }
+  .rp-drawer-right { opacity: 0; transform: translateX(100%); }
+  .rp-toast { opacity: 0; transform: translateY(var(--motion-distance)) scale(.98); }
+  .rp-row-new { opacity: 0; transform: translateY(calc(-1 * var(--motion-distance))); }
+}
+.rp-chart-line { animation: rp-opacity-enter var(--motion-large) ease-out backwards; }
+.rp-chart-point { transform-box: fill-box; transform-origin: center; animation: rp-chart-point var(--motion-response-snappy) var(--spring-snappy) backwards; }
 g[role="button"]:focus-visible .rp-data-point { stroke-width: 5; }
-.rp-point-inspector { animation: rp-page-enter 160ms var(--ease-enter) both; }
-@media (prefers-reduced-motion: reduce) {
-  .rp-drawer-right, .rp-drawer-right-out, .rp-point-inspector { transform: none !important; animation: none !important; transition: none !important; }
-}
+.rp-run-progress-active { background-image: linear-gradient(90deg, var(--color-accent), #8de0b5 45%, var(--color-accent) 70%); }
+.rp-pipeline-flow { background-image: linear-gradient(180deg, var(--color-accent) 0 35%, var(--color-accent-wash-border) 55%, var(--color-neutral-200) 78%); }
 
-.rp-select-menu { animation: rp-select-enter 140ms var(--ease-enter) both; transform-origin: top; }
-@keyframes rp-select-enter { from { opacity: 0; transform: translateY(-3px) scale(0.99); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .rp-select-menu { animation: none; } }
+.rp-glass-bar { background: linear-gradient(120deg, rgb(255 255 255 / .9), rgb(230 243 236 / .92)); -webkit-backdrop-filter: blur(12px) saturate(125%); backdrop-filter: blur(12px) saturate(125%); box-shadow: inset 0 1px 0 rgb(255 255 255 / .75), 0 1px 8px rgb(18 45 35 / .03); }
+@supports not (backdrop-filter: blur(1px)) { .rp-glass-bar { background: var(--color-surface); } }
+@media (prefers-reduced-transparency: reduce) { .rp-glass-bar { background: var(--color-surface); backdrop-filter: none; -webkit-backdrop-filter: none; } }
 
-/* Jitter-inspired composer: a single rounded surface and gentle focus feedback. */
-.rp-agent-composer {
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
-  padding: 9px 10px;
-  border: 1px solid var(--color-border-frame);
-  border-radius: 26px;
-  background: linear-gradient(135deg, var(--color-card) 65%, #f5faf7);
-  box-shadow: inset 0 1px 0 white, 0 8px 24px -12px rgb(18 45 35 / .14);
-  transition: border-color 200ms var(--ease-enter), box-shadow 200ms var(--ease-enter);
-}
-.rp-agent-composer:hover {
-  border-color: var(--color-neutral-300);
-  box-shadow: inset 0 1px 0 white, 0 10px 28px -12px rgb(18 45 35 / .18);
-}
-.rp-agent-composer:focus-within {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 4px rgb(20 108 80 / .08), 0 12px 30px -14px rgb(18 45 35 / .2);
-}
-.rp-agent-composer-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  align-self: flex-start;
-  width: 42px;
-  height: 42px;
-  margin-top: 7px;
-  border: 1px solid var(--color-accent-wash-border);
-  border-radius: 15px;
-  background: linear-gradient(145deg, #f5fbf7, var(--color-accent-wash));
-  color: var(--color-accent);
-  transition: transform 200ms var(--ease-enter), background-color 200ms var(--ease-enter);
-}
-.rp-agent-composer:focus-within .rp-agent-composer-mark { transform: rotate(-4deg); }
-.rp-agent-input {
-  display: block;
-  flex: 1;
-  min-width: 0;
-  min-height: 56px;
-  max-height: 176px;
-  padding: 16px 0;
-  border: 0;
-  border-radius: 0;
-  resize: none;
-  background: transparent;
-  color: var(--color-ink);
-  font: inherit;
-  font-size: 14px;
-  line-height: 24px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-neutral-300) transparent;
-}
-.rp-agent-input::placeholder { color: var(--color-muted); }
-/* The enclosing surface supplies the focus ring instead of a square inner box. */
-.rp-agent-input:focus-visible { outline: none; }
-.rp-agent-input:disabled { cursor: not-allowed; }
-.rp-agent-send {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  gap: 8px;
-  min-width: 46px;
-  min-height: 46px;
-  margin-bottom: 5px;
-  padding: 0 17px;
-  border: 1px solid rgb(13 80 60 / .2);
-  border-radius: 17px;
-  background: linear-gradient(145deg, #1c7c5d, var(--color-accent-hover));
-  color: white;
-  font-size: 13px;
-  font-weight: 800;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / .18), 0 4px 10px rgb(20 108 80 / .18);
-  transition: opacity 180ms var(--ease-enter), transform 180ms var(--ease-enter), box-shadow 180ms var(--ease-enter);
-}
-.rp-agent-send svg { transition: transform 180ms var(--ease-enter); }
-.rp-agent-send:hover:not(:disabled) { box-shadow: inset 0 1px 0 rgb(255 255 255 / .18), 0 6px 14px rgb(20 108 80 / .25); }
-.rp-agent-send:hover:not(:disabled) svg { transform: translate(1px, -1px); }
-.rp-agent-send:active:not(:disabled) { transform: scale(.96); }
-.rp-agent-send:disabled {
-  cursor: not-allowed;
-  border-color: var(--color-divider);
-  background: var(--color-subtle);
-  color: var(--color-muted);
-  box-shadow: none;
-}
-.rp-agent-key {
-  padding: 2px 5px;
-  border: 1px solid var(--color-border);
-  border-radius: 5px;
-  background: rgb(255 255 255 / .7);
-  font-family: inherit;
-  font-size: 10px;
-  line-height: 1.3;
-}
-@media (max-width: 639px) {
-  .rp-agent-composer { gap: 9px; padding-inline: 8px; border-radius: 23px; }
-  .rp-agent-composer-mark { width: 36px; height: 36px; margin-top: 10px; border-radius: 13px; }
-  .rp-agent-input { font-size: 16px; }
-  .rp-agent-send { padding-inline: 0; border-radius: 16px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .rp-agent-composer-mark, .rp-agent-send, .rp-agent-send svg { transform: none !important; transition: none !important; }
-}
-
+@keyframes rp-page-enter { from { opacity: 0; transform: translateY(var(--motion-distance)); } to { opacity: 1; transform: translateY(0); } }
 @keyframes rp-opacity-enter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rp-chart-point { from { opacity: 0; transform: scale(.8); } to { opacity: 1; transform: scale(1); } }
+@keyframes rp-shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
 @media (prefers-reduced-motion: reduce) {
-  .rp-page-enter, .rp-card, .rp-select-menu, .rp-point-inspector {
-    animation: rp-opacity-enter 120ms ease-out both !important;
-    transform: none !important;
-  }
-  :where(button, a, summary, input, textarea, select), .rp-card {
-    transform: none !important;
-    transition-property: opacity, color, background-color, border-color, box-shadow !important;
-    transition-duration: 120ms !important;
-  }
-  .rp-chart-line { stroke-dashoffset: 0 !important; }
-  .rp-chart-point { opacity: 1 !important; transform: none !important; }
+  /* Preserve final positioning transforms: indicator, centering, meter values. */
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-property: opacity !important; transition-duration: var(--motion-micro) !important; }
+  .rp-card, .rp-page-enter, .rp-point-inspector, .rp-chart-point, .rp-chart-line, .rp-text-chunk { animation: rp-opacity-enter var(--motion-micro) ease-out backwards !important; }
+  .rp-modal, .rp-modal-out, .rp-drawer, .rp-drawer-out, .rp-drawer-right, .rp-drawer-right-out, .rp-toast, .rp-toast-out, .rp-row-new { transform: none !important; }
+  [class*="active:scale"], [class*="group-hover:scale"] { scale: 1 !important; }
+  .skeleton::after { animation: none !important; opacity: .3; }
+  @starting-style { .rp-modal, .rp-drawer, .rp-drawer-right, .rp-toast, .rp-row-new { transform: none; opacity: 0; } }
 }

@@ -45,17 +45,17 @@ export const WatchlistSchema = z.object({
 
 export const RevenuePointSchema = z.object({
   year: z.number().int(), value: z.string().nullable(), currency: z.string().nullable(),
-  unit: z.string(), basis: z.string(), sourceUrl: z.string(), fetchedAt: z.string(),
+  unit: z.string(), basis: z.string(), sourceUrl: z.string().optional().default(""), fetchedAt: z.string(),
   snapshotId: z.string().nullable().optional().default(null),
   yoy: z.string().nullable(), index: z.string().nullable(), comparable: z.boolean(), limitation: z.string().nullable(),
 });
 export const FinancialFigureSchema = z.object({ metric: z.string(), period: z.string(), value: z.string(),
-  currency: z.string().nullable(), unit: z.string(), basis: z.string(), jsonPointer: z.string().nullable().optional() });
+  currency: z.string().nullable(), unit: z.string(), basis: z.string() });
 export const PerformanceMetricSchema = z.object({
-  metric: z.string(), rawValue: z.string(), value: z.string().nullable(), unit: z.string(),
+  metric: z.string(), value: z.string().nullable(), unit: z.string(),
   periodKind: z.string(), period: z.string().nullable(), origin: z.string(), currency: z.string().nullable(),
-  basis: z.string(), snapshotId: z.string(), jsonPointer: z.string(), sourceUrl: z.string(), fetchedAt: z.string(),
-  transformation: z.string(), displayStatus: z.string(), comparisonStatus: z.string(), reasons: z.array(z.string()),
+  basis: z.string(), snapshotId: z.string(), fetchedAt: z.string(),
+  displayStatus: z.string(), comparisonStatus: z.string(), reasons: z.array(z.string()),
 });
 export const RevenueFeedSchema = z.object({
   companies: z.array(z.object({ ticker: z.string(), name: z.string(), note: z.string(), points: z.array(RevenuePointSchema),
@@ -75,6 +75,7 @@ export const RevenueFeedSchema = z.object({
 });
 export const FinancialSourceSchema = z.object({
   id: z.string(), ticker: z.string(), name: z.string(), provider: z.string(), fetchedAt: z.string(),
+  freshness: z.object({ fetchedAt: z.string().nullable(), status: z.string() }).optional().default({ fetchedAt: null, status: "stored" }),
   note: z.string(), points: z.array(RevenuePointSchema),
   figures: z.array(FinancialFigureSchema).optional().default([]),
   performanceMetrics: z.array(PerformanceMetricSchema).optional().default([]),
@@ -107,7 +108,7 @@ export const EvidenceSchema = z.object({
 export const FinancialContextSchema = z.object({
   note: z.string().optional(),
   rows: z.array(z.object({ metric: z.string(), value: z.string(), currency: z.string().nullable(),
-    unit: z.string(), period: z.string(), basis: z.string(), sourceUrl: z.string(),
+    unit: z.string(), period: z.string(), basis: z.string(), sourceUrl: z.string().optional().default(""),
     snapshotId: z.string().nullable().optional().default(null) })).optional(),
   seriesCaption: z.string(),
   series: z.array(
@@ -201,7 +202,7 @@ export const OrchestrationSchema = z.object({
 const BriefMetricSchema = z.object({
   metric: z.string(), value: z.string(), currency: z.string().nullable(),
   unit: z.string(), period: z.string(), comparison_basis: z.string(),
-  source_url: z.string().url(), json_pointer: z.string(), snapshot_id: z.string(), claim_id: z.string(),
+  snapshot_id: z.string(), claim_id: z.string(),
 });
 
 export const AgentRunSchema = z.object({

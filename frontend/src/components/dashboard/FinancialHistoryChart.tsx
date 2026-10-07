@@ -1,11 +1,15 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
-import { formatFinancial, formatIDR, sourceHref } from "@/lib/format";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { formatIDR } from "@/lib/format";
+import { FinancialValue } from "@/components/ui/FinancialValue";
 import { revenueSeries, type RevenueSeries } from "@/lib/revenue-series";
 import { Select } from "@/components/ui/Select";
+import { ChartNoAxesCombined, ArrowRight } from "lucide-react";
+import { ExpandableSummary } from "@/components/ui/ExpandableSummary";
+import { Skeleton } from "@/components/ui/primitives";
 
-export function FinancialHistoryChart({ series, title = "Revenue and annual change" }: { series: RevenueSeries[]; title?: string }) {
+export function FinancialHistoryChart({ series, title = "Revenue and annual change", loading = false, emptyAction, allowComparison = true }: { series: RevenueSeries[]; title?: string; loading?: boolean; emptyAction?: ReactNode; allowComparison?: boolean }) {
   const tracks = series.map(revenueSeries);
   const plotted = tracks.flatMap((track) => track.points.filter((point) => point.rupiah !== null));
   const years = [...new Set(plotted.map((point) => point.year))].sort((a, b) => a - b);
@@ -20,7 +24,13 @@ export function FinancialHistoryChart({ series, title = "Revenue and annual chan
     return () => observer.disconnect();
   }, []);
   const selected = years.includes(selectedYear ?? NaN) ? selectedYear! : years.at(-1);
-  const enough = tracks.some((track) => track.points.filter((point) => point.rupiah !== null).length >= 2);
+  const scopes = new Set(plotted.map((point) => point.basis));
+  const compatible = tracks.length <= 1 || (allowComparison && scopes.size === 1);
+  const enough = compatible && tracks.some((track) => track.points.filter((point) => point.rupiah !== null).length >= 2);
+  const excluded = tracks.reduce((total, track) => total + track.excluded, 0);
+  const source = series.flatMap((track) => track.points).find((point) => point.snapshotId);
+  const sourceAction = source?.snapshotId ? <Link href={`/financial-sources/${source.snapshotId}`} className="rp-press inline-flex min-h-10 items-center gap-2 rounded-field text-xs font-bold text-accent-ink">Company financials <ArrowRight className="rp-arrow" aria-hidden size={14} /></Link>
+    : <Link href="/watchlists" className="rp-press inline-flex min-h-10 items-center gap-2 rounded-field text-xs font-bold text-accent-ink">Review competitors <ArrowRight className="rp-arrow" aria-hidden size={14} /></Link>;
   const max = Math.max(1, ...plotted.map((point) => point.rupiah!)) * 1.12;
   const changes = plotted.flatMap((point) => point.change === null ? [] : [point.change]);
   const changeMax = Math.max(5, ...changes.map(Math.abs)) * 1.15;
@@ -63,7 +73,7 @@ export function FinancialHistoryChart({ series, title = "Revenue and annual chan
   </svg>;
   return <section ref={root} className="min-w-0" aria-label={title}>
     <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><h2 className="text-base font-bold">{title}</h2>{enough ? <Select className="w-auto min-w-32" label="Inspect financial reporting period" value={String(selected ?? "")} onChange={(value) => choose(Number(value))} options={years.map((year) => ({ value: String(year), label: `FY${year}` }))} /> : null}</div>
-    {enough ? <>
+    {loading ? <div role="status" aria-label="Loading revenue history" className="space-y-4"><Skeleton className="h-4 w-2/3" /><Skeleton className="h-48 w-full" /><Skeleton className="h-4 w-1/2" /><span className="sr-only">Loading verified revenue history…</span></div> : enough ? <>
       <p className="mb-2 text-xs leading-relaxed text-muted">Annual revenue · IDR trillions. Changes compare adjacent annual periods with the same verified reporting scope.</p>
       <div className="mb-2 flex flex-wrap gap-4 text-xs font-bold">{tracks.map((track, index) => <span key={track.company} style={{ color: ["#146c50", "#2867a0", "#7153a0", "#946419", "#466975"][index % 5] }}>{track.company}</span>)}</div>
       {chart(false)}
@@ -71,10 +81,10 @@ export function FinancialHistoryChart({ series, title = "Revenue and annual chan
       {changes.length ? chart(true) : <p className="my-3 rounded-field bg-subtle p-3 text-xs leading-relaxed text-muted">Change percentages are unavailable: there are no adjacent annual periods with compatible reporting scope and a positive base value.</p>}
       <div id={id} role="status" className="mt-3 rounded-field border border-divider bg-subtle/60 p-3 text-xs leading-relaxed"><p className="font-bold">Reporting period FY{selected}</p>{tracks.map((track) => {
         const point = track.points.find((entry) => entry.year === selected);
-        return <div key={track.company} className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1"><strong>{track.company}</strong><span>{point ? formatFinancial(point) : "No reported value"}</span><span>{point?.change != null ? `${point.change > 0 ? "+" : ""}${point.change.toFixed(2)}% YoY` : "Change unavailable"}</span>{point?.snapshotId ? <Link href={`/financial-sources/${point.snapshotId}`} className="font-bold text-accent-ink underline underline-offset-2">Source →</Link> : point && sourceHref(point.sourceUrl) ? <a href={sourceHref(point.sourceUrl)!} target="_blank" rel="noreferrer" className="font-bold text-accent-ink underline underline-offset-2">Source ↗</a> : null}</div>;
+        return <div key={track.company} className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1"><strong>{track.company}</strong><FinancialValue amount={point} /><span>{point?.change != null ? `${point.change > 0 ? "+" : ""}${point.change.toFixed(2)}% YoY` : "Change unavailable"}</span>{point?.snapshotId ? <Link href={`/financial-sources/${point.snapshotId}`} className="font-bold text-accent-ink underline underline-offset-2">Company financials →</Link> : null}</div>;
       })}</div>
-    </> : <p className="rounded-field bg-subtle p-4 text-sm leading-relaxed text-muted">Insufficient coverage for a revenue chart. At least two annual values with verified IDR currency, source scale, and reporting scope are required. Other currencies need a supported exchange rate before conversion.</p>}
-    {tracks.filter((track) => track.excluded > 0).map((track) => <p key={track.company} className="mt-2 text-xs leading-relaxed text-muted">{track.company}: {track.excluded} source {track.excluded === 1 ? "entry is" : "entries are"} excluded because its period, currency, scale, scope, or value could not be verified.</p>)}
-    <p className="mt-3 text-xs leading-relaxed text-muted">Saved evidence only. Missing years and changes in scope break the line; no missing values are estimated. Hover, tap, or focus a point to inspect it.</p>
+    </> : <div className="flex items-start gap-3 rounded-field border border-divider bg-subtle/60 p-4"><ChartNoAxesCombined aria-hidden size={24} className="mt-1 shrink-0 text-accent" /><div><p className="text-sm font-bold text-ink">{compatible ? "Not enough verified revenue history" : "Revenue comparison unavailable"}</p><p className="mt-1 max-w-[60ch] text-xs leading-relaxed text-muted-strong">{compatible ? "A chart needs two annual values with verified currency, source units, and reporting scope. Other currencies need a supported exchange rate." : "Business definitions or reporting scopes differ or are unverified. Review each company’s figures separately."}</p>{emptyAction ?? sourceAction}</div></div>}
+    {!loading && excluded > 0 ? <ExpandableSummary label={`${excluded} ${excluded === 1 ? "source" : "sources"} excluded`}><p>These entries have an unverified period, currency, source scale, reporting scope, or value.</p><ul className="space-y-1">{tracks.filter((track) => track.excluded > 0).map((track) => <li key={track.company}><strong>{track.company}</strong> · {track.excluded} {track.excluded === 1 ? "entry" : "entries"}</li>)}</ul></ExpandableSummary> : null}
+    {!loading ? <p className="mt-3 text-xs leading-relaxed text-muted-strong">Saved evidence only. Missing years and changes in scope break the line; no missing values are estimated.{enough ? " Hover, tap, or focus a point to inspect it." : ""}</p> : null}
   </section>;
 }

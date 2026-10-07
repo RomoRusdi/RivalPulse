@@ -5,12 +5,43 @@ $Frontend = Join-Path $Root "frontend"
 $BackendEnv = Join-Path $Backend ".env"
 $FrontendEnv = Join-Path $Frontend ".env.local"
 
+function Invoke-ComposeStartup {
+    param(
+        [string[]]$ComposeArguments,
+        [int]$MaxAttempts = 3,
+        [int]$RetryDelaySeconds = 5
+    )
+
+    for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+        # Windows PowerShell treats native stderr as ErrorRecords. Capture it
+        # without terminating before we can inspect Docker's actual exit code.
+        $PreviousPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            $Output = @(& docker compose --ansi never -f compose.yaml --profile frontend --parallel 1 @ComposeArguments 2>&1)
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $PreviousPreference
+        }
+        $Output | ForEach-Object { Write-Host "$_" }
+        if ($ExitCode -eq 0) { return }
+
+        $Transient = ($Output -join "`n") -match '(?i)context deadline exceeded|i/o timeout|TLS handshake timeout|unexpected EOF|the pipe has been ended'
+        if (-not $Transient -or $Attempt -eq $MaxAttempts) {
+            throw "Docker Compose $($ComposeArguments -join ' ') failed (exit $ExitCode). Inspect: docker compose -f backend/compose.yaml --profile frontend ps -a and logs --tail 60. If Docker still reports a timeout, restart Docker Desktop and rerun this script. Existing volumes are retained."
+        }
+        Write-Host "Docker engine timed out. Retrying startup ($($Attempt + 1)/$MaxAttempts); existing containers and data will be reused." -ForegroundColor Yellow
+        Start-Sleep -Seconds ($RetryDelaySeconds * $Attempt)
+    }
+}
+
 Write-Host "RivalPulse Sectors v2 startup" -ForegroundColor Cyan
 
 if (-not (Test-Path $BackendEnv)) {
     Copy-Item (Join-Path $Backend ".env.example") $BackendEnv
     $Bytes = New-Object byte[] 24
-    [Security.Cryptography.RandomNumberGenerator]::Fill($Bytes)
+    $Random = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $Random.GetBytes($Bytes) } finally { $Random.Dispose() }
     $Token = [Convert]::ToBase64String($Bytes)
     (Get-Content $BackendEnv) -replace '^DEMO_ACCESS_TOKEN=.*$', "DEMO_ACCESS_TOKEN=$Token" | Set-Content $BackendEnv
     Write-Host "Created backend/.env. Add SECTORS_API_KEY before continuing."
@@ -70,17 +101,19 @@ if (-not $FrontendReady) {
             if ($LASTEXITCODE -ne 0) { throw "Frontend dependency installation failed. Check npm output and retry." }
         } finally { Pop-Location }
     }
-    $Command = "Set-Location -LiteralPath '$Frontend'; npm run dev -- --hostname 0.0.0.0 --port 3000"
+    $EscapedFrontend = $Frontend.Replace("'", "''")
+    $Command = "Set-Location -LiteralPath '$EscapedFrontend'; npm run dev -- --hostname 0.0.0.0 --port 3000"
     Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @("-NoExit", "-Command", $Command)
     Write-Host "Started the frontend in the background."
 }
 
 Push-Location $Backend
 try {
-    docker compose -f compose.yaml --profile frontend up --build -d
-    if ($LASTEXITCODE -ne 0) { throw "Docker Compose startup failed. Check the error above before retrying." }
-    docker compose -f compose.yaml --profile frontend restart frontend-proxy
-    if ($LASTEXITCODE -ne 0) { throw "Frontend proxy restart failed. Check Docker Compose logs." }
+    # Build once, then resume partial startup on transient Docker Desktop errors.
+    # Limit concurrent engine operations, which can time out on Windows startup.
+    Invoke-ComposeStartup -ComposeArguments @("build") -MaxAttempts 1
+    Invoke-ComposeStartup -ComposeArguments @("up", "--no-build", "-d")
+    Invoke-ComposeStartup -ComposeArguments @("restart", "frontend-proxy")
 } finally { Pop-Location }
 
 $Ready = $null
@@ -97,6 +130,24 @@ for ($Attempt = 0; $Attempt -lt 180; $Attempt++) {
     Start-Sleep -Seconds 2
 }
 if ($Ready.status -ne "ready" -or $Ready.mode -ne "live") { throw "Sectors-mode API did not become ready. Check Docker logs and backend/.env." }
+
+$FrontendReady = $false
+Write-Host "Backend ready. Checking the frontend and API through the gateway..." -ForegroundColor Cyan
+for ($Attempt = 0; $Attempt -lt 60; $Attempt++) {
+    try {
+        $Login = Invoke-WebRequest "http://localhost:8080/login" -UseBasicParsing -TimeoutSec 5
+        $GatewayReady = Invoke-RestMethod "http://localhost:8080/backend/api/v1/health/ready" -TimeoutSec 5
+        if ($Login.StatusCode -eq 200 -and $Login.Content -match 'name="email"' -and
+            $GatewayReady.status -eq "ready" -and $GatewayReady.mode -eq "live") {
+            $FrontendReady = $true
+            break
+        }
+    } catch {}
+    Start-Sleep -Seconds 2
+}
+if (-not $FrontendReady) {
+    throw "Backend is ready, but the frontend gateway is not. Check the frontend on port 3000 and docker compose -f backend/compose.yaml logs --tail 60 frontend-proxy."
+}
 
 Write-Host "Sectors-mode stack ready; API key presence checked but live authorization NOT verified." -ForegroundColor Green
 Write-Host "A Sectors research run may use credits. Obtain/verify your key before investigating."

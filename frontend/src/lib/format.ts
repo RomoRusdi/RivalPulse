@@ -179,6 +179,22 @@ export function financialScale(unit: string): number | null {
   return unit.trim() ? scales[key] ?? null : null;
 }
 
+/** Only authenticated saved financial reports may use relative evidence links. */
+export function evidenceHref(value: string): string | null {
+  if (/^\/financial-sources\/[0-9a-f-]{36}$/i.test(value)) return value;
+  const href = sourceHref(value);
+  if (!href) return null;
+  const url = new URL(href);
+  if (url.hostname === "api.sectors.app" || /^\/v[12]\//.test(url.pathname)) return null;
+  url.search = "";
+  url.hash = "";
+  return url.href;
+}
+
+export function evidenceLabel(value: string): string {
+  return value.startsWith("/financial-sources/") ? "Saved company report" : new URL(value).hostname;
+}
+
 export function toIDR(amount: FinancialAmount): number | null {
   if (!amount.currency || !/^(IDR|Rp|rupiah)$/i.test(amount.currency.trim()) || amount.value === null) return null;
   const scale = financialScale(amount.unit);

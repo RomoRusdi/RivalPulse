@@ -41,6 +41,8 @@ Set a valid `SECTORS_API_KEY` in the ignored `backend/.env` (copy `backend/.env.
 
 This starts the frontend, FastAPI, PostgreSQL, Redis and gateway with Sectors v2 as the **only live financial provider**. When AI is enabled, it connects to the already running Ollama service. The startup script checks for a configured key but does not spend credits or verify the key with Sectors. Research uses bounded requests and never substitutes a different provider. Stop with `.\STOP_SECTORS.ps1`; the PostgreSQL and Redis volumes remain intact.
 
+Startup builds the images once and limits concurrent Compose engine operations. If Docker Desktop times out while inspecting or starting containers, the script retries that startup step up to three times without rebuilding or removing volumes. It reports success only after the API and the frontend login page respond through the gateway. If Docker remains unresponsive, restart Docker Desktop and rerun the script; do not delete the data volumes. Run `powershell.exe -NoProfile -File scripts/test_startup.ps1` to check timeout recovery without starting Docker.
+
 **Frontend** — uses account authentication and the backend by default:
 
 ```bash

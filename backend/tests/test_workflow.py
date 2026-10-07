@@ -64,7 +64,11 @@ def test_full_baseline_numeric_evidence_duplicate_and_revision(client, watchlist
         assert 0.0 <= card["score_components"]["confidence"] <= 1.0
         with session() as db:
             snapshots = {s.id: s for s in db.scalars(select(Snapshot))}
-            validate_card(card, snapshots)
+            # Evidence validation uses the full stored provenance; browser cards omit diagnostics.
+            stored_card = db.get(Revision, card["revision_id"]).card
+            validate_card(stored_card, snapshots)
+            assert all("url_or_endpoint" not in evidence and "excerpt_or_json_pointer" not in evidence
+                       for evidence in card["evidence"])
             for evidence in card["evidence"]:
                 assert db.get(Evidence, evidence["id"]) is not None
     execute_run(first["id"])

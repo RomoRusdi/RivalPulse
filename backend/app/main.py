@@ -23,7 +23,9 @@ from app.allowance import allowance
 from app.compat import run_json as legacy_run, signal_json as legacy_signal
 from app.config import get_settings
 from app.contracts import ConversationSync, ErrorBody, LegacyRunCreate, LegacyWatchlistUpdate, RunAccepted, RunCreate, Strict, WatchlistCreate, WatchlistPatch
-from app.contracts import ChatReply, ChatRequest, CompanyOut, Page, RunDetail, SignalCard, SignalDetail, WatchlistOut
+from app.contracts import ChatReply, ChatRequest, CompanyOut, Page, WatchlistOut
+from app.public_evidence import PublicRunDetail as RunDetail, PublicSignalCard as SignalCard, PublicSignalDetail as SignalDetail
+from app.public_evidence import public_payload
 from app.db import get_db, iso, migration_heads, session, uid, utcnow
 from app.errors import AppError
 from app.finding_feed import CATEGORIES, COLORS, FindingFeed, finding_page
@@ -213,7 +215,7 @@ def alerts_status(db: DB):
 
 def conversation_json(row):
     return {"id": row.id, "title": row.title, "createdAt": iso(row.created_at),
-            "updatedAt": iso(row.updated_at), "messages": row.messages}
+            "updatedAt": iso(row.updated_at), "messages": public_payload(row.messages)}
 
 
 @router.get("/session", tags=["auth"])

@@ -1,5 +1,6 @@
 import type { AgentRun, Signal } from "./types";
-import { BRIEF_KINDS, formatFinancial, prettyBriefKind } from "./format";
+import { BRIEF_KINDS, humanizeFigureMeta, prettyBriefKind } from "./format";
+import { financialDisplay } from "./financial-display";
 
 /** Escape for HTML-table based .xls (Excel opens it natively, no dependency). */
 function esc(value: unknown): string {
@@ -85,7 +86,7 @@ export function downloadRunXls(run: AgentRun, signals: Signal[]): void {
           ...brief.rows.map((r) => {
             const m = r.metrics.find((x) => x.metric === kind && x.period === period);
             if (!m) return "—";
-            return formatFinancial(m);
+            return financialDisplay(m).short;
           }),
         ]));
       }
@@ -94,6 +95,15 @@ export function downloadRunXls(run: AgentRun, signals: Signal[]): void {
     sections.push(section(
       "Side-by-side comparison" + (brief.period ? ` · ${brief.period}` : ""), columns, body,
     ));
+    // Excel otherwise rounds decimal strings beyond 15 significant digits.
+    const exact = brief.rows.flatMap((company) => {
+      const metrics = [...new Map([...company.metrics, ...company.revenue_history].map((metric) =>
+        [JSON.stringify([metric.metric, metric.period, metric.value, metric.currency, metric.unit, metric.comparison_basis]), metric])).values()];
+      return metrics.map((metric) => `<tr>${[company.symbol, prettyBriefKind(metric.metric), metric.period, metric.value,
+        metric.currency ?? "Currency not supplied", humanizeFigureMeta(metric.unit), humanizeFigureMeta(metric.comparison_basis)]
+        .map((value) => `<td style="mso-number-format:'\\@';">${esc(value)}</td>`).join("")}</tr>`);
+    });
+    sections.push(section("Exact reported figures", ["Company", "Metric", "Period", "Reported value", "Currency", "Source units", "Reporting scope"], exact));
     if (brief.interpretation) {
       sections.push(section(
         `AI hypothesis (uncertainty: ${brief.interpretation.uncertainty})`,
