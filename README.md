@@ -75,7 +75,7 @@ To stop the Docker stack while keeping database and Redis volumes:
 | “Show my competitor watchlist.” | An instant workspace command; no research. |
 | “Summarize the stored findings for TLKM.” | Saved evidence only; no new collection or AI generation. |
 | “Compare annual revenue and earnings for TLKM and EXCL.” | A new cited investigation; provider charges may apply. |
-| “Research recent product and partnership activity for BBCA.” | Bounded news research, not an exhaustive search. |
+| “Research recent product and partnership activity for ISAT.” | Bounded news research, not an exhaustive search. |
 
 Use companies in your current watchlist; add or change them under **Competitors**.
 
@@ -145,7 +145,7 @@ GitHub Actions runs offline tests, lint, and the frontend build. See [Developmen
 - **Excel compatibility:** `.xls` exports are HTML-based tables, not native `.xlsx` workbooks. Excel may show a format warning.
 - **Local development, not public production:** The included Compose/gateway setup is not a hardened public deployment. Keep secrets out of Git and retain the encryption master key with protected database backups.
 
----
+--- 
 
 <div align="center">
 
