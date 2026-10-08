@@ -44,4 +44,6 @@ Test-StartupCase "successful startup" @($Success) 1 $false
 Test-StartupCase "partial startup recovers after timeout" @($Timeout, $Success) 2 $false
 Test-StartupCase "transient retries are bounded" @($Timeout, $Timeout, $Timeout) 3 $true
 Test-StartupCase "application failures are not retried" @(@{ Code = 1; Text = "migrate exited (1)" }) 1 $true
+# Expected mock failures must not leak a failure exit code to the CI runner.
+$global:LASTEXITCODE = 0
 Write-Host "All 4 startup regression checks passed."
