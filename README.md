@@ -1,73 +1,125 @@
-# RivalPulse
+<div align="center">
 
-**Evidence-backed competitor intelligence for Indonesian public companies.**
+<img src="docs/assets/rivalpulse-logo.png" alt="RivalPulse" width="460" />
 
-Ask a question in English or Bahasa Indonesia, compare tracked companies, and review what changed—with saved source evidence, financial context, and clearly separated AI interpretation.
+### Know what changed. See the evidence. Decide what matters.
 
-## What it does
+Evidence-backed competitor intelligence for Indonesian public companies.<br />
+Built for marketing and strategy teams—not trading decisions.
 
-- Tracks **2–5 competitors**, with an independent optional own-company perspective.
-- Collects company reports and news from **Sectors v2**, plus administrator-approved public pages.
-- Runs bounded investigations with progress, cancellation, coverage warnings, and cited results.
-- Explains **what happened, why it matters, possible implications, and suggested next steps**. Suggestions do not execute automatically.
-- Saves accounts, watchlists, conversations, research, and immutable evidence in PostgreSQL.
-- Exports investigation results to **Excel-compatible `.xls`** and individual findings to text. Exports retain the question, figures, interpretations, and notes/limitations.
-- Supports **Local Ollama, OpenAI, Anthropic, and Gemini** through owner-managed workspace settings. Workspace Sectors and cloud-model keys are encrypted server-side.
+[![Checks](https://github.com/RomoRusdi/RivalPulse/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/RomoRusdi/RivalPulse/actions/workflows/ci.yml)
+![Next.js](https://img.shields.io/badge/Next.js-16-122d23?style=flat)
+![FastAPI](https://img.shields.io/badge/Backend-FastAPI-146c50?style=flat)
+![Sectors](https://img.shields.io/badge/Financial_data-Sectors_v2-146c50?style=flat)
 
-## Quick start · Windows
+[Quick start](#quick-start) · [How it works](#how-it-works) · [Documentation](#documentation) · [Limitations](#important-limits)
 
-**Requirements:** Docker Desktop (Linux containers), Node.js 20.9+, and a Sectors API key for live research. Local AI additionally needs Ollama and an installed model; cloud AI needs the selected provider's API key. Python 3.11+ is needed only for local backend development/tests.
+</div>
+
+---
+
+## More than a feed of headlines
+
+Ask a question in **English or Bahasa Indonesia**. RivalPulse brings together competitor news, company financials, and saved evidence—then separates **what was observed** from **what AI thinks it might mean**.
+
+> **What happened → Why it matters → Possible implication → Suggested next step**
+>
+> Evidence stays inspectable. Uncertainty stays visible. Suggested actions never execute automatically.
+
+## What you can do
+
+| Capability | What you get |
+| --- | --- |
+| **Track your competitive landscape** | A watchlist of 2–5 competitors, with an independent optional own-company perspective. |
+| **Investigate with evidence** | Sectors v2 reports and news, approved public pages, progress updates, cancellation, and explicit coverage gaps. |
+| **Understand the context** | Financial updates, analyst commentary, and company mentions kept separate from competitor moves. |
+| **Pick your AI** | Local Ollama, OpenAI, Anthropic, or Gemini through owner-managed workspace settings. |
+| **Keep your research** | Accounts, conversations, findings, and immutable evidence saved in PostgreSQL. Workspace provider keys are encrypted server-side. |
+| **Share the result** | Excel-compatible `.xls` investigations and text finding briefs, retaining figures, interpretations, and notes/limitations. |
+
+## Quick start
+
+**For Windows:** Docker Desktop with Linux containers and **Node.js 20.9+**. Live research needs a Sectors API key. For AI, choose either Ollama with an installed model or a supported cloud provider with your API key. Python 3.11+ is only needed for local backend development/tests.
+
+**1. Create your local configuration**—without overwriting existing files:
 
 ```powershell
-# From the repository root; do not overwrite existing configuration.
 if (-not (Test-Path backend/.env)) { Copy-Item backend/.env.example backend/.env }
 if (-not (Test-Path frontend/.env.local)) { Copy-Item frontend/.env.example frontend/.env.local }
+```
 
-# Configure verification SMTP in backend/.env for ordinary signup.
-# Optionally set a shared SECTORS_API_KEY, or add your workspace key in Settings.
+**2. Configure verification SMTP** in `backend/.env` for ordinary signup. Optionally add a shared `SECTORS_API_KEY`, or connect your workspace key in Settings after login.
+
+**3. Start the app:**
+
+```powershell
 .\START_SECTORS.ps1
 ```
 
-Open **http://localhost:8080**. Sign up and verify your email, or log in to an existing account. In **Settings**, configure your Sectors connection and AI provider/model. Saving keys/settings does not run a paid connection test. The separate **Connect** button for AI lists provider models without generating an answer.
+Open **http://localhost:8080**, sign up and verify your email—or log in to an existing account. Visit **Settings** to configure your data connection and AI model.
+
+Saving keys/settings does **not** run a paid connection test. The AI **Connect** button lists provider models without generating an answer.
+
+To stop the Docker stack while keeping database and Redis volumes:
 
 ```powershell
-.\STOP_SECTORS.ps1   # Stops the Docker stack; keeps database/Redis volumes.
+.\STOP_SECTORS.ps1
 ```
 
-See [Setup](docs/SETUP.md) for SMTP, administrator account provisioning, manual startup, and troubleshooting.
+→ [Full setup guide](docs/SETUP.md): SMTP, administrator accounts, manual startup, and troubleshooting.
 
-## Try it
+## Start with a question
 
-- `Show my competitor watchlist.` — workspace command, no research.
-- `Summarize the stored findings for TLKM.` — saved evidence, no new collection or AI generation.
-- `Compare annual revenue and earnings for TLKM and EXCL.` — a new investigation; provider charges may apply.
-- `Research recent product and partnership activity for BBCA.` — bounded news research, not an exhaustive search.
+| Try asking | What happens |
+| --- | --- |
+| “Show my competitor watchlist.” | An instant workspace command; no research. |
+| “Summarize the stored findings for TLKM.” | Saved evidence only; no new collection or AI generation. |
+| “Compare annual revenue and earnings for TLKM and EXCL.” | A new cited investigation; provider charges may apply. |
+| “Research recent product and partnership activity for BBCA.” | Bounded news research, not an exhaustive search. |
 
 Use companies in your current watchlist; add or change them under **Competitors**.
 
 ## How it works
 
 ```text
-Next.js UI → FastAPI → Redis/RQ worker → Sectors / approved pages
-                              ↓
-                   validated AI interpretation
-                              ↓
-                PostgreSQL evidence and results
+Your question → FastAPI → Bounded research worker
+                                  │
+                       Sectors + approved pages
+                                  │
+                       Validated AI interpretation
+                                  │
+                       Saved evidence and results
 ```
 
-The backend owns access, budgets, approved tools, source figures, arithmetic, and citation checks. The selected model proposes bounded qualitative interpretation; it cannot execute arbitrary tools or write financial facts. Opening saved results and exporting them does not collect data or regenerate analysis.
+**The backend is in charge.** It owns access, budgets, approved tools, source figures, arithmetic, and citation checks. The selected model supplies bounded qualitative interpretation; it cannot execute arbitrary tools or write financial facts.
 
-| Directory | Contents |
+Opening saved results and exporting them does not collect data or regenerate analysis. Sectors is the **only live financial provider**; changing AI models does not change that.
+
+## Documentation
+
+| Guide | Start here when… |
 | --- | --- |
-| [`frontend/`](frontend/) | Next.js/React interface, Zod contracts, exports, UI tests |
-| [`backend/`](backend/) | FastAPI, research agent, providers, migrations, worker, backend tests |
-| [`docs/`](docs/) | Setup, architecture, development, and Sectors endpoint reference |
-| [`scripts/`](scripts/) | Repository checks and offline startup tests |
+| [Setup & operations](docs/SETUP.md) | You want to run the app or update another installation safely. |
+| [Architecture & evidence](docs/ARCHITECTURE.md) | You want to understand the agent, credentials, billing, and accuracy caveats. |
+| [Development & handoff](docs/DEVELOPMENT.md) | You want to test, maintain, or publish the project. |
+| [Sectors endpoint reference](docs/SECTORS_ENDPOINT_REVIEW.md) | You need source coverage, endpoint costs, and metadata constraints. |
 
-## Development
+### Repository at a glance
+
+```text
+RivalPulse/
+├── frontend/     Next.js interface, response contracts, and exports
+├── backend/      FastAPI, research agent, providers, migrations, and tests
+├── docs/         Setup, architecture, development, and source reference
+└── scripts/      Repository checks and offline startup tests
+```
+
+<details>
+<summary><strong>Development checks</strong></summary>
+
+From the repository root:
 
 ```powershell
-# Backend: create a virtual environment and install dependencies first.
 cd backend
 python -m venv .venv
 .venv/Scripts/python.exe -m pip install -e ".[test]"
@@ -81,14 +133,24 @@ npm run lint
 npm run build
 ```
 
-[Development](docs/DEVELOPMENT.md) covers checks and API contracts. GitHub Actions runs offline tests, lint, and the frontend build. [Architecture](docs/ARCHITECTURE.md) explains evidence, credentials, billing, and current limitations.
+GitHub Actions runs offline tests, lint, and the frontend build. See [Development](docs/DEVELOPMENT.md) for repository/startup checks and API contracts.
+
+</details>
 
 ## Important limits
 
-- Sectors requests and cloud-model use may incur **separate charges**. Internal research credits are application limits, not an authoritative provider balance.
-- Missing/unreviewed evidence does not prove nothing changed. AI attribution and implications require human review.
-- Some Sectors monetary fields lack currency, scale, or reporting-scope metadata. The current display/export includes a rupiah inference for large unlabeled figures; it is **not source-confirmed currency**. Review financial assumptions before using results.
-- `.xls` exports are HTML-based tables, not native `.xlsx` workbooks; Excel may show a format warning.
-- The included Compose/gateway setup is for **local development**, not a hardened public deployment. Keep secrets out of Git and retain the encryption master key with protected database backups.
+- **Separate costs:** Sectors requests and cloud-model use may incur separate charges. Internal research credits are application limits, not an authoritative provider balance.
+- **Evidence is bounded:** Missing/unreviewed evidence does not prove nothing changed. AI attribution and implications require human review.
+- **Financial assumptions need review:** Some Sectors monetary fields lack currency, scale, or reporting-scope metadata. The current display/export includes a rupiah inference for large unlabeled figures; it is **not source-confirmed currency**.
+- **Excel compatibility:** `.xls` exports are HTML-based tables, not native `.xlsx` workbooks. Excel may show a format warning.
+- **Local development, not public production:** The included Compose/gateway setup is not a hardened public deployment. Keep secrets out of Git and retain the encryption master key with protected database backups.
 
-*Information and analysis only. Not investment advice.*
+---
+
+<div align="center">
+
+**RivalPulse** · Evidence first. Interpretation second.
+
+<sub>Information and analysis only. Not investment advice.</sub>
+
+</div>
