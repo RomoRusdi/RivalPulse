@@ -21,6 +21,7 @@ export function SignalRow({ signal, last = false, returnTo }: { signal: SignalWi
         <span className="font-extrabold tracking-wide text-ink-2">{signal.company}</span>
         <span className="rounded-full px-2.5 py-1 font-semibold" style={categoryStyle(signal.type)}>{signal.type}</span>
         <span className="text-muted">Added {findingDate(signal.addedAt, auth?.profile.timezone, signal.detectedAt)}</span>
+        {signal.findingScope && signal.findingScope !== "competitor_move" ? <span className="font-semibold text-muted">Context only · not a competitor move</span> : null}
         {signal.relevanceReview ? <span className="font-semibold text-accent-ink">Company relevance needs review</span> : null}
       </span>
       <span className="block break-words text-[15px] font-bold leading-relaxed text-ink">{signal.title}</span>

@@ -3,6 +3,7 @@ from sqlalchemy import select
 from app.agent import Agent, is_financial_question
 from app.config import get_settings
 from app.db import session
+from app.financial_projection import project_snapshot
 from app.models import Run, RunSnapshot, Snapshot
 from app.research import claim_run, comparison_note, execute_run
 
@@ -39,7 +40,7 @@ def test_financial_question_uses_real_snapshots_without_public_events(client, wa
     brief = result["result"]["financial_brief"]
     assert brief["period"] == "2025" and len(brief["rows"]) == 3
     for row in brief["rows"]:
-        expected = {"revenue", "earnings"}
+        expected = {"revenue", "earnings", "net_profit_margin"}
         if row["symbol"] != "EXCL":
             expected |= {"revenue_yoy_percent", "earnings_yoy_percent"}
         assert {m["metric"] for m in row["metrics"]} == expected
@@ -56,7 +57,12 @@ def test_financial_question_uses_real_snapshots_without_public_events(client, wa
             for metric in row["metrics"] + row["revenue_history"]:
                 source = db.get(Snapshot, metric["snapshot_id"])
                 assert source.mode == "replay" and source.url == metric["source_url"]
-                assert metric["json_pointer"] in {m["pointer"] for m in source.normalized["metrics"]}
+                if metric["metric"] == "net_profit_margin":
+                    rates = project_snapshot(source)[1]
+                    assert any(rate["jsonPointer"] == metric["json_pointer"] and rate["value"] == metric["value"]
+                               and rate["period"] == metric["period"] and rate["unit"] == "percent" for rate in rates)
+                else:
+                    assert metric["json_pointer"] in {m["pointer"] for m in source.normalized["metrics"]}
         assert db.scalar(select(Run).where(Run.id == run_id)).llm_calls == 2
         assert len(db.scalars(select(RunSnapshot).where(RunSnapshot.run_id == run_id)).all()) == 3
     legacy = client.get("/runs/" + run_id + "/stream").text

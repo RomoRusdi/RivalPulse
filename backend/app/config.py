@@ -32,12 +32,15 @@ class Settings(BaseSettings):
     mode: Literal["live", "replay"] = "live"
     sectors_api_key: SecretStr = SecretStr("")
     llm_enabled: bool = True
+    llm_key_encryption_key: SecretStr = SecretStr("")
+    llm_key_encryption_key_file: str = ".env.llm-encryption"
     llm_plan_enabled: bool = True
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen3.8:27b"
     ollama_timeout: int = Field(240, ge=30, le=600)
     ollama_num_ctx: int = Field(16384, ge=4096, le=262144)
     ollama_num_predict: int = Field(4096, ge=256, le=8192)
+    llm_evidence_timeout: int = Field(120, ge=15, le=240)
     alerts_enabled: bool = False
     alert_min_severity: Literal["medium", "high"] = "high"
     alert_email_to: str = ""

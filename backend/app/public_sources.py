@@ -153,6 +153,11 @@ def extract(body, source, final_url):
         published = time_node.get("datetime") if time_node else None
         blocks = html_blocks(root) + link_blocks(root)
         subjects = set()
+        # Preserve neutral source passages for live semantic review. Legacy event
+        # extraction stays available for replay/archives, but never gates AI input.
+        articles = [{"title": title or "Saved company page passage", "text": text[:4000],
+                     "published_at": published, "url": final_url}
+                    for title, text in blocks if len(text.strip()) >= 30][:MAX_EVENTS]
         for block_title, block_text in blocks:
             title = block_title or ""
             if classify(title) is None and len(title) < MIN_SECTION_TITLE:
@@ -163,11 +168,11 @@ def extract(body, source, final_url):
             if candidate and candidate["subject"] not in subjects:
                 subjects.add(candidate["subject"])
                 events.append(candidate)
-        return {"schema_version": 1, "events": events[:MAX_EVENTS],
+        return {"schema_version": 1, "events": events[:MAX_EVENTS], "articles": articles,
                 "blocks_scanned": len(blocks), "blocks_matched": len(events)}
     if not events:
         raise ProviderError("SOURCE_EMPTY", "No usable public events were extracted", False)
-    return {"schema_version": 1, "events": events}
+    return {"schema_version": 1, "events": events, "articles": [{k: v for k, v in event.items() if k != "type"} for event in events]}
 
 
 def collect_public(run_id, token, company, source):

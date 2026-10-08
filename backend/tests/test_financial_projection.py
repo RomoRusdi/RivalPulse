@@ -129,7 +129,11 @@ def test_mixed_industries_withhold_shared_charts(client, watchlist):
 def test_unknown_metadata_is_not_computed_growth_and_access_failure_is_not_retried():
     a = dict(metric="revenue", value="120", currency=None, unit="provider_native_unspecified",
              comparison_basis="reporting_scope_unverified", period="2025")
-    assert yoy_percent(a, {**a, "period": "2024", "value": "100"}) is None
+    # Same source, same units both years: the unstated currency cancels.
+    assert yoy_percent(a, {**a, "period": "2024", "value": "100"}) == "+20.00%"
+    # Different units or basis between years are never compared.
+    assert yoy_percent(a, {**a, "period": "2024", "value": "100", "unit": "thousands"}) is None
+    assert yoy_percent(a, {**a, "period": "2024", "value": "100", "comparison_basis": "standalone"}) is None
     inputs = {"companies": [{"id": "c", "symbol": "TLKM"}]}
     gaps = [{"recoverable": True, "company_id": "c", "missing": "financial"}]
     assert recovery_plan(gaps, inputs, [{"tool": "get_company_metrics", "company_ids": ["c"],

@@ -53,11 +53,13 @@ class PublicBriefMetric(BaseModel):
 
 
 class PublicBriefCompany(BaseModel):
+    industry: str = ""
     symbol: str
     name: str
     comparison_note: str
     metrics: list[PublicBriefMetric]
     revenue_history: list[PublicBriefMetric] = Field(default_factory=list)
+    metric_notes: dict[str, str] = Field(default_factory=dict)
 
 
 class PublicFinancialBrief(BaseModel):

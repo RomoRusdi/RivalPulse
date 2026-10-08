@@ -71,12 +71,17 @@ class ChatTurn(Strict):
 class ChatRequest(Strict):
     message: str = Field(min_length=1, max_length=2000)
     history: list[ChatTurn] = Field(default_factory=list, max_length=20)
+    # Set by the router for summary or recall asks: answer from stored findings
+    # only, never a run. Symbols are the companies it resolved (aliases included).
+    saved: bool = False
+    symbols: list[str] = Field(default_factory=list, max_length=10)
 
 
 class ChatReply(Strict):
     reply: str
-    # "llm", "fallback" (no model available), or "guarded" (figure suppressed).
-    source: Literal["llm", "fallback", "guarded"]
+    # "llm", "fallback" (no model available), "guarded" (figure suppressed), or
+    # "workspace" (answered exactly from workspace records, e.g. credits).
+    source: Literal["llm", "fallback", "guarded", "saved_evidence", "workspace"]
     language: Literal["en", "id"]
 
 
@@ -124,11 +129,32 @@ class AgentPlan(Strict):
 
 
 class Interpretation(Strict):
+    """Model-owned qualitative reasoning; facts and presentation metadata stay server-owned."""
     event_key: str
     supporting_claim_ids: list[str] = Field(min_length=1, max_length=20)
-    hypothesis: str = Field(min_length=3, max_length=700)
-    uncertainty: Literal["low", "medium", "high"]
-    marketing_implication: str = Field(min_length=3, max_length=700)
+    why_it_matters: str = Field(min_length=15, max_length=700)
+    potential_implication: str | None = Field(max_length=700)
+    recommended_next_step: str = Field(min_length=20, max_length=700)
+    limitations: list[str] = Field(min_length=1, max_length=6)
+    uncertainty: Literal["medium", "high"]
+
+
+class DecisionSupport(Strict):
+    schema_version: int = 1
+    status: Literal["available", "limited", "unavailable"]
+    origin: Literal["ai", "rule_based"]
+    fallback_reason: Literal["model_disabled", "wording_rejected", "llm_budget_exhausted", "model_unavailable", "analysis_timeout", "attribution_unverified"] | None = None
+    perspective: str | None
+    objective: str
+    relevance: Literal["same_company", "same_sector", "cross_sector", "neutral", "unknown"]
+    what_happened: str
+    why_it_matters: str
+    potential_implication: str | None
+    recommended_next_step: str
+    limitations: list[str]
+    supporting_claim_ids: list[str] = Field(min_length=1)
+    evidence_ids: list[str] = Field(min_length=1)
+    uncertainty: Literal["medium", "high"]
 
 
 class Analysis(Strict):
@@ -155,11 +181,13 @@ class BriefMetric(Strict):
 
 
 class BriefCompany(Strict):
+    industry: str = ""
     symbol: str
     name: str
     comparison_note: str
     metrics: list[BriefMetric]
     revenue_history: list[BriefMetric] = Field(default_factory=list)
+    metric_notes: dict[str, str] = Field(default_factory=dict)
 
 
 class FinancialBrief(Strict):
@@ -209,6 +237,14 @@ class SignalCard(Strict):
     company: dict
     mode: Literal["live", "yahoo", "replay"]
     type: str
+    classification_version: int = 0
+    classification_origin: Literal["ai", "rule_based", "unverified"] = "rule_based"
+    attribution_role: str | None = None
+    finding_scope: Literal["competitor_move", "financial_context", "third_party_commentary", "unverified_context"] = "competitor_move"
+    classification_note: str = ""
+    classification_revised: bool = False
+    original_type: str | None = None
+    attribution_review: bool = False
     title: str
     change_status: Literal["baseline", "new", "updated", "unchanged"]
     analysis_status: Literal["complete", "incomplete"]
@@ -220,12 +256,47 @@ class SignalCard(Strict):
     hypotheses: list[Hypothesis]
     financial_context: list[FinancialMetric]
     why_marketing_should_care: Hypothesis
+    # Optional for immutable archives saved before structured decision support.
+    decision_support: DecisionSupport | None = None
     evidence: list[Citation]
     run_id: str
     compared_against_run_id: str | None
     first_seen_at: str
     published_at: str | None
     stored_at: str
+
+
+class ComparisonEntry(Strict):
+    symbol: str
+    name: str
+    industry: str
+    # Ratios are ranked only with known metadata and compatible reporting bases.
+    # Absolute revenue is deliberately not ranked here.
+    revenue_growth_percent: str | None
+    net_margin_percent: str | None
+    net_margin_origin: Literal["provider_reported", "calculated"] | None = None
+    growth_note: str = ""
+    margin_note: str = ""
+    profit: Literal["profit", "loss", "swung_to_loss", "break_even"] | None
+    growth_rank: int | None
+    margin_rank: int | None
+    growth_rank_size: int = 0
+    margin_rank_size: int = 0
+    peer_group: bool
+    peer_group_size: int
+    findings: int
+    activity_note: str | None
+    claim_ids: list[str]
+    notes: list[str] = Field(default_factory=list)
+
+
+class Comparison(Strict):
+    period: str | None
+    perspective: str | None
+    sector: str
+    headline: str | None
+    entries: list[ComparisonEntry]
+    notes: list[str]
 
 
 class ResearchResult(Strict):
@@ -239,6 +310,7 @@ class ResearchResult(Strict):
     warnings: list[str]
     signals: list[SignalCard]
     financial_brief: FinancialBrief | None = None
+    comparison: Comparison | None = None
     disclaimer: str = "Information and business analysis only; no investment recommendations or trade execution."
 
 

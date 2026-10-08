@@ -3,3 +3,4 @@
 .coverage
 *.db
 local-results/
+.env.llm-encryption

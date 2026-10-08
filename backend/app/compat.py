@@ -1,4 +1,5 @@
 """Projection into the existing frontend Zod contract; canonical evidence lives at /api/v1."""
+import re
 from datetime import timezone
 
 from sqlalchemy import select
@@ -8,6 +9,8 @@ from app.db import iso, utcnow
 from app.models import RunStep
 from app.research import STAGES
 from app.public_evidence import PublicFinancialBrief, public_link
+from app.brief_projection import project_run_result
+from app.finding_projection import project_signal_card
 
 
 def try_float(value):
@@ -18,6 +21,7 @@ def try_float(value):
 
 
 def signal_json(card):
+    card = project_signal_card(card)
     observations = card.get("observed_signals") or []
     series = []
     for m in card.get("financial_context") or []:
@@ -28,7 +32,7 @@ def signal_json(card):
             continue
         series.append({"label": m.get("period"), "value": value})
     implication = card["why_marketing_should_care"]["text"]
-    why_it_matters = implication if implication.startswith("Hypothesis:") else "Hypothesis: " + implication
+    why_it_matters = implication if card.get("classification_revised") or implication.startswith("Hypothesis:") else "Hypothesis: " + implication
     # Headline is the short event title (≤300 chars), never the full
     # observation text: list rows and chat cards render it verbatim.
     headline = card["title"] or (observations[0]["text"] if observations else "")
@@ -41,25 +45,42 @@ def signal_json(card):
                      "snapshotId": ref.get("snapshot_id")})
     news = any(entry.get("source") == "sectors_news" for entry in card.get("evidence", []))
     scoped = [company_event({"text": observation["text"], "title": headline}, card["company"])
-              for observation in observations] if news else []
-    relevance_review = news and not any(event and event["type"] == card["type"] for event in scoped)
-    headline = signal_title({"title": headline, "text": observations[0]["text"] if observations else headline,
-                             "type": card["type"]}, card["company"], attributed=not relevance_review)
+              for observation in observations] if news and card.get("classification_version", 0) < 2 else []
+    semantic = card.get("classification_version", 0) >= 2
+    relevance_review = card.get("attribution_review", False) if semantic else news and not any(event and event["type"] == card["type"] for event in scoped)
+    if not semantic:
+        headline = signal_title({"title": headline, "text": observations[0]["text"] if observations else headline,
+                                 "type": card["type"]}, card["company"], attributed=not relevance_review)
+    if headline.endswith("company action not established") and observations:
+        # Older context findings stored one fixed title, so every row looked the
+        # same. Show the opening of the cited text instead; the evidence is unchanged.
+        opening = re.split(r"(?<=[.!?])\s+", observations[0]["text"].strip())[0]
+        headline = f"{card['company']['symbol']} · {opening[:110].rstrip()}{'…' if len(opening) > 110 else ''}"
     return {
         "id": card["signal_id"], "company": card["company"]["symbol"], "companyName": card["company"]["name"],
         "type": card["type"], "title": ({"replay": "[REPLAY] ", "yahoo": "[YAHOO TEST] "}.get(card["mode"], "")) + headline,
         "subline": f"{card['mode']} · {card['change_status']} · {card['analysis_status']}",
+        "changeStatus": card["change_status"],
+        "findingScope": card.get("finding_scope", "competitor_move"),
+        "classificationNote": card.get("classification_note", ""),
+        "classificationRevised": card.get("classification_revised", False),
+        "classificationOrigin": card.get("classification_origin", "rule_based"),
+        "attributionRole": card.get("attribution_role"),
+        "originalType": card.get("original_type"),
         "headline": headline, "severity": card["severity"],
         "detectedAt": card["first_seen_at"][:10], "runId": card["run_id"], "storedAt": card["stored_at"],
         "addedAt": card["first_seen_at"], "publishedAt": card.get("published_at"),
         "relevanceReview": relevance_review,
         "sources": [{"url": public_link(entry["url_or_endpoint"], entry.get("snapshot_id"), entry["source"]), "source": entry["source"],
+                     "observationSupport": any(entry["id"] in claim.get("evidence_ids", []) for claim in observations),
                      "publishedAt": entry.get("published_at")} for entry in card.get("evidence", [])],
         "comparedAgainstRunId": card["compared_against_run_id"] or "",
-        "evidence": [{"kind": kind, "source": "AI interpretation" if kind == "hypothesis" else "Stored evidence",
+        "evidence": [{"kind": kind, "source": ("Rule-based limitation" if (card.get("decision_support") or {}).get("origin") == "rule_based"
+                                              else "AI interpretation") if kind == "hypothesis" else "Stored evidence",
                       "text": c["text"]} for kind, field in
                      (("fact", "facts"), ("observed_signal", "observed_signals"), ("hypothesis", "hypotheses"))
                      for c in card[field]],
+        "decisionSupport": card.get("decision_support"),
         "financialContext": {
             "note": card["company"].get("comparison_note", ""),
             "seriesCaption": (("Yahoo Finance test data" if card["mode"] == "yahoo" else "Sectors annual revenue") +
@@ -112,6 +133,9 @@ def orchestration(run, steps):
         "routeReason": plan.get("route_reason"),
         "planner": plan.get("planner"),
         "interpreter": analyze.get("interpreter"),
+        "modelProvider": analyze.get("model_provider"), "model": analyze.get("model"),
+        **({"aiExplanations": analyze["ai_explanations"], "evidenceOnlyFindings": analyze.get("evidence_only_findings", 0)} if "ai_explanations" in analyze else {}),
+        **({"newsReview": analyze["news_review"]} if analyze.get("news_review") else {}),
         "toolCalls": len(coverage),
         "credits": run.credits,
         "cacheHits": sum(1 for e in coverage if e.get("cache_status") in ("cached", "resumed")),
@@ -138,14 +162,20 @@ def run_json(db, run):
                 coverageStatus=run.status, startedAt=iso(run.started_at))
     if run.error_code:
         data["failedTool"] = run.error_code
-    if run.result:
-        data["resultSummary"] = ({"replay": "[REPLAY] ", "yahoo": "[YAHOO TEST] "}.get(run.mode, "")) + run.result["summary"]
+    result = project_run_result(db, run)
+    if result:
+        data["resultSummary"] = ({"replay": "[REPLAY] ", "yahoo": "[YAHOO TEST] "}.get(run.mode, "")) + result["summary"]
         if run.status == "partial":
-            missing = [entry for entry in run.result["coverage"] if entry["status"] != "ok" or
+            missing = [entry for entry in result["coverage"] if entry["status"] != "ok" or
                        (entry["tool"] == "get_recent_signals" and entry.get("warnings"))]
             if missing:
                 data["resultSummary"] += " Some evidence could not be verified; see source coverage in the run details."
-        if run.result.get("financial_brief"):
-            data["financialBrief"] = PublicFinancialBrief.model_validate(run.result["financial_brief"]).model_dump()
-        data["producedSignalIds"] = [c["signal_id"] for c in run.result["signals"] if c["change_status"] in ("new", "updated")]
+        if result.get("financial_brief"):
+            data["financialBrief"] = PublicFinancialBrief.model_validate(result["financial_brief"]).model_dump()
+        if result.get("comparison"):
+            data["comparison"] = result["comparison"]
+        # Frozen per-run findings also carry reinterpretations of unchanged
+        # evidence; the mutable global signal list is not this run's perspective.
+        data["findings"] = [signal_json(card) for card in result["signals"]]
+        data["producedSignalIds"] = [c["signal_id"] for c in result["signals"] if c["change_status"] in ("new", "updated") and c.get("finding_scope", "competitor_move") == "competitor_move"]
     return data

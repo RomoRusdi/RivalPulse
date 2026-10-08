@@ -21,6 +21,9 @@ from app import auth, chat as conversation, jobs
 from app.alerts import status as alert_status
 from app.allowance import allowance
 from app.compat import run_json as legacy_run, signal_json as legacy_signal
+from app.finding_projection import project_signal_card
+from app.classify import CONTEXT_CATEGORIES
+from app.brief_projection import project_run_result
 from app.config import get_settings
 from app.contracts import ConversationSync, ErrorBody, LegacyRunCreate, LegacyWatchlistUpdate, RunAccepted, RunCreate, Strict, WatchlistCreate, WatchlistPatch
 from app.contracts import ChatReply, ChatRequest, CompanyOut, Page, WatchlistOut
@@ -31,7 +34,9 @@ from app.errors import AppError
 from app.finding_feed import CATEGORIES, COLORS, FindingFeed, finding_page
 from app.financial_feed import FinancialSourceOut, RevenueFeed, financial_source, revenue_feed
 from app.logging_config import configure_logging
-from app.models import Company, Conversation, Membership, Revision, Run, RunSnapshot, RunStep, Signal, Watchlist
+from app.data_keys import SectorsKeyUpdate
+from app.llm_settings import LLMUpdate, ModelListRequest
+from app.models import Company, Conversation, Membership, Revision, Run, RunSnapshot, RunStep, Signal, Watchlist, WorkspaceMembership
 from app.service import company_json, create_run, owned, page, replace_members, validate_companies, watchlist_json, workspace_id
 
 
@@ -182,6 +187,67 @@ def logout(request: Request):
 
 
 router = APIRouter(prefix="/api/v1", dependencies=[Depends(access)])
+
+
+def llm_owner(db, identity):
+    if get_settings().auth_mode == "demo":
+        return True
+    membership = db.get(WorkspaceMembership, (identity[1].id, workspace_id(db)))
+    return bool(membership and membership.permission == "owner")
+
+
+@router.get("/settings/llm", tags=["settings"])
+def get_llm_settings(db: Annotated[object, Depends(get_db)], identity=Depends(access)):
+    from app.llm_settings import settings_view
+    return settings_view(db, workspace_id(db), llm_owner(db, identity))
+
+
+@router.patch("/settings/llm", tags=["settings"])
+def patch_llm_settings(body: LLMUpdate, db: Annotated[object, Depends(get_db)], identity=Depends(access)):
+    from app.llm_settings import save
+    if not llm_owner(db, identity):
+        raise AppError("FORBIDDEN", "Only workspace owners can change model settings", 403)
+    return save(db, workspace_id(db), body)
+
+
+@router.post("/settings/llm/models", tags=["settings"])
+def list_llm_models(body: ModelListRequest, db: Annotated[object, Depends(get_db)], identity=Depends(access)):
+    """Connect step: one read-only provider request; nothing is saved or generated."""
+    from app.llm_settings import models_view
+    if not llm_owner(db, identity):
+        raise AppError("FORBIDDEN", "Only workspace owners can connect model providers", 403)
+    return models_view(db, workspace_id(db), body)
+
+
+@router.get("/settings/sectors", tags=["settings"])
+def get_sectors_settings(db: Annotated[object, Depends(get_db)], identity=Depends(access)):
+    from app.data_keys import view
+    return view(db, workspace_id(db), llm_owner(db, identity))
+
+
+@router.put("/settings/sectors", tags=["settings"])
+def put_sectors_key(body: SectorsKeyUpdate, db: Annotated[object, Depends(get_db)], identity=Depends(access)):
+    """Stores the key encrypted. No request is sent to Sectors."""
+    from app.data_keys import save
+    if not llm_owner(db, identity):
+        raise AppError("FORBIDDEN", "Only workspace owners can connect a data source", 403)
+    return save(db, workspace_id(db), body)
+
+
+@router.delete("/settings/sectors/key", tags=["settings"])
+def delete_sectors_key(db: Annotated[object, Depends(get_db)], identity=Depends(access)):
+    from app.data_keys import remove
+    if not llm_owner(db, identity):
+        raise AppError("FORBIDDEN", "Only workspace owners can remove a data source key", 403)
+    return remove(db, workspace_id(db))
+
+
+@router.delete("/settings/llm/keys/{provider}", tags=["settings"])
+def delete_llm_key(provider: Literal["openai", "anthropic", "gemini"], db: Annotated[object, Depends(get_db)], identity=Depends(access)):
+    from app.llm_settings import remove_key
+    if not llm_owner(db, identity):
+        raise AppError("FORBIDDEN", "Only workspace owners can remove model credentials", 403)
+    return remove_key(db, workspace_id(db), provider)
 DB = Annotated[object, Depends(get_db)]
 Limit = Annotated[int, Query(ge=1, le=100)]
 
@@ -203,9 +269,9 @@ def ready(db: DB):
             raise ValueError()
     except Exception:
         raise AppError("NOT_READY", "Database, migration, Redis or access configuration is not ready", 503, True) from None
-    if get_settings().mode == "live" and not get_settings().sectors_api_key.get_secret_value().strip():
-        raise AppError("PROVIDER_CREDENTIALS_MISSING", "Configure a private Sectors API key before live research", 503)
-    return {"status": "ready", "mode": get_settings().mode}
+    # No server Sectors key is not "not ready": workspaces can connect their own.
+    return {"status": "ready", "mode": get_settings().mode,
+            "server_sectors_key": bool(get_settings().sectors_api_key.get_secret_value().strip())}
 
 
 @router.get("/alerts/status", tags=["alerts"], response_model=AlertStatus)
@@ -213,9 +279,26 @@ def alerts_status(db: DB):
     return alert_status(workspace_id(db))
 
 
-def conversation_json(row):
+def conversation_json(row, db=None, run_views=None):
+    messages = public_payload(row.messages)
+    if db is not None:
+        cache = run_views if run_views is not None else {}
+        for message in messages:
+            run_data = message.get("run")
+            if not run_data:
+                continue
+            run_id = run_data.get("id")
+            if not run_id:
+                continue  # Legacy archives without a run ID remain sanitized and readable.
+            if run_id not in cache:
+                run = db.get(Run, run_id)
+                cache[run_id] = (legacy_run(db, run) if run.workspace_id == row.workspace_id else False) if run else None
+            if isinstance(cache[run_id], dict):
+                message["run"] = cache[run_id]
+            elif cache[run_id] is False:
+                message.pop("run", None)
     return {"id": row.id, "title": row.title, "createdAt": iso(row.created_at),
-            "updatedAt": iso(row.updated_at), "messages": public_payload(row.messages)}
+            "updatedAt": iso(row.updated_at), "messages": public_payload(messages)}
 
 
 @router.get("/session", tags=["auth"])
@@ -227,7 +310,7 @@ def current_session():
 def chat_reply(body: ChatRequest, db: DB):
     """Conversation only: no provider calls, no credits, no research run."""
     text, source, language = conversation.reply(
-        db, body.message, [turn.model_dump() for turn in body.history])
+        db, body.message, [turn.model_dump() for turn in body.history], saved=body.saved, symbols=body.symbols)
     return {"reply": text, "source": source, "language": language}
 
 
@@ -236,7 +319,10 @@ def conversations(db: DB):
     rows = db.scalars(select(Conversation).where(
         Conversation.workspace_id == workspace_id(db)
     ).order_by(Conversation.updated_at.desc()).limit(30)).all()
-    return [conversation_json(row) for row in rows]
+    # Resolve current read-only evidence projections, rather than stale run
+    # copies embedded in a transcript. This never starts or rewrites research.
+    run_views = {}
+    return [conversation_json(row, db, run_views) for row in rows]
 
 
 @router.post("/conversations", tags=["agent"])
@@ -244,11 +330,15 @@ def sync_conversation(body: ConversationSync, db: DB):
     row = db.scalar(select(Conversation).where(
         Conversation.id == str(body.id), Conversation.workspace_id == workspace_id(db)))
     messages = [message.model_dump(mode="json", by_alias=True, exclude_none=True) for message in body.messages]
+    existing = {message.get("id"): message for message in (row.messages if row else [])}
     for message in messages:
         run_data = message.get("run")
         if run_data:
             run = owned(db, Run, run_data.get("id", ""))
-            message["run"] = legacy_run(db, run)
+            previous_run = (existing.get(message.get("id"), {}).get("run") or {})
+            # Frozen embedded copies are archives, not caches to overwrite on
+            # refresh. GET resolves the latest read-only view independently.
+            message["run"] = previous_run if previous_run.get("id") == run.id else legacy_run(db, run)
     if row:
         # An old browser tab must not overwrite a more recent saved transcript.
         if body.updated_at.replace(tzinfo=utcnow().tzinfo) < row.updated_at.replace(tzinfo=utcnow().tzinfo):
@@ -263,7 +353,7 @@ def sync_conversation(body: ConversationSync, db: DB):
     except IntegrityError:
         db.rollback()
         raise AppError("CONVERSATION_CONFLICT", "Conversation cannot be saved", 409) from None
-    return conversation_json(row)
+    return conversation_json(row, db)
 
 
 @router.delete("/conversations", tags=["agent"], status_code=204)
@@ -353,7 +443,7 @@ def run_detail(db, run):
             "stage": run.stage, "query": run.query, "created_at": iso(run.created_at), "started_at": iso(run.started_at),
             "finished_at": iso(run.finished_at), "heartbeat_at": iso(run.heartbeat_at), "attempts": run.attempts,
             "estimated_credits": run.credits, "external_calls": run.external_calls, "llm_calls": run.llm_calls,
-            "inputs": run.inputs, "plan": run.plan, "error_code": run.error_code, "result": run.result,
+            "inputs": run.inputs, "plan": run.plan, "error_code": run.error_code, "result": project_run_result(db, run),
             "progress": [{"stage": s.stage, "sequence": s.sequence, "attempt": s.attempt, "status": s.status,
                           "message": s.message, "details": s.details, "duration_ms": s.duration_ms} for s in steps]}
 
@@ -387,7 +477,8 @@ def signal_query(db, watchlist_id=None, severity=None, mode=None):
                                                                       Membership.company_id == Signal.company_id,
                                                                       Membership.active.is_(True))))
     if severity:
-        query = query.where(Revision.severity == severity)
+        query = query.where(or_(Revision.severity == "low", Signal.type.in_(CONTEXT_CATEGORIES))) if severity == "low" else query.where(
+            Revision.severity == severity, Signal.type.not_in(CONTEXT_CATEGORIES))
     return query
 
 
@@ -395,14 +486,14 @@ def signal_query(db, watchlist_id=None, severity=None, mode=None):
 def signals(db: DB, watchlist_id: UUID | None = None, severity: Literal["low", "medium", "high"] | None = None,
             mode: Literal["live", "replay"] | None = None, cursor: str | None = None, limit: Limit = 20):
     rows, next_cursor = page(db, signal_query(db, watchlist_id, severity, mode), Signal, cursor, limit)
-    return {"items": [latest_revision(db, s).card for s in rows], "next_cursor": next_cursor}
+    return {"items": [project_signal_card(latest_revision(db, s).card) for s in rows], "next_cursor": next_cursor}
 
 
 @router.get("/signals/{signal_id}", tags=["signals"], response_model=SignalDetail)
 def signal_detail(signal_id: UUID, db: DB):
     signal = owned(db, Signal, signal_id)
     revisions = db.scalars(select(Revision).where(Revision.signal_id == signal.id).order_by(Revision.created_at.desc())).all()
-    return {"signal": revisions[0].card, "revisions": [r.card for r in revisions],
+    return {"signal": project_signal_card(revisions[0].card), "revisions": [r.card for r in revisions],
             "first_seen_at": iso(signal.first_seen_at), "last_seen_at": iso(signal.last_seen_at)}
 
 
@@ -422,7 +513,7 @@ def default_watchlist(db):
 def dashboard(db: DB, range: Literal["week", "month"] = "week"):
     wl = default_watchlist(db)
     rows = db.scalars(signal_query(db, wl.id).where(Signal.last_seen_at >= utcnow() - timedelta(days=7 if range == "week" else 30))).all()
-    cards = [latest_revision(db, s).card for s in rows]
+    cards = [project_signal_card(latest_revision(db, s).card) for s in rows]
     projected = [legacy_signal(c) for c in cards]
     count = len(cards)
     kinds = CATEGORIES
@@ -454,7 +545,7 @@ def dashboard(db: DB, range: Literal["week", "month"] = "week"):
 def findings(db: DB, period: Literal["today", "week", "month", "all", "custom"] = "month",
              start: date | None = None, end: date | None = None, timezone: str = Query("UTC", max_length=80),
              company: str | None = Query(None, pattern="^[A-Z]{4}$"),
-             category: Literal["Pricing", "Product", "Partnership", "Campaign"] | None = None,
+             category: Literal["Pricing", "Product", "Partnership", "Campaign", "Financial update", "Analyst commentary", "Market context"] | None = None,
              cursor: str | None = Query(None, max_length=300), limit: Limit = 20):
     wl = default_watchlist(db)
     return finding_page(db, signal_query(db, wl.id), period=period, start=start, end=end, zone=timezone,

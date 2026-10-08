@@ -29,6 +29,8 @@ export function saveLoginSession(payload: unknown) {
 }
 export function clearTabSession() { try { window.sessionStorage.removeItem(TAB_KEY); } catch { /* Already unavailable. */ } }
 export function trackAccountStream(controller: AbortController) { pendingRequests.add(controller); return () => pendingRequests.delete(controller); }
+/** Changes on every sign-in, sign-out or account switch; tab caches key on it. */
+export function accountGeneration() { return identityGeneration; }
 export function cancelAccountRequests() {
   identityGeneration += 1;
   for (const controller of pendingRequests) controller.abort();
@@ -74,12 +76,13 @@ export async function apiRequest(path: string, init: RequestInit = {}): Promise<
 }
 
 function publicErrorMessage(code: unknown, message: unknown, status: number): string {
-  const expected = new Set(["VERIFICATION_INVALID", "VERIFICATION_COOLDOWN", "VERIFICATION_UNAVAILABLE", "INVALID_CREDENTIALS", "INVALID_PASSWORD", "REGISTRATION_DISABLED", "REGISTRATION_FAILED", "RATE_LIMITED", "UNAUTHORIZED", "CSRF_REJECTED", "CONVERSATION_STALE", "CONVERSATION_CONFLICT"]);
+  const expected = new Set(["VERIFICATION_INVALID", "VERIFICATION_COOLDOWN", "VERIFICATION_UNAVAILABLE", "INVALID_CREDENTIALS", "INVALID_PASSWORD", "REGISTRATION_DISABLED", "REGISTRATION_FAILED", "RATE_LIMITED", "UNAUTHORIZED", "CSRF_REJECTED", "CONVERSATION_STALE", "CONVERSATION_CONFLICT", "LLM_KEY_STORAGE_UNAVAILABLE", "LLM_CLOUD_CONSENT_REQUIRED", "LLM_KEY_REQUIRED", "LLM_KEY_NOT_REQUIRED", "LLM_KEY_REJECTED", "LLM_UNAVAILABLE"]);
   if (typeof code === "string" && expected.has(code) && typeof message === "string") return message;
   if (code === "WATCHLIST_REQUIRED") return "Add companies to your watchlist before starting research.";
   if (code === "UNKNOWN_COMPANY") return "One or more companies are unavailable. Choose a company from the watchlist search.";
   if (code === "CATALOG_NOT_READY" || code === "ACCESS_NOT_CONFIGURED" || code === "ACCOUNTS_DISABLED") return "Workspace access is temporarily unavailable. Contact your administrator.";
-  if (code === "PROVIDER_CREDENTIALS_MISSING" || code === "PROVIDER_AUTH_FAILED") return "The research data connection needs attention. Contact your administrator.";
+  if (code === "PROVIDER_CREDENTIALS_MISSING") return "Connect your Sectors API key in Settings → Sectors data connection to run research. Chat and saved findings still work.";
+  if (code === "PROVIDER_AUTH_FAILED") return "Sectors rejected the saved API key. Replace it in Settings → Sectors data connection.";
   if (status === 429) return "Too many requests. Wait a moment and try again.";
   if (status === 422) return "Check the information you entered and try again.";
   if (status === 403) return "This action isn’t available for your account. Refresh the page or contact your administrator.";

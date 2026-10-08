@@ -201,7 +201,10 @@ def test_live_replay_isolation_no_silent_fallback(client, watchlist, monkeypatch
     response = client.post("/api/v1/research-runs", json={"watchlist_id": watchlist["id"]})
     assert response.status_code == 503
     assert response.json()["code"] == "PROVIDER_CREDENTIALS_MISSING"
-    assert client.get("/api/v1/health/ready").status_code == 503
+    # Readiness depends on the isolated database/fake Redis, not a shared Sectors key.
+    ready = client.get("/api/v1/health/ready")
+    assert ready.status_code == 200, ready.text
+    assert ready.json()["server_sectors_key"] is False
     assert client.get("/api/v1/signals").json()["items"] == []
     assert len(client.get("/api/v1/signals?mode=replay").json()["items"]) == 3
 

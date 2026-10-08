@@ -1,6 +1,8 @@
 .promptArea { width: 100%; color: #10291e; font-family: var(--font-agent-inter), var(--font-manrope), sans-serif; --ask-ease: cubic-bezier(.22, 1, .36, 1); }
 /* Suggestions, composer and hints share one edge at every viewport size. */
 .column { width: 100%; max-width: 840px; margin-inline: auto; }
+/* Match the conversation's 900px frame, 32px gutter and 34px avatar + 12px gap. */
+.compact .column { box-sizing: border-box; max-width: 900px; padding-inline: 78px 32px; }
 .hero { margin-bottom: 40px; text-align: center; }
 .heading { margin: 0; font-size: 36px; font-weight: 600; line-height: 1.25; letter-spacing: -1px; text-wrap: balance; }
 .heading > span { display: inline-block; white-space: pre; animation: wordEnter 500ms var(--ask-ease) both; animation-delay: calc(var(--word-index) * 60ms); }
@@ -25,10 +27,6 @@
 .welcome .composer { animation: promptEnter 700ms var(--ask-ease) 350ms both; }
 .composer::after { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; box-shadow: 0 8px 28px rgb(31 107 74 / .1); opacity: 0; transition: opacity 300ms var(--ask-ease); }
 .composer:focus-within::after { opacity: 1; }
-.pulseTile { display: flex; flex: 0 0 44px; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: #e6f2ec; color: #1f6b4a; }
-.pulseTile svg { width: 30px; height: 24px; }
-.welcome .pulseTile { animation: tileEnter 500ms var(--spring-bouncy) 700ms both; }
-.welcome .heartbeat { stroke-dasharray: 1; animation: heartbeatDraw 600ms var(--ask-ease) 850ms both; }
 .inputWell { position: relative; flex: 1; min-width: 0; }
 .inputBase { height: 44px; }
 .inputGrowth { display: grid; grid-template-rows: minmax(0, var(--composer-growth, 0fr)); transition: grid-template-rows var(--motion-response-smooth) var(--spring-smooth); }
@@ -41,14 +39,13 @@
 .composer[data-filling="true"] .input::placeholder { opacity: 0; }
 .input:focus-visible { outline: none; box-shadow: none; }
 .input:disabled { cursor: not-allowed; }
-.send { position: relative; isolation: isolate; display: flex; flex: 0 0 96px; align-items: center; justify-content: center; gap: 8px; width: 96px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 12px; background: #e9f1ed; color: #4b5e55; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: transform 300ms var(--spring-bouncy), color 300ms var(--ask-ease); }
+.send { position: relative; isolation: isolate; display: flex; flex: 0 0 44px; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: #e9f1ed; color: #4b5e55; cursor: pointer; transition: transform 300ms var(--spring-bouncy), color 300ms var(--ask-ease); }
 .send::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: #1f6b4a; opacity: 0; transition: opacity 300ms var(--ask-ease); }
 .send[data-active="true"] { color: white; }
 .send[data-active="true"]::before { opacity: 1; }
 .send:hover:not(:disabled) { transform: translateY(-1px); }
 .send:active:not(:disabled) { transform: scale(.94); transition-duration: 120ms; }
 .send:disabled { cursor: not-allowed; }
-.send > span { min-width: 38px; }
 .card:focus-visible, .send:focus-visible { outline: 2px solid #1f6b4a; outline-offset: 4px; }
 .hints { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; width: 100%; max-width: 840px; margin: 12px auto 0; color: #6b7c74; font-size: 12px; line-height: 1.5; }
 .hints p { margin: 0; }
@@ -56,8 +53,6 @@
 .shortcuts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
 .shortcuts kbd { padding: 2px 6px; border: 1px solid #d5e2db; border-radius: 6px; background: white; color: #4b5e55; font: inherit; }
 .outgoingQuery { position: absolute; inset: 0; overflow: hidden; padding: 10px 0; background: white; font-size: 16px; line-height: 24px; white-space: nowrap; text-overflow: ellipsis; pointer-events: none; animation: queryExit 350ms var(--ask-ease) both; }
-.flyingPlane { position: absolute; left: 12px; top: 13px; pointer-events: none; animation: planeExit 450ms var(--ask-ease) both; }
-.composer[data-sending="true"] .pulseTile { animation: pulseSend 500ms var(--ask-ease); }
 .composer[data-sending="true"] .input { animation: fadeEnter 250ms ease-out 180ms backwards; }
 .composer[data-sending="true"] .sendIcon { animation: fadeEnter 200ms ease-out 350ms backwards; }
 .compact .cards { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -66,30 +61,32 @@
 .compact .description, .compact .iconTile { display: none; }
 .compact .recommendationContent { padding-bottom: 12px; }
 .compact .label { font-size: 11px; letter-spacing: .75px; }
-.compact .hints { margin-top: 8px; }
+/* Floating card (conversation view, T3 Code style): the composer and its hint
+   row share one bordered, shadowed card; the chat stays visible around it. */
+.compact .shell { overflow: hidden; border: 1px solid #d5e2db; border-radius: 20px; background: white; box-shadow: 0 10px 32px rgb(18 45 35 / .12), 0 2px 6px rgb(18 45 35 / .05); }
+.compact .shell:focus-within { border-color: #9cc7b2; }
+.compact .composer { min-height: 56px; border-radius: 0; box-shadow: none; background: transparent; }
+.compact .composer::after { display: none; }
+.compact .hints { margin: 0; padding: 7px 14px 8px; border-top: 1px solid #edf3ef; background: #fafcfb; font-size: 11.5px; }
+.compact .label { width: fit-content; padding: 3px 9px; border-radius: 999px; background: rgb(255 255 255 / .9); box-shadow: 0 1px 4px rgb(18 45 35 / .06); }
 @keyframes wordEnter { from { opacity: 0; transform: translateY(16px); filter: blur(5px); } to { opacity: 1; transform: none; filter: blur(0); } }
 @keyframes blurEnter { from { opacity: 0; transform: translateY(12px); filter: blur(4px); } to { opacity: 1; transform: none; filter: blur(0); } }
 @keyframes promptEnter { from { opacity: 0; transform: translateY(40px); filter: blur(5px); } to { opacity: 1; transform: none; filter: blur(0); } }
 @keyframes cardEnter { from { opacity: 0; transform: translateY(32px); } to { opacity: 1; transform: none; } }
-@keyframes tileEnter { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
-@keyframes heartbeatDraw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @keyframes fadeEnter { from { opacity: 0; } to { opacity: 1; } }
 @keyframes queryExit { to { opacity: 0; transform: translateY(-16px); filter: blur(4px); } }
-@keyframes planeExit { to { opacity: 0; transform: translate(24px, -24px) rotate(-12deg); } }
-@keyframes pulseSend { 0%, 100% { transform: scale(1); } 45% { transform: scale(1.12); } }
 @media (max-width: 1100px) { .cards { gap: 12px; } .card { gap: 10px; padding: 16px 12px; } .iconTile { flex-basis: 32px; width: 32px; height: 32px; } }
 @media (max-width: 767px) {
+  .compact .column { padding-inline: 62px 16px; }
   .hero { margin-bottom: 28px; } .heading { font-size: 30px; } .subtitle { font-size: 14px; }
   .cards { grid-template-columns: 1fr; gap: 12px; } .card { min-height: 96px; padding: 16px; }
   .iconTile { flex-basis: 36px; width: 36px; height: 36px; } .cardTitle { margin-bottom: 4px; font-size: 15px; } .description { -webkit-line-clamp: 2; }
   .recommendationContent { padding-bottom: 20px; } .composer { gap: 10px; padding: 10px; border-radius: 18px; }
-  .pulseTile { flex-basis: 36px; width: 36px; height: 44px; border-radius: 10px; } .pulseTile svg { width: 28px; }
-  .send { flex-basis: 44px; width: 44px; padding: 0; } .send > span { display: none; }
-  .flyingPlane { left: 13px; } .hints { gap: 8px; } .shortcuts { font-size: 11px; }
+  .hints { gap: 8px; } .shortcuts { font-size: 11px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .heading > span, .subtitle, .welcome .composer, .welcome .cardEntrance, .welcome .pulseTile, .welcome .heartbeat, .welcome .hints, .composer[data-sending="true"] .pulseTile, .composer[data-sending="true"] .input, .composer[data-sending="true"] .sendIcon { animation: fadeEnter 120ms ease-out both !important; animation-delay: 0ms !important; }
-  .outgoingQuery, .flyingPlane { animation: fadeEnter 120ms ease-out reverse both !important; }
+  .heading > span, .subtitle, .welcome .composer, .welcome .cardEntrance, .welcome .hints, .composer[data-sending="true"] .input, .composer[data-sending="true"] .sendIcon { animation: fadeEnter 120ms ease-out both !important; animation-delay: 0ms !important; }
+  .outgoingQuery { animation: fadeEnter 120ms ease-out reverse both !important; }
   .card:hover:not(:disabled), .card:focus-visible, .card:active:not(:disabled), .send:hover:not(:disabled), .send:active:not(:disabled) { transform: none; }
   .inputGrowth { transition: none; } .card, .send { transition-property: opacity; }
 }

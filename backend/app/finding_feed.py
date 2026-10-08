@@ -13,8 +13,8 @@ from app.db import iso, utcnow
 from app.errors import AppError
 from app.models import Company, Revision, Signal
 
-CATEGORIES = ("Pricing", "Product", "Partnership", "Campaign")
-COLORS = ("#146C50", "#087F78", "#6950A1", "#B13F67")
+CATEGORIES = ("Pricing", "Product", "Partnership", "Campaign", "Financial update", "Analyst commentary", "Market context")
+COLORS = ("#146C50", "#087F78", "#6950A1", "#B13F67", "#536778", "#766546", "#66756D")
 
 
 class FindingSummary(BaseModel):

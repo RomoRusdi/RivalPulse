@@ -3,8 +3,16 @@
 .workspace[data-welcome="true"]::before { opacity: 1; animation: glowEnter 1200ms ease-out both; }
 .toolbar { min-height: 60px; }
 .emptyMessages { flex: 0 0 0; overflow: hidden; }
-.promptDock { position: relative; z-index: 1; flex-shrink: 0; max-height: 55%; overflow-y: auto; padding: 8px 24px 16px; }
+.promptDock { position: relative; z-index: 1; flex-shrink: 0; max-height: 55%; overflow-y: auto; padding: 8px 0 16px; }
 .promptDock[data-welcome="true"] { display: flex; align-items: safe center; flex: 1; min-height: 0; max-height: none; padding: 24px 32px 72px; }
 @keyframes glowEnter { from { opacity: 0; } to { opacity: 1; } }
-@media (max-width: 767px) { .promptDock { padding: 8px 16px 16px; } .promptDock[data-welcome="true"] { align-items: safe center; padding: 8px 20px 32px; } .toolbar { min-height: 56px; } }
+@media (max-width: 767px) { .promptDock { padding: 8px 0 16px; } .promptDock[data-welcome="true"] { align-items: safe center; padding: 8px 20px 32px; } .toolbar { min-height: 56px; } }
 @media (prefers-reduced-motion: reduce) { .workspace[data-welcome="true"]::before { animation: glowEnter 120ms ease-out both !important; } }
+/* Floating composer (conversation view): messages scroll underneath it; the
+   fade keeps text from colliding with the box, and the scroll content is
+   padded by the dock's measured height so the last message clears it. */
+.promptDock:not([data-welcome="true"]) { position: absolute; inset-inline: 0; bottom: 0; z-index: 5; padding: 12px 0 14px; pointer-events: none; background: linear-gradient(to bottom, rgb(243 247 245 / 0) calc(100% - 64px), rgb(243 247 245 / .92) calc(100% - 18px)); }
+.promptDock:not([data-welcome="true"]) > * { pointer-events: auto; }
+/* The conversation already ends with 36px of padding and the dock starts with
+   12px of fade, so subtract them: about 20px clear space above the box. */
+.messagesPad { padding-bottom: max(0px, calc(var(--dock-height, 180px) - 28px)); }

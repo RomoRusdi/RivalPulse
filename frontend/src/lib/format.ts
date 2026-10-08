@@ -36,14 +36,7 @@ export function sourceHref(value: string): string | null {
   catch { return null; }
 }
 
-/**
- * The one place a range is turned into words.
- *
- * Every card used to carry its own time label ("Last 30 days", "This month"),
- * which made the dashboard look like it was reporting on several different
- * periods at once. They all read from this now, so the header toggle and the
- * cards can never disagree.
- */
+/** Shared labels for dashboard reporting ranges. */
 export const RANGE_LABEL = {
   week: "This week",
   month: "This month",
@@ -257,9 +250,10 @@ export const BRIEF_KINDS = [
   "revenue_yoy_percent",
   "earnings",
   "earnings_yoy_percent",
+  "net_profit_margin",
 ] as const;
 
 /** "revenue_yoy_percent" -> "revenue YoY %"; everything else passes through. */
 export function prettyBriefKind(kind: string): string {
-  return kind.replace(/_yoy_percent$/, " YoY %");
+  return kind === "net_profit_margin" ? "Annual net margin · Sectors reported" : kind.replace(/_yoy_percent$/, " YoY %");
 }

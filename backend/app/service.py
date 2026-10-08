@@ -83,6 +83,14 @@ def scoped_symbols(query, user_company, companies):
     if user_company:
         own = next((c.symbol for c in companies
                     if c.symbol.lower() == user_company.strip().lower()), None)
+    collective = re.search(r"\b(competitors?|watchlist|kompetitor|pesaing)\b", query, re.I)
+    all_companies = re.search(
+        r"\b(all|semua|seluruh)\b.{0,40}\b(companies|competitors?|watchlist|perusahaan|kompetitor|pesaing)\b",
+        query, re.I)
+    # An explicit 'our company is BBCA' prefix must not turn a blanket
+    # comparison into BBCA alone. Named pairs still retain their narrow scope.
+    if all_companies or (collective and set(matched) <= ({own} if own else set())):
+        return [c.symbol for c in companies]
     if not matched:
         if own and ours.search(query):
             return [own]
@@ -106,13 +114,22 @@ def create_run(db, body, key):
 
     if key and (prior := prior_request()):
         return prior
-    if settings.mode == "live" and not settings.sectors_api_key.get_secret_value().strip():
-        raise AppError("PROVIDER_CREDENTIALS_MISSING", "Configure a private Sectors API key before starting research", 503)
+    from app.data_keys import sectors_key
+    if settings.mode == "live" and not sectors_key(db, workspace_id(db)):
+        raise AppError("PROVIDER_CREDENTIALS_MISSING", "Connect your Sectors API key in Settings before starting research", 503)
     watchlist = owned(db, Watchlist, body.watchlist_id)
     # Serialize input freezing with membership edits on PostgreSQL.
     db.refresh(watchlist, with_for_update=True)
     companies = members(db, watchlist.id)
     validate_companies(db, [c.id for c in companies])
+    # A perspective chosen at signup may deliberately not be a watchlist
+    # member. Freeze its catalogue entry too so 'you vs them' has evidence for
+    # both sides; this does not edit membership or bypass normal tool budgets.
+    if watchlist.user_company and not any(c.symbol == watchlist.user_company for c in companies):
+        own = db.scalar(select(Company).where(Company.symbol == watchlist.user_company))
+        if not own:
+            raise AppError("UNKNOWN_COMPANY", "Choose a company perspective from the catalog", 422)
+        companies = sorted([*companies, own], key=lambda company: company.symbol)
     if body.parent_signal_id:
         parent = owned(db, Signal, body.parent_signal_id)
         if parent.mode != settings.mode or parent.company_id not in {c.id for c in companies}:
@@ -138,13 +155,15 @@ def create_run(db, body, key):
         query = f"Our company is {watchlist.user_company}. Compare relative to our position. {query}"
     baseline = db.scalar(select(Run).where(Run.watchlist_id == watchlist.id, Run.mode == settings.mode,
                                           Run.status.in_(["completed", "partial"])).order_by(Run.created_at.desc()).limit(1))
+    from app.llm_settings import descriptor
+    llm = descriptor(db, workspace_id(db))
     row = Run(workspace_id=workspace_id(db), watchlist_id=watchlist.id, idempotency_key=key,
               request_hash=request_hash, query=query, mode=settings.mode,
               baseline_id=baseline.id if baseline else None,
               inputs={"schema_version": 1, "companies": frozen, "query": query,
                       "parent_signal_id": str(body.parent_signal_id) if body.parent_signal_id else None,
                       "replay_scenario": settings.replay_scenario, "watchlist_name": watchlist.name,
-                      "user_company": watchlist.user_company, "compared_symbols": compared})
+                      "user_company": watchlist.user_company, "compared_symbols": compared, "llm": llm})
     db.add(row)
     try:
         db.commit()

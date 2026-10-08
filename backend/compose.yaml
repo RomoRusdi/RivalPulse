@@ -9,6 +9,9 @@ x-app: &app
     DATABASE_URL: postgresql+psycopg://rivalpulse:rivalpulse@postgres:5432/rivalpulse
     REDIS_URL: redis://redis:6379/0
     OLLAMA_BASE_URL: http://host.docker.internal:11434
+    LLM_KEY_ENCRYPTION_KEY_FILE: /run/secrets/rivalpulse-llm-key
+  volumes:
+    - ./.env.llm-encryption:/run/secrets/rivalpulse-llm-key:ro
   extra_hosts:
     - "host.docker.internal:host-gateway"
   depends_on:

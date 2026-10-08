@@ -19,6 +19,9 @@ export const SignalTypeSchema = z.enum([
   "Product",
   "Partnership",
   "Campaign",
+  "Financial update",
+  "Analyst commentary",
+  "Market context",
 ]);
 
 /** The three claim kinds the agent is allowed to emit. Never collapse these. */
@@ -129,6 +132,19 @@ export const FinancialContextSchema = z.object({
   whyItMatters: z.string(),
 });
 
+export const DecisionSupportSchema = z.object({
+  schema_version: z.literal(1),
+  status: z.enum(["available", "limited", "unavailable"]),
+  origin: z.enum(["ai", "rule_based"]),
+  fallback_reason: z.enum(["model_disabled", "wording_rejected", "llm_budget_exhausted", "model_unavailable", "analysis_timeout", "attribution_unverified"]).nullable(),
+  perspective: z.string().nullable(), objective: z.string(),
+  relevance: z.enum(["same_company", "same_sector", "cross_sector", "neutral", "unknown"]),
+  what_happened: z.string(), why_it_matters: z.string(),
+  potential_implication: z.string().nullable(), recommended_next_step: z.string(),
+  limitations: z.array(z.string()), supporting_claim_ids: z.array(z.string()).min(1),
+  evidence_ids: z.array(z.string()).min(1), uncertainty: z.enum(["medium", "high"]),
+});
+
 export const SignalSchema = z.object({
   id: z.string().min(1),
   company: z.string().min(1),
@@ -144,12 +160,18 @@ export const SignalSchema = z.object({
   addedAt: z.string().optional(),
   publishedAt: z.string().nullable().optional(),
   relevanceReview: z.boolean().optional(),
-  sources: z.array(z.object({ url: z.string(), source: z.string(), publishedAt: z.string().nullable() })).optional(),
+  changeStatus: z.enum(["baseline", "new", "updated", "unchanged"]).optional(),
+  findingScope: z.enum(["competitor_move", "financial_context", "third_party_commentary", "unverified_context"]).optional(),
+  classificationNote: z.string().optional(), classificationRevised: z.boolean().optional(),
+  classificationOrigin: z.enum(["ai", "rule_based", "unverified"]).optional(), attributionRole: z.string().nullable().optional(),
+  originalType: z.string().nullable().optional(),
+  sources: z.array(z.object({ url: z.string(), source: z.string(), publishedAt: z.string().nullable(), observationSupport: z.boolean().optional() })).optional(),
   runId: z.string(),
   storedAt: z.string(),
   comparedAgainstRunId: z.string(),
   evidence: z.array(EvidenceSchema).min(1),
   financialContext: FinancialContextSchema,
+  decisionSupport: DecisionSupportSchema.nullable().optional(),
 });
 
 export const RunStatusSchema = z.enum([
@@ -185,7 +207,9 @@ export const OrchestrationSchema = z.object({
   /** "qwen" | "deterministic" | "validated_fallback" — never hide a fallback. */
   planner: z.string().optional(),
   /** Who wrote the interpretation; "validated_fallback" when the model's wording was rejected. */
-  interpreter: z.string().optional(),
+  interpreter: z.string().optional(), modelProvider: z.string().optional(), model: z.string().optional(),
+  aiExplanations: z.number().int().optional(), evidenceOnlyFindings: z.number().int().optional(),
+  newsReview: z.object({available_articles: z.number(), selected_articles: z.number(), not_reviewed: z.number(), accepted_labels: z.number().optional(), unverified_labels: z.number().optional(), window_days: z.number().nullable().optional()}).optional(),
   toolCalls: z.number().int().optional(),
   credits: z.number().int().optional(),
   cacheHits: z.number().int().optional(),
@@ -203,6 +227,41 @@ const BriefMetricSchema = z.object({
   metric: z.string(), value: z.string(), currency: z.string().nullable(),
   unit: z.string(), period: z.string(), comparison_basis: z.string(),
   snapshot_id: z.string(), claim_id: z.string(),
+});
+
+/**
+ * "How do we compare?" — computed by the backend from cited statements.
+ *
+ * Ratios require known reporting metadata, a common year and a compatible
+ * reporting basis. Ranks stay within a sector; gaps remain explicitly visible.
+ */
+export const ComparisonSchema = z.object({
+  period: z.string().nullable(),
+  perspective: z.string().nullable(),
+  sector: z.string(),
+  headline: z.string().nullable(),
+  entries: z.array(z.object({
+    symbol: z.string(),
+    name: z.string(),
+    industry: z.string(),
+    revenue_growth_percent: z.string().nullable(),
+    net_margin_percent: z.string().nullable(),
+    net_margin_origin: z.enum(["provider_reported", "calculated"]).nullable().default(null),
+    growth_note: z.string().default(""),
+    margin_note: z.string().default(""),
+    profit: z.enum(["profit", "loss", "swung_to_loss", "break_even"]).nullable(),
+    growth_rank: z.number().int().nullable(),
+    margin_rank: z.number().int().nullable(),
+    growth_rank_size: z.number().int().nonnegative().default(0),
+    margin_rank_size: z.number().int().nonnegative().default(0),
+    peer_group: z.boolean(),
+    peer_group_size: z.number().int(),
+    findings: z.number().int(),
+    activity_note: z.string().nullable(),
+    claim_ids: z.array(z.string()),
+    notes: z.array(z.string()).default([]),
+  })),
+  notes: z.array(z.string()),
 });
 
 export const AgentRunSchema = z.object({
@@ -224,9 +283,10 @@ export const AgentRunSchema = z.object({
     rows: z.array(z.object({
       symbol: z.string(),
       name: z.string(),
-      comparison_note: z.string(),
+      comparison_note: z.string(), industry: z.string().optional(),
       metrics: z.array(BriefMetricSchema),
       revenue_history: z.array(BriefMetricSchema).optional().default([]),
+      metric_notes: z.record(z.string(), z.string()).default({}),
     })),
     interpretation: z.object({
       text: z.string(), supporting_claim_ids: z.array(z.string()),
@@ -235,7 +295,10 @@ export const AgentRunSchema = z.object({
     caveats: z.array(z.string()),
   }).optional(),
   /** Signals the run produced. Present once status is "complete". */
+  comparison: ComparisonSchema.optional(),
   producedSignalIds: z.array(z.string()).optional(),
+  /** Frozen findings from this investigation, including unchanged evidence. */
+  findings: z.array(SignalSchema).optional(),
 });
 
 export const PipelineStageSchema = z.object({
@@ -316,6 +379,6 @@ export const DashboardResponseSchema = z.object({
 export const ChatReplySchema = z.object({
   reply: z.string().min(1),
   /** "llm", "fallback" (no model available) or "guarded" (a figure was suppressed). */
-  source: z.enum(["llm", "fallback", "guarded"]),
+  source: z.enum(["llm", "fallback", "guarded", "saved_evidence", "workspace"]),
   language: z.enum(["en", "id"]),
 });

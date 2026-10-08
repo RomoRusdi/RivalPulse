@@ -10,6 +10,7 @@ import { Card, Disclaimer, EmptyState, ErrorCard, PageTitle, Skeleton } from "@/
 import { useOptionalAuth } from "@/lib/auth";
 import { useStore } from "@/lib/store";
 import { getFindings } from "@/lib/api";
+import { accountGeneration } from "@/lib/http";
 import { SIGNAL_CATEGORIES } from "@/lib/signal-categories";
 import { dashboardTime } from "@/lib/format";
 import { SignalRow } from "./SignalRow";
@@ -17,6 +18,9 @@ import { SignalMix } from "./SignalMix";
 import { CompetitorMomentum } from "./CompetitorMomentum";
 
 type Feed = Awaited<ReturnType<typeof getFindings>>;
+// Last result per filter, kept across tab switches: returning shows it at once
+// and refreshes quietly instead of flashing skeletons.
+const feedCache = new Map<string, Feed>();
 const PERIODS = [{ id: "today", label: "Today" }, { id: "week", label: "Last 7 days" },
   { id: "month", label: "Last 30 days" }, { id: "all", label: "All time" }, { id: "custom", label: "Custom dates" }];
 const FIELD = "min-h-11 w-full rounded-field border border-border bg-card px-3 text-sm text-ink outline-none focus:border-accent";
@@ -69,7 +73,7 @@ export function FindingBrowser() {
     if (customIncomplete) return;
     const controller = new AbortController();
     getFindings(new URLSearchParams(paramsKey), controller.signal).then((result) => {
-      if (!controller.signal.aborted) { setData(result); setLoadedKey(paramsKey); setLoading(false); setError(null); }
+      if (!controller.signal.aborted) { feedCache.set(`${accountGeneration()}:${paramsKey}`, result); setData(result); setLoadedKey(paramsKey); setLoading(false); setError(null); }
     }).catch((cause) => {
       if (!controller.signal.aborted) { setData(null); setLoadedKey(paramsKey); setLoading(false); setError(cause instanceof Error ? cause.message : "Findings could not be loaded."); }
     });
@@ -91,8 +95,9 @@ export function FindingBrowser() {
     finally { setPaging(false); }
   };
   const returnTo = `/signals${searchKey ? `?${searchKey}` : ""}`;
-  const pending = loading || loadedKey !== paramsKey;
-  const shown = loadedKey === paramsKey ? data : null;
+  const cached = feedCache.get(`${accountGeneration()}:${paramsKey}`) ?? null;
+  const shown = loadedKey === paramsKey ? data : cached;
+  const pending = !shown && (loading || loadedKey !== paramsKey);
 
   return <>
     <div className="flex flex-wrap items-start justify-between gap-4">
@@ -122,7 +127,21 @@ export function FindingBrowser() {
       <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)]">
       <Card className="min-w-0">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-bold">{category || "All findings"}</h2><p role="status" className="text-xs text-muted">{pending ? "Loading findings…" : `${shown?.summary.filtered ?? 0} matching findings · newest first`}</p></div>
-        {pending ? <div aria-label="Loading findings" className="space-y-3"><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></div> : shown?.items.length ? <div>{shown.items.map((item, index) => <SignalRow key={item.id} signal={{ ...item, seen: false }} last={index === shown.items.length - 1} returnTo={returnTo} />)}</div> : !error ? <EmptyState title="No findings in this selection" body="Change the date or category filters, or start an investigation to collect evidence." /> : null}
+        {pending ? <div aria-label="Loading findings" className="space-y-3"><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></div> : shown?.items.length ? (() => {
+          // Competitor moves lead; analyst and market context is folded so it
+          // never buries them. Picking a category shows that list in full.
+          const contextual = category ? [] : shown.items.filter((item) => item.findingScope && item.findingScope !== "competitor_move");
+          const moves = category ? shown.items : shown.items.filter((item) => !contextual.includes(item));
+          return <>
+            {moves.length ? <div>{moves.map((item, index) => <SignalRow key={item.id} signal={{ ...item, seen: false }} last={index === moves.length - 1} returnTo={returnTo} />)}</div>
+              : <p className="rounded-field bg-subtle p-3 text-sm text-muted">No verified competitor moves in this selection. Related context is listed below.</p>}
+            {/* Open by default when it is all there is, so the list is never an empty box. */}
+            {contextual.length ? <details open={!moves.length} className="mt-4 rounded-field border border-divider p-3">
+              <summary className="cursor-pointer text-sm font-bold text-ink-2">Analyst and market context ({contextual.length}) <span className="font-normal text-muted">· not competitor moves</span></summary>
+              <div className="mt-2">{contextual.map((item, index) => <SignalRow key={item.id} signal={{ ...item, seen: false }} last={index === contextual.length - 1} returnTo={returnTo} />)}</div>
+            </details> : null}
+          </>;
+        })() : !error ? <EmptyState title="No findings in this selection" body="Change the date or category filters, or start an investigation to collect evidence." /> : null}
         {!pending && shown?.nextCursor ? <div className="mt-4 border-t border-divider pt-4 text-center"><button disabled={paging} onClick={loadMore} className="min-h-11 rounded-field border border-border px-5 text-sm font-bold hover:bg-subtle disabled:opacity-60">{paging ? "Loading…" : "Load more findings"}</button></div> : null}
       </Card>
       <div className="min-w-0 space-y-4">

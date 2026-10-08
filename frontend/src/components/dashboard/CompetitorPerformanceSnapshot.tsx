@@ -11,6 +11,7 @@ import { collectionMessage, PERFORMANCE_LABELS, performancePeriod, percentageTex
 import { RevenueTrendGraph } from "./RevenueTrendGraph";
 import { FinancialValue } from "@/components/ui/FinancialValue";
 import { Select } from "@/components/ui/Select";
+import { sectorGroups } from "@/lib/sector-groups";
 
 type Feed = Awaited<ReturnType<typeof getRevenue>>;
 type Company = Feed["companies"][number];
@@ -87,6 +88,7 @@ export function CompetitorPerformanceSnapshot() {
   if (!loaded || loaded.key !== key) return <Card><Skeleton className="h-64 w-full" /></Card>;
   const feed = loaded.feed;
   const companies = feed.companies;
+  const groups = sectorGroups(companies, (company) => watchlist?.companies.find((item) => item.ticker === company.ticker)?.industry || company.profile?.industry, (company) => company.ticker);
   const annualColumns = ["revenue", "earnings"].filter((name) => companies.some((company) => latestAnnual(company, name)));
   const rateColumns = ["net_profit_margin"].filter((name) => companies.some((company) => latestRate(company, name)));
   const quarterly = Object.keys(PERFORMANCE_LABELS).filter((name) => name !== "net_profit_margin" && companies.some((company) => latestRate(company, name)));
@@ -99,12 +101,12 @@ export function CompetitorPerformanceSnapshot() {
   };
   const covered = companies.filter((company) => company.points.length || company.annualFigures.length || company.performanceMetrics.length).length;
   const unknownMoney = companies.some((company) => company.annualFigures.some((figure) => !figure.currency || /unspecified|unknown/i.test(figure.unit)) || company.points.some((point) => !point.currency || /unspecified|unknown/i.test(point.unit)));
-  const mixedIndustries = feed.comparisonEligibility.reasons.includes("mixed_business_definitions");
-  const comparable = feed.baseYear !== null || feed.absoluteAvailable;
+  const mixedIndustries = groups.length > 1 || feed.comparisonEligibility.reasons.includes("mixed_business_definitions");
+  const comparable = !mixedIndustries && (feed.baseYear !== null || feed.absoluteAvailable);
   const barCandidates = (year: string) => companies.flatMap((company) => {
     const point = company.points.find((point) => String(point.year) === year);
     const value = point && point.comparable && !point.limitation ? toIDR(point) : null;
-    return feed.absoluteAvailable && feed.comparisonEligibility.absoluteCompanies.includes(company.ticker) && value !== null && value >= 0
+    return !mixedIndustries && feed.absoluteAvailable && feed.comparisonEligibility.absoluteCompanies.includes(company.ticker) && value !== null && value >= 0
       ? [{ company, point: point!, value }] : [];
   });
   const barYear = selectedPeriod === "latest" ? years.find((year) => barCandidates(year).length >= 2) : selectedPeriod;
@@ -116,13 +118,13 @@ export function CompetitorPerformanceSnapshot() {
     {company.profile ? <p className="mt-1 text-[11px] font-normal text-muted">{company.profile.industry}</p> : null}
   </>;
   return <Card className="min-w-0">
-    <CardHeader title="Competitor performance snapshot" aside={<Pill tone="quiet">{covered}/{companies.length} companies</Pill>} className="mb-2 flex flex-wrap items-center justify-between gap-3" />
+    <CardHeader title="Watchlist financial context" aside={<Pill tone="quiet">{covered}/{companies.length} companies</Pill>} className="mb-2 flex flex-wrap items-center justify-between gap-3" />
     <p className="max-w-[84ch] text-sm leading-relaxed text-muted">Reported growth, profitability, and financial scale to support competitor research. Each figure keeps its own reporting period.</p>
     {years.length ? <div className="mt-4 flex flex-wrap items-center gap-3"><Select label="Annual reporting year" className="w-56" value={selectedPeriod} onChange={setPeriod} options={[{ value: "latest", label: "Latest available per company" }, ...years.map((year) => ({ value: year, label: `FY${year}${common(year) ? " · all companies" : " · partial coverage"}` }))]} /><p className="text-xs text-muted">{selectedPeriod === "latest" ? "Dates may differ. Select a year to compare the same period." : `${companies.filter((company) => latestAnnual(company, "revenue", selectedPeriod)).length}/${companies.length} companies report revenue for FY${selectedPeriod}. Missing figures stay visible.`}</p></div> : null}
     {covered === 0 ? <p className="mt-4 flex items-start gap-2 rounded-field bg-subtle p-4 text-sm text-muted"><FileSearch aria-hidden size={18} className="shrink-0" />Collect financial evidence through an investigation. Any stored company context is shown below.</p> : null}
     {unknownMoney || mixedIndustries ? <div className="mt-4 rounded-field bg-subtle px-4 py-3 text-xs leading-relaxed text-muted">
       {unknownMoney ? <p>Some figures use units as reported. Currency or reporting scale was not supplied, so monetary growth and ranking are withheld.</p> : null}
-      {mixedIndustries ? <p className={unknownMoney ? "mt-1" : ""}>This watchlist spans different industries. Use these figures as company context; revenue definitions and margins may differ.</p> : null}
+      {mixedIndustries ? <p className={unknownMoney ? "mt-1" : ""}>Mixed-sector watchlist. Figures are grouped by sector as reported company context, not one peer comparison. Bank revenue and telecom revenue are different business measures; cross-sector rankings and shared scale charts are withheld.</p> : null}
     </div> : null}
     <div className="mt-5 hidden overflow-x-auto rounded-field border border-divider lg:block">
       <table className="w-full text-left text-[13px]">
@@ -133,12 +135,15 @@ export function CompetitorPerformanceSnapshot() {
           {rateColumns.map((name) => <th scope="col" key={name} className="px-4 py-3 text-right font-bold">Net margin</th>)}
           <th scope="col" className="px-4 py-3 font-bold">Evidence & research</th>
         </tr></thead>
-        <tbody>{companies.map((company) => <tr key={company.ticker} className="border-t border-divider align-top">
-          <th scope="row" className="sticky left-0 z-10 min-w-40 max-w-56 bg-card px-4 py-4">{companyLabel(company)}{rowPeriod(company) ? <p className="mt-2 text-xs font-normal text-muted">FY{rowPeriod(company)}</p> : null}</th>
-          {annualColumns.map((name) => <td key={name} className="min-w-40 px-4 py-4 text-right"><AnnualValue figure={latestAnnual(company, name, selectedPeriod)} showPeriod={!rowPeriod(company)} /></td>)}
-          {rateColumns.map((name) => <td key={name} className="px-4 py-4 text-right"><RateValue metric={latestRate(company, name, selectedPeriod)} showPeriod={!rowPeriod(company)} /></td>)}
-          <td className="min-w-48 px-4 py-3"><Evidence company={company} /></td>
-        </tr>)}</tbody>
+        {groups.map((group) => <tbody key={group.label}>
+          {groups.length > 1 ? <tr className="border-t border-divider bg-subtle/50"><th scope="rowgroup" colSpan={2 + annualColumns.length + rateColumns.length} className="px-4 py-3 text-xs font-bold text-ink-2">{group.label} · reported context</th></tr> : null}
+          {group.items.map((company) => <tr key={company.ticker} className="border-t border-divider align-top">
+            <th scope="row" className="sticky left-0 z-10 min-w-40 max-w-56 bg-card px-4 py-4">{companyLabel(company)}{rowPeriod(company) ? <p className="mt-2 text-xs font-normal text-muted">FY{rowPeriod(company)}</p> : null}</th>
+            {annualColumns.map((name) => <td key={name} className="min-w-40 px-4 py-4 text-right"><AnnualValue figure={latestAnnual(company, name, selectedPeriod)} showPeriod={!rowPeriod(company)} /></td>)}
+            {rateColumns.map((name) => <td key={name} className="px-4 py-4 text-right"><RateValue metric={latestRate(company, name, selectedPeriod)} showPeriod={!rowPeriod(company)} /></td>)}
+            <td className="min-w-48 px-4 py-3"><Evidence company={company} /></td>
+          </tr>)}
+        </tbody>)}
       </table>
     </div>
     <div className="mt-5 grid gap-4 lg:hidden sm:grid-cols-2">{companies.map((company) => <article key={company.ticker} className="min-w-0 rounded-detail border border-divider p-4">
@@ -150,7 +155,7 @@ export function CompetitorPerformanceSnapshot() {
       <div className="mt-4 border-t border-divider pt-3"><Evidence company={company} /></div>
     </article>)}</div>
     {bars.length >= 2 ? <details className="mt-5 border-t border-divider pt-4"><summary className="cursor-pointer text-sm font-bold">Compare revenue scale · FY{barYear}</summary><p className="mt-2 text-xs leading-relaxed text-muted">Revenue for the same annual period, with verified IDR and compatible reporting scope. Bars start at zero.</p><dl className="mt-4 space-y-4">{bars.map(({ company, point, value }) => <div key={company.ticker}><div className="flex flex-wrap items-start justify-between gap-2"><dt className="text-sm font-bold">{company.ticker}</dt><dd className="text-right"><FinancialValue amount={point} /></dd></div><div aria-hidden className="mt-2 h-3 overflow-hidden rounded bg-subtle"><div className="h-full origin-left rounded bg-accent" style={{ width: `${value / barMax * 100}%` }} /></div></div>)}</dl>{bars.length < companies.length ? <p className="mt-3 text-xs text-muted">Excluded from this comparison: {companies.filter((company) => !bars.some((bar) => bar.company.ticker === company.ticker)).map((company) => company.ticker).join(", ")}. Their period or reporting metadata is missing or incompatible.</p> : null}</details> : null}
-    {quarterly.length ? <details className="mt-5 border-t border-divider pt-4"><summary className="cursor-pointer text-sm font-bold">Quarterly growth · reported rates</summary><p className="mt-2 text-xs leading-relaxed text-muted">These rates compare a quarter with the same quarter a year earlier. An unspecified quarter cannot establish a current trend or ranking.</p><div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{companies.map((company) => <div key={company.ticker} className="rounded-field bg-subtle/60 p-3"><h3 className="text-sm font-bold">{company.ticker}</h3><dl className="mt-3 space-y-3">{quarterly.map((name) => <div key={name}><dt className="mb-1 text-xs text-muted">{PERFORMANCE_LABELS[name]}</dt><dd><RateValue metric={latestRate(company, name)} /></dd></div>)}</dl></div>)}</div></details> : null}
+    {quarterly.length ? <details className="mt-5 border-t border-divider pt-4"><summary className="cursor-pointer text-sm font-bold">Quarterly growth · reported rates</summary><p className="mt-2 text-xs leading-relaxed text-muted">These percentages were reported by Sectors; RivalPulse did not calculate them from the monetary amounts above. They compare a quarter with the same quarter a year earlier, not annual revenue growth. Missing currency/scale blocks our monetary calculations, but does not erase a separately reported percentage. An unspecified quarter cannot establish a current trend or ranking.</p><div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{companies.map((company) => <div key={company.ticker} className="rounded-field bg-subtle/60 p-3"><h3 className="text-sm font-bold">{company.ticker}</h3><dl className="mt-3 space-y-3">{quarterly.map((name) => <div key={name}><dt className="mb-1 text-xs text-muted">{PERFORMANCE_LABELS[name]}</dt><dd><RateValue metric={latestRate(company, name)} /></dd></div>)}</dl></div>)}</div></details> : null}
     {companies.filter((company) => /merger|scope change|acquisition/i.test(company.note)).map((company) => <p key={company.ticker} className="mt-3 text-xs leading-relaxed text-muted"><strong className="text-ink-2">{company.ticker}</strong> · {company.note}</p>)}
     {covered ? <p className="mt-4 text-xs leading-relaxed text-muted">Use financial performance to guide research into positioning, products, pricing, and partnerships. These figures alone do not establish a marketing cause or an organic growth rate.</p> : null}
     {companies.some((company) => company.points.length || company.annualFigures.length) ? <details className="mt-5 border-t border-divider pt-4">

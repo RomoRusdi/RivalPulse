@@ -14,7 +14,7 @@ from redis import Redis
 from redis.exceptions import LockError, RedisError
 from sqlalchemy import select, update
 
-from app.classify import as_event
+from app.classify import normalized_text
 from app.config import get_settings
 from app.db import session, utcnow
 from app.errors import ProviderError
@@ -67,7 +67,7 @@ def normalize_report(payload, symbol):
     return {"schema_version": PROJECTION_VERSION, "symbol": symbol, "name": payload.get("company_name"),
             "overview": payload.get("overview") or {}, "metrics": metrics, "peers": payload.get("peers") or [],
             "performance_metrics": performance_metrics(payload),
-            "warnings": ([] if currency else ["Provider did not specify currency; monetary comparisons are disabled."])}
+            "warnings": ([] if currency else ["Currency/reporting scale was not supplied. Calculated annual monetary growth and peer rankings are withheld; Sectors-reported percentages are separate context."])}
 
 
 def response_error(response):
@@ -127,6 +127,16 @@ class Sectors:
         self.settings = get_settings()
         self.client = client
         self.redis = redis if redis is not None else redis_connection()
+        self._api_key = None
+
+    def api_key(self):
+        """This run's workspace key, else the server default; looked up once."""
+        if self._api_key is None:
+            from app.data_keys import sectors_key
+            with session() as db:
+                run = db.get(Run, self.run_id)
+                self._api_key = (sectors_key(db, run.workspace_id) if run else None) or ""
+        return self._api_key
 
     def reserve(self, key, cost):
         with session() as db, db.begin():
@@ -159,7 +169,7 @@ class Sectors:
             return entry.id
 
     def _http(self, endpoint, params, key, cost):
-        if not self.settings.sectors_api_key.get_secret_value():
+        if not self.api_key():
             raise ProviderError("PROVIDER_CREDENTIALS_MISSING", "Sectors API key is not configured", False)
         for attempt in range(3):
             reservation_id = self.reserve(key, cost)  # Each retry can be billable, even when its outcome is unknown.
@@ -167,7 +177,7 @@ class Sectors:
                 client = self.client or httpx.Client(timeout=self.settings.provider_timeout, trust_env=False)
                 try:
                     with client.stream("GET", SECTORS_BASE + endpoint, params=params,
-                                       headers={"Authorization": self.settings.sectors_api_key.get_secret_value()}) as response:
+                                       headers={"Authorization": self.api_key()}) as response:
                         status = response.status_code
                         if status != 200:
                             error = response_error(response)
@@ -226,7 +236,7 @@ class Sectors:
         hit = self._cached(key)
         if hit:
             return self._link(*hit)
-        if mode == "live" and not self.settings.sectors_api_key.get_secret_value():
+        if mode == "live" and not self.api_key():
             raise ProviderError("PROVIDER_CREDENTIALS_MISSING", "Sectors API key is not configured", False)
 
         def fetch_and_store():
@@ -323,11 +333,11 @@ def normalize_news(payload):
             "url": row.get("source"), "published_at": published if isinstance(published, str) else None,
             "symbols": row.get("symbols") or [],
         })
-    # Structured provider news is classified by the same rules as approved pages,
-    # so the comparison stage consumes one event shape regardless of origin.
-    events = [event for event in (
-        as_event(article["title"], article["text"], article["url"], article["published_at"])
-        for article in articles) if event]
+    # Collection is not classification. Preserve articles without forcing their
+    # words into a category; the bounded semantic review owns live attribution.
+    events = [{"title": a["title"], "text": normalized_text(a["text"]), "subject": digest([a["title"], a["text"]]),
+               "published_at": a["published_at"], "url": a["url"], "type": "Market context"}
+              for a in articles if normalized_text(a["text"])]
     return {"schema_version": 1, "articles": articles, "events": events,
             "has_next": bool((payload.get("pagination") or {}).get("has_next"))}
 

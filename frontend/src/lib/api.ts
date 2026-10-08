@@ -22,29 +22,7 @@ import {
 } from "./mock-data";
 import { delay, readDemoSettings } from "./demo-settings";
 
-/**
- * The only file that talks to the backend.
- *
- * Every function returns parsed, validated data. Components and the store
- * never touch `fetch` or `mock-data` directly, so pointing this app at the
- * real service is a one-file change:
- *
- *   NEXT_PUBLIC_USE_MOCKS=false
- *   NEXT_PUBLIC_API_BASE=http://localhost:8000
- *
- * ── For whoever builds the backend ──────────────────────────────────────────
- * Implement these endpoints, returning the shapes in `schemas.ts`:
- *
- *   GET  /dashboard?range=week|month  -> { watchlist, aggregates, signals }
- *   GET  /signals/:id                 -> Signal
- *   POST /runs         { query }      -> AgentRun            (status "queued")
- *   GET  /runs/:id/stream             -> SSE of AgentRun     (one per update)
- *   POST /runs/:id/cancel             -> 204
- *
- * Responses are parsed with zod. A missing or misspelled field fails loudly
- * and names itself rather than rendering as `undefined` in the UI.
- * ────────────────────────────────────────────────────────────────────────────
- */
+/** Workspace requests validated against Zod contracts; authentication lives in http.ts. */
 
 export const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
 
@@ -249,11 +227,8 @@ export interface ChatTurn {
   content: string;
 }
 
-/**
- * Conversational reply. The backend answers from the workspace and stored
- * findings only: no provider call, no credits, no research run.
- */
-export async function sendChat(message: string, history: ChatTurn[]): Promise<ChatReply> {
+/** Chat never starts Sectors research. Saved recall also bypasses model inference. */
+export async function sendChat(message: string, history: ChatTurn[], scope: { saved?: boolean; symbols?: string[] } = {}): Promise<ChatReply> {
   if (USE_MOCKS) {
     await delay(Math.min(readDemoSettings().latencyMs, 600));
     const indonesian = /(apa|kabar|kamu|saya|bagaimana|gimana|tolong|halo|hai)/i.test(message);
@@ -267,7 +242,7 @@ export async function sendChat(message: string, history: ChatTurn[]): Promise<Ch
   }
   return request("/api/v1/chat", ChatReplySchema, {
     method: "POST",
-    body: JSON.stringify({ message, history: history.slice(-10) }),
+    body: JSON.stringify({ message, history: history.slice(-10), ...(scope.saved ? { saved: true, symbols: (scope.symbols ?? []).slice(0, 10) } : {}) }),
   });
 }
 

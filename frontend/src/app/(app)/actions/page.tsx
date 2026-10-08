@@ -12,6 +12,9 @@ const ACTIONS: Record<SignalType, string[]> = {
   Product: ["Compare the launch with your current feature positioning.", "Gather customer proof for the overlapping use case.", "Test one response campaign before changing the broader brand message."],
   Partnership: ["Assess the audience and distribution opportunities the partnership may create.", "Review your own partner and customer proof points.", "Monitor whether the announcement becomes an active commercial campaign."],
   Campaign: ["Review the competitor’s message, audience, and call to action.", "Test a differentiated creative angle with a clear customer benefit.", "Compare message repetition in the next investigation."],
+  "Financial update": ["Verify the reporting period and whether the figures are guidance or realised results.", "Review management's stated assumptions and reporting scope.", "Do not treat capital-spending guidance as a product launch or proof of commercial impact."],
+  "Analyst commentary": ["Confirm which companies the analyst actually discusses.", "Separate the analyst's forecast from an attributable company announcement.", "Verify the underlying company evidence before deciding on a competitive response."],
+  "Market context": ["Confirm the company and publication date in the source.", "Find an attributable company announcement before treating the article as a move.", "Keep background coverage separate from verified competitive activity."],
 };
 
 export default function ActionsPage() {
@@ -31,7 +34,7 @@ export default function ActionsPage() {
               {!isCannedHypothesis(priority.financialContext.whyItMatters) ? <p className="mt-3 text-[13px] leading-relaxed text-muted-on-dark">{priority.financialContext.whyItMatters}</p> : null}
               <Link href={`/signals/${priority.id}`} className="mt-4 inline-flex min-h-11 items-center gap-2 text-[13px] font-bold text-white no-underline hover:text-accent">Review supporting evidence <ArrowRight aria-hidden size={15} /></Link>
             </div>
-            <h3 className="mt-5 text-sm font-bold">Suggested response</h3>
+            <h3 className="mt-5 text-sm font-bold">{priority.findingScope && priority.findingScope !== "competitor_move" ? "Context verification" : "Suggested response"}</h3>
             <p className="mt-1 text-[13px] leading-relaxed text-muted">General guidance for {priority.type.toLowerCase()} findings, to adapt to your team’s priorities.</p>
             <ol className="mt-4 flex flex-col gap-3">{ACTIONS[priority.type].map((action, index) => <li key={action} className="flex items-start gap-3 rounded-detail border border-divider p-3.5"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-wash text-xs font-bold text-accent-ink">{index + 1}</span><p className="text-sm leading-relaxed text-ink-2">{action}</p></li>)}</ol>
           </Card>

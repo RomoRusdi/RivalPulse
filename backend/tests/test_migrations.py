@@ -14,7 +14,7 @@ def test_clean_migration_roundtrip_and_metadata(env):
     assert "research_runs" not in inspect(engine()).get_table_names()
     command.upgrade(config, "head")
     with engine().connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261006_account_quality"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261008_workspace_data_keys"
 
 
 @pytest.mark.parametrize("stale_revision", ["20260928_integrated_backend", None])

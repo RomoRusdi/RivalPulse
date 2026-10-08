@@ -1,5 +1,4 @@
-# Repo-wide ignores. The frontend keeps its own .gitignore in frontend/,
-# since git applies patterns relative to the file's own directory.
+# Shared ignores; frontend/backend also have package-specific rules.
 
 # OS / editor
 .DS_Store
@@ -23,7 +22,7 @@ secrets.json
 secrets.yaml
 secrets.yml
 
-# Python / backend (ready for whoever starts it)
+# Python
 __pycache__/
 *.py[cod]
 .venv/
@@ -32,14 +31,18 @@ venv/
 .ruff_cache/
 .mypy_cache/
 *.sqlite3
+*.db
+*.egg-info/
 
 # Logs
 *.log
 
-# Local agent config — personal, and next dev regenerates AGENTS.md anyway.
+# Local coding-agent configuration
 AGENTS.md
 CLAUDE.md
 
-
-# Local verification artifacts
+# Generated contracts, build metadata, and local verification artifacts
+/backend/docs/
+/output/
+*.tsbuildinfo
 .test-work/

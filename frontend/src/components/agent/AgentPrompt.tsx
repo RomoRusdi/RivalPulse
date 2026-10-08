@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, KeyboardEvent, ReactNode, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { ListPlus, LoaderCircle, Rocket, Send, Sparkles, Tag } from "lucide-react";
+import { ArrowUp, ListPlus, LoaderCircle, Rocket, Sparkles, Tag } from "lucide-react";
 import { reducedMotion } from "@/lib/motion";
 import styles from "./AgentPrompt.module.css";
 
@@ -33,7 +33,10 @@ export function AgentPrompt({ welcome = false, draft, onDraftChange, onSend, dis
   const [filling, setFilling] = useState(false);
   const [sentValue, setSentValue] = useState<string | null>(null);
   const placeholder = working ? "RivalPulse is investigating…" : "Ask a question or give a command…";
-  const recommendationsVisible = welcome || !draft.trim();
+  // In a conversation, suggestions appear only while the box is in use
+  // (focused or holding text), so they never cover the chat by default.
+  const [engaged, setEngaged] = useState(false);
+  const recommendationsVisible = welcome || engaged || Boolean(draft.trim());
 
   useEffect(() => () => {
     cancelAnimationFrame(typingFrame.current);
@@ -108,7 +111,8 @@ export function AgentPrompt({ welcome = false, draft, onDraftChange, onSend, dis
   };
 
   return <div className={`${styles.promptArea} ${welcome ? styles.welcome : styles.compact}`}>
-    <div className={styles.column}>
+    <div className={styles.column} onFocus={() => setEngaged(true)}
+      onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setEngaged(false); }}>
       {welcome ? <div className={styles.hero}>
         <h1 className={styles.heading} aria-label={HEADING}>{WORDS.map((word, index) => <span aria-hidden key={`${word}-${index}`} style={{ "--word-index": index } as CSSProperties}>{word}{index < WORDS.length - 1 ? " " : ""}</span>)}</h1>
         <p className={styles.subtitle}>Recommendations are based on your watchlist and recent competitor activity</p>
@@ -119,15 +123,16 @@ export function AgentPrompt({ welcome = false, draft, onDraftChange, onSend, dis
         <div className={styles.cards}>{suggestions.slice(0, 3).map((suggestion, index) => {
           const Icon = suggestion.category === "pricing" ? Tag : suggestion.category === "product" ? Rocket : suggestion.category === "watchlist" ? ListPlus : Sparkles;
           return <div key={suggestion.query} className={styles.cardEntrance} style={{ "--card-index": index } as CSSProperties}>
-            <button type="button" className={styles.card} data-selected={selected === suggestion.query} disabled={disabled} title={suggestion.query} onClick={() => fillSuggestion(suggestion)}>
+            <button type="button" className={styles.card} data-selected={selected === suggestion.query} disabled={disabled} title={suggestion.query} onMouseDown={(event) => { if (!welcome) event.preventDefault(); }} onClick={() => fillSuggestion(suggestion)}>
               <span className={styles.iconTile}><Icon size={19} strokeWidth={1.7} aria-hidden /></span>
               <span className={styles.cardCopy}><span className={styles.cardTitle}>{suggestion.title}</span><span className={styles.description}>{suggestion.query}</span></span>
             </button>
           </div>;
         })}</div>
       </div></section> : null}
+      {/* One floating card: the input plus its hint row, like a toolbar footer. */}
+      <div className={styles.shell}>
       <form onSubmit={submit} className={styles.composer} data-sending={Boolean(sentValue)} data-filling={filling} aria-busy={working}>
-        <span className={styles.pulseTile} aria-hidden><svg viewBox="0 0 40 32" fill="none"><path className={styles.heartbeat} pathLength="1" d="M2 17h8l4-10 7 20 5-13 4 3h8" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg></span>
         <div ref={well} className={styles.inputWell}>
           <div className={styles.inputBase} aria-hidden />
           <div className={styles.inputGrowth} aria-hidden><div className={styles.growthClip}><div className={styles.growthSpace} /></div></div>
@@ -137,11 +142,11 @@ export function AgentPrompt({ welcome = false, draft, onDraftChange, onSend, dis
           {sentValue ? <span aria-hidden className={styles.outgoingQuery}>{sentValue}</span> : null}
         </div>
         <button type="submit" className={styles.send} data-active={!disabled && Boolean(draft.trim())} disabled={disabled || !draft.trim()} aria-label={working ? "Research in progress" : "Send message"}>
-          {working ? <LoaderCircle aria-hidden size={18} className="animate-spin" /> : <Send aria-hidden size={18} className={styles.sendIcon} />}<span>{working ? "Working" : "Send"}</span>
-          {sentValue ? <Send aria-hidden size={18} className={styles.flyingPlane} /> : null}
+          {working ? <LoaderCircle aria-hidden size={20} className="animate-spin" /> : <ArrowUp aria-hidden size={22} strokeWidth={2.2} className={styles.sendIcon} />}
         </button>
       </form>
       <div id={hintId} className={styles.hints}><p>Ask about your competitors or update your watchlist.</p><p className={styles.shortcuts}><kbd>Enter</kbd> to send <span aria-hidden>·</span> <kbd>Shift + Enter</kbd> for a new line</p></div>
+      </div>
       <p role="status" aria-live="polite" className="sr-only">{announcement}</p>
     </div>
   </div>;

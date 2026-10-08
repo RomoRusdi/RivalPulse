@@ -44,7 +44,7 @@ if (-not (Test-Path $BackendEnv)) {
     try { $Random.GetBytes($Bytes) } finally { $Random.Dispose() }
     $Token = [Convert]::ToBase64String($Bytes)
     (Get-Content $BackendEnv) -replace '^DEMO_ACCESS_TOKEN=.*$', "DEMO_ACCESS_TOKEN=$Token" | Set-Content $BackendEnv
-    Write-Host "Created backend/.env. Add SECTORS_API_KEY before continuing."
+    Write-Host "Created backend/.env. Configure verification SMTP and your data connection before investigating."
 }
 
 $BackendSettings = Get-Content $BackendEnv
@@ -52,14 +52,14 @@ if (-not ($BackendSettings -match '^AUTH_MODE=accounts$')) {
     throw "Set AUTH_MODE=accounts in backend/.env to enable account login and workspace isolation."
 }
 if (-not ($BackendSettings -match '^MODE=live$')) {
-    throw "Set MODE=live in backend/.env. Yahoo mode is unsupported by the current agent."
+    throw "Set MODE=live in backend/.env. Sectors v2 is the only supported live data provider."
 }
 
 # Never echo, send to the browser, or commit the server-only API key.
 $KeyLine = Get-Content $BackendEnv | Where-Object { $_ -match '^SECTORS_API_KEY=' } | Select-Object -First 1
 $KeyValue = ($KeyLine -replace '^SECTORS_API_KEY=', '').Trim()
 if (-not $KeyValue -or $KeyValue -match '^(replace|your|test-only)') {
-    throw "Set a valid SECTORS_API_KEY in backend/.env. This script will not start research without a configured key."
+    Write-Warning 'No shared Sectors key is configured. Sign in and add your workspace key in Settings before starting research.'
 }
 
 if (-not (Test-Path $FrontendEnv)) {
@@ -85,10 +85,10 @@ if ($OllamaEnabled) {
     try {
         $Tags = Invoke-RestMethod "http://localhost:11434/api/tags" -TimeoutSec 5
     } catch {
-        throw "Ollama is not reachable on port 11434. Start Ollama and run this script again."
+        Write-Warning 'Local Ollama is unavailable. Local AI will need Ollama; configured cloud workspaces can still operate.'
     }
-    if (-not ($Tags.models.name -contains "qwen3.8:27b")) {
-        throw "Ollama model qwen3.8:27b is missing. Run: ollama pull qwen3.8:27b"
+    if ($Tags -and -not ($Tags.models.name -contains "qwen3.8:27b")) {
+        Write-Warning 'Default local model qwen3.8:27b is missing. Install it, choose another installed model, or configure a cloud provider in Settings.'
     }
 }
 
@@ -105,6 +105,26 @@ if (-not $FrontendReady) {
     $Command = "Set-Location -LiteralPath '$EscapedFrontend'; npm run dev -- --hostname 0.0.0.0 --port 3000"
     Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @("-NoExit", "-Command", $Command)
     Write-Host "Started the frontend in the background."
+}
+
+# Create the private LLM encryption key once, outside Git and outside images.
+# Never replace it: existing workspace credentials depend on this exact key.
+$LlmKeyFile = Join-Path $Backend '.env.llm-encryption'
+if (-not (Test-Path $LlmKeyFile)) {
+    $LlmBytes = New-Object byte[] 32
+    $LlmRandom = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $LlmRandom.GetBytes($LlmBytes) } finally { $LlmRandom.Dispose() }
+    $LlmKey = [Convert]::ToBase64String($LlmBytes).Replace('+', '-').Replace('/', '_')
+    [IO.File]::WriteAllText($LlmKeyFile, $LlmKey, (New-Object Text.UTF8Encoding($false)))
+    $LlmAcl = Get-Acl -LiteralPath $LlmKeyFile
+    $LlmAcl.SetAccessRuleProtection($true, $false)
+    $LlmOwner = [Security.Principal.WindowsIdentity]::GetCurrent().User
+    $LlmAcl.SetOwner($LlmOwner)
+    $LlmAcl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($LlmOwner, 'FullControl', 'Allow')))
+    $LlmAcl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule((New-Object Security.Principal.SecurityIdentifier('S-1-5-18')), 'ReadAndExecute', 'Allow')))
+    $LlmAcl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule((New-Object Security.Principal.SecurityIdentifier('S-1-5-32-544')), 'FullControl', 'Allow')))
+    Set-Acl -LiteralPath $LlmKeyFile -AclObject $LlmAcl
+    Write-Host 'Created private LLM key storage; no API requests were sent.'
 }
 
 Push-Location $Backend
@@ -149,8 +169,8 @@ if (-not $FrontendReady) {
     throw "Backend is ready, but the frontend gateway is not. Check the frontend on port 3000 and docker compose -f backend/compose.yaml logs --tail 60 frontend-proxy."
 }
 
-Write-Host "Sectors-mode stack ready; API key presence checked but live authorization NOT verified." -ForegroundColor Green
-Write-Host "A Sectors research run may use credits. Obtain/verify your key before investigating."
+Write-Host "Sectors-mode stack ready; provider authorization and balances have not been tested." -ForegroundColor Green
+Write-Host "Configure your data/AI connection in Settings. Research may use Sectors credits and separate cloud-model charges."
 Write-Host "1. Login: http://localhost:8080/login"
 Write-Host "2. App:   http://localhost:8080"
 Write-Host "3. New account: http://localhost:8080/signup"

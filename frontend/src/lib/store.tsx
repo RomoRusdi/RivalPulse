@@ -448,9 +448,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     (ticker: string) => {
       editWatchlist((current) => ({
         ...current,
-        // Dropping our own company clears the perspective with it; a stale
-        // ticker would otherwise keep framing every comparison.
-        user_company: current.user_company === ticker ? null : current.user_company,
+        // Competitor membership and our-company perspective are independent.
         companies: current.companies.filter((c) => c.ticker !== ticker),
       }));
     },
@@ -476,7 +474,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const drop = new Set(tickers);
       editWatchlist((current) => ({
         ...current,
-        user_company: current.user_company && drop.has(current.user_company) ? null : current.user_company,
         companies: current.companies.filter((c) => !drop.has(c.ticker)),
       }));
     },
@@ -541,15 +538,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return rawSignals.filter((s) => tickers.has(s.company));
   }, [rawSignals, activeWatchlist]);
 
-  /**
-   * Reconcile the headline numbers against the feed the user can actually see.
-   *
-   * Three cards used to report signal counts from three independent mock
-   * fields, so "7 this week", "24 signals" and "24 delivered" could all be on
-   * screen at once and contradict each other. Everything downstream of
-   * delivery is now derived from `visibleSignals`, which also keeps it honest
-   * after a run adds a signal or a watchlist edit removes a company.
-   */
+  /** Derive headline counts from the visible feed after research and membership edits. */
   const reconciledAggregates = useMemo(() => {
     if (!aggregates) return null;
 

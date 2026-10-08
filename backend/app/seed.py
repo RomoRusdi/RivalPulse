@@ -105,7 +105,7 @@ def seed():
             db.add(Workspace(id=settings.workspace_id, name="Preserved demo workspace"))
             db.flush()
         if not db.scalar(select(Watchlist).where(Watchlist.workspace_id == settings.workspace_id)):
-            wl = Watchlist(workspace_id=settings.workspace_id, name="Indonesian telecoms",
+            wl = Watchlist(workspace_id=settings.workspace_id, name="Competitors",
                            objective="Monitor product, pricing and partnership developments")
             db.add(wl)
             db.flush()

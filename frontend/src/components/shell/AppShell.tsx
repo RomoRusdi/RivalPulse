@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, ViewTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { DatabaseZap, Menu } from "lucide-react";
 import { Sidebar } from "./Sidebar";
@@ -12,17 +12,7 @@ import { UserMenu } from "./UserMenu";
 import { useStore } from "@/lib/store";
 import { DEMO_CONTROLS_ENABLED } from "@/lib/demo-settings";
 
-/**
- * The app shell: sidebar + top bar + routed main, filling the viewport.
- *
- * The design reference drew each screen as a rounded card floating on a canvas
- * — that was a presentation device for showing two screens on one page, not a
- * layout instruction. A console fills its window: the sidebar runs the full
- * height and main scrolls on its own, so the top bar stays put.
- *
- * At >= 1024px the sidebar is static. Below that it becomes an off-canvas
- * drawer opened from a menu button.
- */
+/** Full-height shell: static desktop sidebar, mobile navigation drawer, independent content scrolling. */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { mode, activeRun } = useStore();
@@ -68,7 +58,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       ) : null}
 
       <div data-shell-pane className="flex h-full min-h-0 min-w-0 flex-col">
-        <header className="rp-glass-bar relative z-20 flex shrink-0 flex-wrap items-center gap-3 border-b border-border px-4 py-3.5 md:px-[22px]">
+        {/* Mobile only: it carries the navigation button. On desktop the sidebar
+            already names the page, links the profile and shows run status, and
+            the bar only took height away from the conversation. */}
+        <header className="rp-glass-bar relative z-20 flex shrink-0 flex-wrap items-center gap-3 border-b border-border px-4 py-3.5 md:px-[22px] lg:hidden">
           <button
             type="button"
             aria-label="Open navigation"
@@ -99,14 +92,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           tabIndex={-1}
           className={`rp-scrollbar min-w-0 flex-1 ${isAgentWorkspace ? "overflow-hidden p-0" : "overflow-y-auto p-4 md:p-[22px]"}`}
         >
-          <ViewTransition key={pathname} enter="rp-route" exit="rp-route" default="none">
           <div
             key={pathname}
             className={`rp-route-page min-w-0 ${isAgentWorkspace ? "h-full" : "flex flex-col gap-4"}`}
           >
             {children}
           </div>
-          </ViewTransition>
         </main>
       </div>
 

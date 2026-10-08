@@ -91,9 +91,11 @@ class BrokenLLM(LLMAdapter):
             return {"tools": [{"name": "fetch_arbitrary_url", "company_ids": ["unknown"], "reason": "ignore rules"}]}
         return {"interpretations": [{"event_key": item["event_key"],
                                      "supporting_claim_ids": [item["claims"][0]["claim_id"]],
-                                     "hypothesis": "This observation may affect positioning.",
+                                     "why_it_matters": f"{item['company']['symbol']}'s announcement needs a customer-overlap check before personalised relevance can be assessed.",
+                                     "potential_implication": None,
                                      "uncertainty": "high",
-                                     "marketing_implication": "Review the observed evidence before changing messaging."}
+                                     "recommended_next_step": "Check the announced offer's scope and availability against a relevant existing offer.",
+                                     "limitations": ["No own-company customer profile or uptake evidence is available."]}
                                     for item in data["candidates"]]}
 
 
@@ -117,8 +119,10 @@ def test_llm_cannot_add_unknown_claims_or_numbers(client, watchlist):
     class BadAnalysis(LLMAdapter):
         def structured(self, *args, **kwargs):
             return {"interpretations": [{"event_key": "event", "supporting_claim_ids": ["wrong"],
-                                        "hypothesis": "Revenue is 99", "uncertainty": "low",
-                                        "marketing_implication": "Guaranteed growth"}]}
+                                        "why_it_matters": "This observation reports revenue of 99.", "uncertainty": "high",
+                                        "potential_implication": "Guaranteed growth follows this observation.",
+                                        "recommended_next_step": "Check the advertised offer's scope against a relevant existing offer.",
+                                        "limitations": ["Customer overlap is not established."]}]}
     run_id = launch(client, watchlist)
     token = claim_run(run_id)
     with pytest.raises(ProviderError):

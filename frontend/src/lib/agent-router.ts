@@ -1,4 +1,4 @@
-import { MAX_COMPANIES, MIN_COMPANIES, TYPO_STOPWORDS, editDistance, findCompanies, missedTickers, suggestCompanies } from "./catalogue";
+import { COMPANY_CATALOGUE, MAX_COMPANIES, MIN_COMPANIES, TYPO_STOPWORDS, editDistance, findCompanies, missedTickers, suggestCompanies } from "./catalogue";
 import type { Company, Watchlist } from "./types";
 
 /**
@@ -37,13 +37,13 @@ export interface RouteSuggestion {
 
 export type AgentRoute =
   | { kind: "instant"; label: string; content: string; action?: InstantAgentAction; suggestions?: RouteSuggestion[] }
-  | { kind: "chat"; language: Language }
+  | { kind: "chat"; language: Language; saved?: boolean; companies?: Company[] }
   | { kind: "research"; companies: Company[] };
 
 // ── Vocabulary ────────────────────────────────────────────────────────────
 
 const ID_MARKERS =
-  /\b(apa|apakah|bagaimana|gimana|kamu|anda|saya|aku|tolong|bisa|tidak|nggak|enggak|gak|yang|ini|itu|untuk|dengan|kabar|terima kasih|makasih|halo|hai|selamat|siapa|kenapa|mengapa|dong|sih|kok|juga|sudah|belum|ada|mau|ingin|bantu|coba|tambahkan|hapus|ke|dari|di|berapa|tahun|lalu|sekarang|bagus|banget|lagi|ngapain|mana|kapan|bulan|minggu|kemarin|besok|nanti|tentang|perusahaan|kompetitor|bandingkan)\b/gi;
+  /\b(apa|apakah|bagaimana|gimana|kamu|anda|saya|aku|tolong|bisa|tidak|nggak|enggak|gak|yang|ini|itu|untuk|dengan|kabar|terima kasih|makasih|halo|hai|selamat|siapa|kenapa|mengapa|dong|sih|kok|juga|sudah|belum|ada|mau|ingin|bantu|coba|tambahkan|hapus|ke|dari|di|berapa|tahun|lalu|sekarang|bagus|banget|lagi|ngapain|mana|kapan|bulan|minggu|kemarin|besok|nanti|tentang|perusahaan|kompetitor|bandingkan|lebih|atau|aja|saja|terakhir|dilakukan|ceritakan|rencana|strategi|dividen|berita|kinerja|unggul)\b/gi;
 
 /** Ask for evidence on their own, with or without a company. */
 const STRONG_RESEARCH =
@@ -51,14 +51,51 @@ const STRONG_RESEARCH =
 
 /** Market topics. Research only when aimed at a company or at competitors. */
 const TOPIC =
-  /\b(financials?|revenue|earnings|profit|margin|ebitda|pricing|prices?|promo(?:tion)?s?|discounts?|partnerships?|campaigns?|launch(?:es|ed|ing)?|products?|performance|momentum|positioning|market share|news|signals?|reports?|trends?|keuangan|pendapatan|laba|rugi|keuntungan|harga|tarif|diskon|kemitraan|kerja ?sama|kampanye|peluncuran|luncur\w*|meluncurkan|produk|kinerja|performa|pangsa pasar|posisi|berita|sinyal|laporan|tren)\b/i;
+  /\b(financials?|revenue|earnings|profit|margin|ebitda|pricing|prices?|promo(?:tion)?s?|discounts?|partnerships?|campaigns?|launch(?:es|ed|ing)?|products?|performance|momentum|positioning|market share|news|signals?|reports?|trends?|keuangan|pendapatan|laba|rugi|keuntungan|harga|tarif|diskon|kemitraan|kerja ?sama|kampanye|peluncuran|luncur\w*|meluncurkan|produk|kinerja|performa|pangsa pasar|posisi|berita|sinyal|laporan|tren|dividends?|stock|shares?|valuation|market cap|balance sheet|loans?|lending|credit|deposits?|npl|nim|casa|roe|roa|capex|debt|cash ?flow|growth|net interest margin|bonds?|guidance|outlook|target price|subscribers?|customers?|dividen|saham|valuasi|kredit|pinjaman|simpanan|dpk|pertumbuhan|utang|arus kas|neraca|nasabah|pelanggan)\b/i;
+
+/** What a company did or is doing. Aimed at a company, it means an activity sweep. */
+const ACTIVITY =
+  /\b(ship(?:ped|ping|s)?|releas\w*|rilis|merilis|announc\w*|umumkan|mengumumkan|roll(?:ed|ing)?[\s-]?outs?|introduc\w*|unveil\w*|debut\w*|acqui\w+|akuisisi|mergers?|deals?|expan\w+|ekspansi|plans?|planning|rencana|strateg\w*|updates?|moves?|initiatives?|features?|fitur|apps?|aplikasi|services?|layanan|branch(?:es)?|cabang|hiring|layoffs?|up to|going on|happen\w*|terjadi|doing|ngapain|lakukan|dilakukan|melakukan)\b/i;
+
+/** Judgement and comparison asks: "is X better", "who is leading", "tell me about X". */
+const JUDGMENT =
+  /\b(better|worse|bigger|biggest|smaller|stronger|strongest|weaker|healthier|healthiest|winning|wins|leading|leader|ahead|behind|outperform\w*|beat(?:s|ing)?|threats?|threatening|worried|worry|watch out|risks?|risky|overview|profile|tell me about|what about|how about|info(?:rmation)? (?:on|about)|how(?:'s| is| are)\b.*\bdoing|lebih (?:bagus|baik|besar|kecil|kuat|unggul|sehat|buruk)|unggul|menang|ancaman|khawatir|risiko|ceritakan|gambaran|profil|gimana|bagaimana)\b/i;
+
+/** A time window implies "what happened in it". */
+const TIME_WINDOW =
+  /\b(?:(?:last|past|previous)\s+(?:\d+\s+)?(?:days?|weeks?|months?|quarters?|years?)|this\s+(?:week|month|quarter|year)|lately|recently|recent|so far|\d+\s+(?:hari|minggu|bulan)\s+terakhir|(?:minggu|bulan|tahun)\s+(?:ini|lalu)|akhir-akhir ini|belakangan(?: ini)?|baru-baru ini)\b/i;
+
+/** Question shape. With a named company it is enough intent on its own. */
+const QUESTION =
+  /\?\s*$|^(?:what|what's|whats|which|who|whose|how|how's|why|when|where|is|are|was|were|does|do|did|can|could|should|will|would|has|have|any|apa|apakah|bagaimana|gimana|siapa|mana|kapan|kenapa|mengapa|berapa|adakah|ada)\b/i;
+
+/** Buy/sell asks get a polite refusal plus research bubbles, never a run. */
+const ADVICE =
+  /\b(?:should i (?:buy|sell|invest|hold)|good time to (?:buy|sell|invest)|worth (?:buying|investing)|buy or sell|(?:buy|sell|hold) (?:recommendation|call)|layak (?:dibeli|beli)|beli atau jual|sebaiknya (?:beli|jual)|saatnya (?:beli|jual))\b/i;
+
+/** Asks about what is already known. Answered from stored findings, free. */
+const STORED =
+  /\b(stored|saved|already (?:collected|found|know|have)|existing|so far|last time|previous(?:ly)?|past (?:findings|research|runs?)|(?:we|you) (?:found|collected|have found)|what (?:do|did) (?:we|you) (?:know|find)|(?:our|my|the) findings|findings so far|tersimpan|sudah (?:ada|dikumpulkan|kita ketahui|ditemukan)|yang sudah|sebelumnya|sejauh ini|temuan)\b/i;
+
+/** Summary verbs. Without a request for new data they summarise what is stored. */
+const SUMMARY_ASK = /\b(summar(?:y|ise|ize|ies)|recap|overview|rundown|digest|review|ringkas\w*|rangkum\w*|rekap\w*|ikhtisar)\b/i;
+
+/** An explicit request for new data: the only way a recall-shaped ask spends. */
+const FRESH =
+  /\b(fresh|new data|new research|collect new|fetch|search latest|research latest|latest|newest|up[- ]to[- ]date|right now|today|this week|again|re-?run|refresh|re-?check|ambil terbaru|terbaru|terkini|perbarui|data baru|ulangi|sekarang|hari ini|minggu ini)\b/i;
+
+/** Explicit research verbs ask for an investigation, not a recap. */
+const NEW_RESEARCH = /\b(research|investigate|investigation|look up|search|riset|teliti|selidiki|investigasi|cari)\b/i;
+
+/** Name lookups ("what is BBCA?") are conversation, not an investigation. */
+const NAME_LOOKUP = /\b(?:stand for|full name|nama lengkap|singkatan)\b|^(?:what|who)(?:'s|\s+is)\s+[\w.]+\s*\??$|^apa itu\s+[\w.]+\s*\??$/i;
 
 const COMPETITOR_WORDS =
   /\b(competitors?|rivals?|watchlist|market|industry|sector|kompetitor|pesaing|saingan|industri|pasar|sektor)\b/i;
 
 const WATCHLIST_WORDS = /\b(watchlist|competitors?|list|kompetitor|pesaing|saingan|daftar)\b/i;
 
-const ADD = /\b(add|track|monitor|include|follow|watch|tambah|tambahkan|menambahkan|masukkan|masukin|pantau|ikuti|lacak)\b/i;
+const ADD = /\b(add|track(?!\s+record)|monitor|include|follow|watch(?!\s+(?:out|for))|tambah|tambahkan|menambahkan|masukkan|masukin|pantau|ikuti|lacak)\b/i;
 const REMOVE =
   /\b(remove|delete|drop|untrack|unfollow|stop (?:monitoring|tracking|watching)|hapus|hapuskan|keluarkan|buang|copot|berhenti (?:memantau|melacak|mengikuti))\b/i;
 
@@ -152,7 +189,18 @@ export function routeMessage(input: string, watchlist: Watchlist | null): AgentR
   const lang = detectLanguage(text);
   const mentioned = findCompanies(text);
   const strong = STRONG_RESEARCH.test(text);
+  // Saved-evidence requests must not silently become billable news collection.
+  // Existing data first. Recall asks ("what do we know", "summarize BBRI",
+  // "ringkas temuan") read stored findings for free; only an explicit ask for
+  // new data, or an explicit research verb, may spend credits.
+  const saved = STORED.test(text);
+  const fresh = FRESH.test(text);
+  const recall = (saved && !fresh) || (SUMMARY_ASK.test(text) && !fresh && !NEW_RESEARCH.test(text));
   const topical = TOPIC.test(text);
+  const activity = ACTIVITY.test(text);
+  const judgment = JUDGMENT.test(text);
+  const timed = TIME_WINDOW.test(text);
+  const asks = QUESTION.test(text);
 
   // 1. Rename.
   for (const pattern of RENAME) {
@@ -198,8 +246,19 @@ export function routeMessage(input: string, watchlist: Watchlist | null): AgentR
   // research topic or name the watchlist explicitly.
   const adding = ADD.test(text);
   const removing = REMOVE.test(text);
-  const commandShaped = !(strong || topical) || WATCHLIST_WORDS.test(text);
+  const commandShaped = !(strong || topical || activity || judgment) || WATCHLIST_WORDS.test(text);
   if ((adding || removing) && commandShaped) {
+    const known = new Set(COMPANY_CATALOGUE.map((company) => company.ticker));
+    const unknown = [...new Set(text.match(/\b[A-Z]{4}\b/g) ?? [])].filter((ticker) => !known.has(ticker));
+    if (mentioned.length === 0 && unknown.length > 0) {
+      return {
+        kind: "instant",
+        label: say(lang, "Company not found", "Perusahaan tidak ditemukan"),
+        content: say(lang,
+          `I couldn't find ${unknown.join(", ")} in RivalPulse's company list, so nothing changed. Check the ticker, or search for it under Competitors.`,
+          `Saya tidak menemukan ${unknown.join(", ")} di daftar perusahaan RivalPulse, jadi tidak ada yang berubah. Periksa kode sahamnya, atau cari di halaman Kompetitor.`),
+      };
+    }
     if (mentioned.length === 0) {
       if (WATCHLIST_WORDS.test(text)) {
         return {
@@ -248,6 +307,23 @@ export function routeMessage(input: string, watchlist: Watchlist | null): AgentR
     };
   }
 
+  // 5b. Buy/sell questions: no advice, but offer the research that informs it.
+  if (ADVICE.test(text)) {
+    const target = mentioned.slice(0, 2).map((c) => c.ticker);
+    return {
+      kind: "instant",
+      label: say(lang, "No investment advice", "Bukan saran investasi"),
+      content: say(lang,
+        `I can't tell you whether to buy or sell${target.length ? ` ${target.join(" or ")}` : ""}. I can show what ${target.length ? "it has" : "your competitors have"} been doing and how the reported financials compare, with sources, so you can judge. No credits were used.`,
+        `Saya tidak bisa menyarankan beli atau jual${target.length ? ` ${target.join(" atau ")}` : ""}. Saya bisa menunjukkan aktivitas terbaru dan perbandingan laporan keuangannya beserta sumbernya, agar Anda bisa menilai sendiri. Tidak ada kredit yang terpakai.`),
+      suggestions: target.length
+        ? [bubble(say(lang, `What's new with ${target.join(" and ")}?`, `Apa kabar terbaru ${target.join(" dan ")}?`)),
+           bubble(say(lang, `Compare ${target.join(" and ")} financials`, `Bandingkan keuangan ${target.join(" dan ")}`))]
+        : [bubble("What changed across my competitors this week?")],
+    };
+  }
+  if (mentioned.length > 0 && NAME_LOOKUP.test(text)) return { kind: "chat", language: lang };
+
   // 6. "My company" referenced but no perspective set. Research would compare
   // neutrally and miss the point, so ask which company is theirs instead of
   // spending credits on the wrong framing. Explicit set-shapes ("my company
@@ -255,7 +331,7 @@ export function routeMessage(input: string, watchlist: Watchlist | null): AgentR
   if (
     /\b(perusahaanku|perusahaan\s+(?:saya|kami|kita)|my\s+company|our\s+company)\b/i.test(text) &&
     !watchlist?.user_company &&
-    (strong || topical)
+    (strong || topical || activity || judgment || timed)
   ) {
     const candidates = (watchlist?.companies ?? []).slice(0, 4);
     return {
@@ -268,6 +344,8 @@ export function routeMessage(input: string, watchlist: Watchlist | null): AgentR
     };
   }
 
+  if (recall) return { kind: "chat", language: lang, saved: true, companies: mentioned };
+
   // 7. Research — the only route that spends credits. It needs BOTH an
   // intent (research verb or market topic) AND a target (named companies,
   // competitor/watchlist scope, our own company when its perspective is set,
@@ -275,7 +353,7 @@ export function routeMessage(input: string, watchlist: Watchlist | null): AgentR
   // sweep the whole watchlist). A bare verb ("compare", "riset") or a bare
   // ticker ("BBRI") with no question never spends: it falls through to the
   // clarification step below instead.
-  const blanketSweep = /^(what'?s new|whats new|what changed|ada yang baru|apa yang berubah|ada perubahan)(\s+(this week|today|minggu ini|hari ini))?\s*[?.!]*$/i.test(text);
+  const blanketSweep = /^(what'?s new|whats new|what changed|what has changed|has anything changed|anything new|any updates?|ada yang baru|apa yang berubah|ada perubahan|ada update)(\s+(this week|today|lately|recently|since last (?:week|month)|minggu ini|hari ini|sejak minggu lalu))?\s*[?.!]*$/i.test(text);
   const aboutScope = COMPETITOR_WORDS.test(text) || WATCHLIST_WORDS.test(text);
   const ourRef =
     /\b(my company|our company|perusahaanku|perusahaan\s+(?:saya|kami|kita))\b/i.test(text);
@@ -283,7 +361,10 @@ export function routeMessage(input: string, watchlist: Watchlist | null): AgentR
     mentioned.length > 0 || aboutScope || blanketSweep || (ourRef && (watchlist?.user_company ?? null));
   // Blanket phrases carry their own intent: "ada yang baru" is neither a
   // STRONG verb nor a TOPIC word, so without this it could never pass.
-  if ((strong || topical || blanketSweep) && hasTarget) {
+  // A named company plus a question is intent on its own; competitor-scope asks
+  // ("my competitors") still need a real signal so "who is in my watchlist?" lists.
+  const intent = strong || topical || blanketSweep || activity || judgment || timed || (mentioned.length > 0 && asks);
+  if (intent && hasTarget) {
     // A mistyped name would otherwise be silently left out of an expensive
     // investigation ("compare brbi and mandiri" would price-check Mandiri
     // alone). Ask first; a tap runs the corrected prompt, never the guess.
@@ -300,10 +381,11 @@ export function routeMessage(input: string, watchlist: Watchlist | null): AgentR
         suggestions: uncovered.map(({ company, token }) => bubble(fixToken(text, token, company.ticker))),
       };
     }
-    // The pipeline investigates the watchlist, not arbitrary tickers. Spending
-    // credits on TLKM, ISAT and EXCL to answer a question about BRI would be
-    // both wrong and expensive, so stop and say so.
+    // The backend freezes watchlist members plus the saved company perspective.
+    // Other arbitrary tickers still need an explicit watchlist update so the
+    // investigation cannot silently spend on a different company scope.
     const tracked = new Set(watchlist?.companies.map((c) => c.ticker) ?? []);
+    if (watchlist?.user_company) tracked.add(watchlist.user_company);
     const outside = mentioned.filter((c) => !tracked.has(c.ticker));
     if (watchlist && outside.length > 0) {
       return {
@@ -358,16 +440,20 @@ export function routeMessage(input: string, watchlist: Watchlist | null): AgentR
       ],
     };
   }
-  if (mentioned.length > 0 && !strong && !topical) {
+  if (mentioned.length > 0 && !intent) {
+    const [first, second] = mentioned.map((c) => c.ticker);
+    const both = second ? `${first} and ${second}` : first;
+    const keduanya = second ? `${first} dan ${second}` : first;
     return {
       kind: "instant",
-      label: say(lang, "Clarification needed", "Perlu klarifikasi"),
+      label: say(lang, "What would you like to know?", "Apa yang ingin Anda ketahui?"),
       content: say(lang,
-        `You mentioned ${names(mentioned)} — what should I do with ${mentioned.length === 1 ? "it" : "them"}? Say “compare ${mentioned[0].ticker} …”, “research ${mentioned[0].ticker} this week”, or ask about pricing, products, or financials. No credits were used.`,
-        `Anda menyebut ${names(mentioned)} — apa yang harus saya lakukan? Ketik “bandingkan ${mentioned[0].ticker} …”, “teliti ${mentioned[0].ticker} minggu ini”, atau tanyakan soal harga, produk, atau keuangan. Tidak ada kredit yang terpakai.`),
+        `What would you like to know about ${names(mentioned)}? Ask in your own words, for example “what has ${first} launched lately?” or “is ${first} growing faster than ${second ?? "its peers"}?”. No credits were used.`,
+        `Apa yang ingin Anda ketahui tentang ${names(mentioned)}? Tanyakan dengan bahasa Anda sendiri, misalnya “${first} meluncurkan apa akhir-akhir ini?” atau “apakah ${first} tumbuh lebih cepat dari ${second ?? "pesaingnya"}?”. Tidak ada kredit yang terpakai.`),
       suggestions: [
-        bubble(`research ${mentioned[0].ticker} this week`),
-        bubble(`Is ${mentioned[0].ticker} in my watchlist?`),
+        ...(() => { const verb = nearIntent(text); return verb ? [bubble(fixToken(text, verb.token, verb.word))] : []; })(),
+        bubble(say(lang, `What's new with ${both} recently?`, `Apa yang baru dari ${keduanya} akhir-akhir ini?`)),
+        bubble(say(lang, second ? `Compare ${both} financials` : `${first} financial performance`, second ? `Bandingkan keuangan ${keduanya}` : `Kinerja keuangan ${first}`)),
       ],
     };
   }

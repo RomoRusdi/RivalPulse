@@ -2,6 +2,7 @@
 import httpx
 from sqlalchemy import select
 
+from app.agent import LLMAdapter
 from app.config import get_settings
 from app.db import session
 from app.errors import ProviderError
@@ -23,7 +24,26 @@ BOILERPLATE = {
 }
 
 
+class NewsLLM(LLMAdapter):
+    """Explicit synthetic semantic decisions, never a production keyword fallback."""
+    def structured(self, kind, schema, data, repair=False):
+        if kind == "classify_events":
+            items = []
+            for article in data["articles"]:
+                text = article["text"]
+                symbol = article["company"]["symbol"]
+                actor = "Indosat" if symbol == "ISAT" else symbol
+                relevant = actor in text and "enterprise" in text
+                items.append(dict(article_id=article["article_id"], category="Product" if relevant else "Market context",
+                    role="company_announcement" if relevant else "irrelevant", actor_quote=actor if relevant else "",
+                    observation_quote=text if relevant else "", rationale="Synthetic test announcement is attributable to this company."))
+            return {"items": items}
+        return {"interpretations": []}
+
+
 def live_stack(monkeypatch, articles):
+    monkeypatch.setenv("LLM_ENABLED", "true")
+    monkeypatch.setattr("app.agent.OllamaAdapter", NewsLLM)
     monkeypatch.setenv("MODE", "live")
     monkeypatch.setenv("SECTORS_API_KEY", "test-only-fake-key")
     get_settings.cache_clear()
@@ -53,12 +73,14 @@ def test_provider_news_becomes_cited_signals_and_boilerplate_is_dropped(client, 
     assert cards, "provider news should produce competitive signals without any page scraping"
     assert {c["type"] for c in cards} == {"Product"}
     # The announcement became a signal; the quarterly-report filler did not.
-    assert all("launches new enterprise package" in c["title"].lower() for c in cards)
+    assert {c["company"]["symbol"] for c in cards} == {"ISAT"}, "Do not borrow Indosat's announcement for EXCL or TLKM"
+    assert all(c["classification_origin"] == "ai" for c in cards)
 
     with session() as db:
         news = db.scalars(select(Snapshot).where(Snapshot.provider == "sectors_news")).all()
     assert news, "news must be stored under its own provider, not as financial evidence"
-    assert all(len(s.normalized["events"]) == 1 and len(s.normalized["articles"]) == 2 for s in news)
+    assert all(len(s.normalized["events"]) == 2 and len(s.normalized["articles"]) == 2 for s in news)
+    assert all(event["type"] == "Market context" for s in news for event in s.normalized["events"])
 
     cited = {e["snapshot_id"] for c in cards for e in c["evidence"]}
     assert cited & {s.id for s in news}, "signal evidence must resolve to the stored news snapshot"
@@ -73,7 +95,7 @@ def test_news_without_announcements_is_quiet_not_a_fabricated_signal(client, wat
     assert detail["result"]["signals"] == []
     with session() as db:
         news = db.scalars(select(Snapshot).where(Snapshot.provider == "sectors_news")).all()
-    assert news and all(s.normalized["events"] == [] for s in news)
+    assert news and all(s.normalized["events"][0]["type"] == "Market context" for s in news)
 
 
 def test_news_snapshots_cannot_be_cited_as_financial_evidence(client, watchlist, monkeypatch):
@@ -136,6 +158,8 @@ def test_silent_companies_are_named_and_statements_still_compared(client, watchl
     from app.providers import replay_report
     from tests.test_providers import LockRedis
 
+    monkeypatch.setenv("LLM_ENABLED", "true")
+    monkeypatch.setattr("app.agent.OllamaAdapter", NewsLLM)
     monkeypatch.setenv("MODE", "live")
     monkeypatch.setenv("SECTORS_API_KEY", "test-only-fake-key")
     get_settings.cache_clear()

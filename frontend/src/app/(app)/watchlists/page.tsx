@@ -1,5 +1,5 @@
 "use client";
-import { Select } from "@/components/ui/Select";
+import { CompanyPicker } from "@/components/ui/CompanyPicker";
 
 import { useMemo, useRef, useState } from "react";
 import {
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/primitives";
 import { useStore } from "@/lib/store";
 import { USE_MOCKS } from "@/lib/api";
+import { sectorGroups } from "@/lib/sector-groups";
 import { CompetitorPerformanceSnapshot } from "@/components/dashboard/CompetitorPerformanceSnapshot";
 import {
   MAX_COMPANIES,
@@ -40,6 +41,7 @@ export default function WatchlistsPage() {
   } = useStore();
 
   const companies = watchlist?.companies ?? [];
+  const sectors = sectorGroups(companies, (company) => company.industry, (company) => company.ticker);
   const atCapacity = companies.length >= MAX_COMPANIES;
   const belowMinimum = companies.length < MIN_COMPANIES;
 
@@ -74,6 +76,7 @@ export default function WatchlistsPage() {
           }
         />
 
+        {sectors.length > 1 ? <p role="status" className="mb-4 rounded-field border border-divider bg-subtle p-3 text-sm leading-relaxed text-muted">Mixed-sector watchlist: {sectors.map((group) => group.label).join(", ")}. These are monitored companies, not one comparable peer group. Financial figures are separated by sector; cross-sector performance rankings are not supported.</p> : null}
         {belowMinimum ? (
           <p className="mb-3 rounded-[9px] border border-accent-wash-border bg-accent-wash px-3 py-2 text-[13px] text-ink-2">
             Add at least {MIN_COMPANIES} companies to start comparing competitor activity.
@@ -228,23 +231,19 @@ function OurCompanyPicker({
   value: string | null;
   onChange: (ticker: string | null) => void;
 }) {
-  const selectedCompany = value ? searchCatalogue(value).find((company) => company.ticker === value) : null;
-  const selectedOutsideWatchlist = Boolean(value && !companies.some((company) => company.ticker === value));
+  const alsoTracked = Boolean(value && companies.some((company) => company.ticker === value));
   return (
     <div className="block">
-      <span className="mb-1.5 block text-[13px] font-semibold text-ink-2">
-        Our company <span className="font-normal text-muted">(optional — frames AI comparison relative to us)</span>
-      </span>
-      <Select label="Our company" value={value ?? ""} onChange={(ticker) => onChange(ticker || null)} options={[
-        { value: "", label: "Neutral", description: "Compare competitors without a company perspective" },
-        ...(selectedOutsideWatchlist ? [{ value: value!, label: `${value}${selectedCompany ? ` · ${selectedCompany.name}` : ""}`, description: "Your company" }] : []),
-        ...companies.map((company) => ({ value: company.ticker, label: company.ticker, description: company.name })),
-      ]} />
-      <span className="mt-1.5 block text-[12px] text-muted">
-        {value
-          ? `Research is framed relative to ${value}.${selectedOutsideWatchlist ? " Your company is separate from the competitor watchlist." : " The performance snapshot marks it ★."}`
-          : "Leave neutral, or pick your company — or type “my company is TLKM” in chat."}
-      </span>
+      <CompanyPicker
+        label="Our company (optional)"
+        value={value}
+        onChange={(company) => onChange(company?.ticker ?? null)}
+        description="Search any supported Indonesian public company, independently of your competitors. Choosing it here does not add a competitor or use an extra slot. Choose Neutral to compare without a company perspective."
+      />
+      {value ? <p className="mt-1.5 text-xs leading-relaxed text-muted">
+        Research is framed relative to <strong>{value}</strong>.
+        {alsoTracked ? " It is also in your competitor list; removing it there will keep your company selection." : " Your company is separate from the competitor list."}
+      </p> : null}
     </div>
   );
 }

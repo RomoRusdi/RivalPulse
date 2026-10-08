@@ -34,12 +34,17 @@ def scope_boundary(current, previous, note, basis):
 
 
 def growth(current, previous):
-    """Adjacent annual figures with identical known metadata and a positive base."""
+    """Adjacent annual figures from one source with identical metadata and a positive base.
+
+    Growth is a ratio of the same company's own figures, so an unstated currency
+    cancels out as long as both years carry the same unit, currency label and
+    basis. Merger/scope boundaries are excluded by the callers.
+    """
     try:
-        if not known_metadata(current.get("currency"), current.get("unit"), current.get("comparison_basis")):
+        if not current.get("unit"):
             return None
-        if any(not current.get(key) or current.get(key) != previous.get(key)
-               for key in ("metric", "currency", "unit", "comparison_basis")):
+        if any(current.get(key) != previous.get(key) for key in ("currency", "unit", "comparison_basis")) \
+                or not current.get("metric") or current.get("metric") != previous.get("metric"):
             return None
         if int(current["period"]) != int(previous["period"]) + 1:
             return None

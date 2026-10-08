@@ -44,7 +44,7 @@
 .rp-field-focus { position: relative; }
 .rp-field-focus::after { content: ""; position: absolute; inset-inline: 0; bottom: 0; height: 46px; border-radius: var(--radius-field); box-shadow: 0 0 0 3px rgb(20 108 80 / .1); opacity: 0; pointer-events: none; transition: opacity var(--motion-standard) var(--motion-sheet); }
 .rp-field-focus:focus-within::after { opacity: 1; }
-.rp-chat-scroll { overflow-anchor: none; }
+.rp-chat-scroll { overflow-anchor: none; scrollbar-gutter: stable both-edges; }
 .rp-chat-scroll[data-scrolled="true"] { mask-image: linear-gradient(to bottom, transparent, black 12px); }
 :is(.rp-scrollbar, html) { scrollbar-width: thin; scrollbar-color: var(--color-neutral-300) transparent; }
 :is(.rp-scrollbar, html)::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -52,10 +52,10 @@
 :is(.rp-scrollbar, html)::-webkit-scrollbar-thumb { border-radius: 8px; background: var(--color-neutral-300); }
 :is(.rp-scrollbar, html)::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
 
-/* React ViewTransition uses the browser API, skipping it when unsupported.
-   CSS entrance is the fallback; the persistent shell stays in place. */
+/* Route entrance is a plain CSS fade/slide of the real new page. Snapshot-based
+   view transitions scaled the old page picture to the new size and looked
+   stretched for a moment; a live element cannot. The shell stays in place. */
 .rp-route-page { animation: rp-page-enter var(--motion-standard) var(--motion-sheet) backwards; }
-@supports (view-transition-name: match-element) { .rp-route-page { animation: none; } }
 ::view-transition { pointer-events: none; }
 ::view-transition-group(*) { animation: none; }
 ::view-transition-old(root) { display: none; }

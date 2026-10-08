@@ -46,14 +46,17 @@ export function Sidebar({ onNavigate, onAgentAction, collapsed = false, onToggle
       {group.items.filter((item) => visibleDestination(item.href)).map((item) => {
         const active = item.href === "/" ? pathname === "/" : item.href === "/settings" ? ["/settings", "/sectors"].some((path) => pathname.startsWith(path)) : pathname.startsWith(item.href);
         const Icon = item.icon;
+        const unread = item.href === "/signals" && newSinceLastCheck > 0 ? newSinceLastCheck : 0;
+        const accessibleLabel = unread ? `${item.label}, ${unread} unread finding${unread === 1 ? "" : "s"}` : item.label;
         return <div key={item.href}>
-          <Link href={item.href} transitionTypes={["rp-route"]} onClick={onNavigate} aria-label={item.label}
-            aria-current={active ? "page" : undefined} title={collapsed ? item.label : undefined}
+          <Link href={item.href} onClick={onNavigate} aria-label={accessibleLabel}
+            aria-current={active ? "page" : undefined} title={collapsed ? accessibleLabel : undefined}
             className={cx("rp-sidebar-link group relative flex min-h-11 items-center overflow-hidden rounded-field text-sm no-underline focus-visible:outline-2 focus-visible:outline-accent", active ? "bg-accent font-semibold text-surface" : "text-ink-2 hover:bg-[#e0ece5]")}>
             <span className="ml-1 flex w-11 shrink-0 items-center justify-center"><Icon size={17} strokeWidth={1.5} aria-hidden className={active ? "text-accent-bright" : "text-muted"} /></span>
             <span aria-hidden className="rp-sidebar-label min-w-0 flex-1 truncate pr-2">{item.label}</span>
-            {item.href === "/signals" && newSinceLastCheck > 0 ? <span className="absolute right-1 top-1 rounded-full bg-accent-wash px-1 text-[10px] font-bold text-accent-ink" aria-label={`${newSinceLastCheck} unread findings`}><AnimatedNumber value={newSinceLastCheck} /></span> : null}
-            {item.href === "/" && runBusy ? <span className="absolute right-1 top-1" aria-label="Investigation running"><span aria-hidden className="block h-2 w-2 animate-pulse rounded-full bg-accent-bright" /></span> : null}
+            {/* Solid pill that inverts on the active row; collapsed, a ringed dot on the icon. */}
+            {unread ? collapsed ? <span aria-hidden className={cx("absolute left-[34px] top-2 h-2 w-2 rounded-full ring-2", active ? "bg-surface ring-accent" : "bg-accent ring-sidebar")} /> : <span aria-hidden data-sidebar-count className={cx("mr-3 flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-center text-[11px] font-bold tabular-nums leading-none", active ? "bg-surface text-accent-ink" : "bg-accent text-surface")}>{unread > 99 ? "99+" : <AnimatedNumber value={unread} />}</span> : null}
+            {item.href === "/" && runBusy ? <span aria-label="Investigation running" className={collapsed ? "absolute left-[34px] top-2" : "mr-3.5 flex shrink-0"}><span aria-hidden className={cx("block h-2 w-2 animate-pulse rounded-full", active ? "bg-accent-bright" : "bg-accent", collapsed && (active ? "ring-2 ring-accent" : "ring-2 ring-sidebar"))} /></span> : null}
           </Link>
           {item.href === "/" ? <AgentControls active={pathname === "/"} collapsed={collapsed} onAction={onAgentAction ?? onNavigate} /> : null}
         </div>;

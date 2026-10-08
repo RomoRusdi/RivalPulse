@@ -17,12 +17,7 @@ const ITEMS: { href: Route; label: string; icon: typeof User }[] = [
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
-/**
- * The top-bar avatar, which used to be a decorative circle.
- *
- * Roving focus rather than a focus trap: a menu should let Tab leave, while
- * the arrow keys walk the items and Escape returns focus to the trigger.
- */
+/** Account menu with arrow-key navigation; Tab leaves and Escape returns focus to the trigger. */
 export function UserMenu() {
   const { profile } = useStore();
   const auth = useOptionalAuth();

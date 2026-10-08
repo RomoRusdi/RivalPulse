@@ -29,7 +29,7 @@ export const RUN_STEPS: RunStep[] = [
 
 export const WATCHLIST: Watchlist = {
   id: "wl-telco-id",
-  name: "Telco ID",
+  name: "Competitors",
   companies: [
     { ticker: "TLKM", name: "Telkom Indonesia", industry: "Telecommunication" },
     {
@@ -390,6 +390,9 @@ export const MIX_ORDER: SignalType[] = [
   "Product",
   "Partnership",
   "Campaign",
+  "Financial update",
+  "Analyst commentary",
+  "Market context",
 ];
 
 export const MIX_COLORS: Record<SignalType, string> = {
@@ -397,6 +400,9 @@ export const MIX_COLORS: Record<SignalType, string> = {
   Product: "#122d23",
   Partnership: "#b5c9bd",
   Campaign: "#b8dcc9",
+  "Financial update": "#536778",
+  "Analyst commentary": "#766546",
+  "Market context": "#66756D",
 };
 
 /**

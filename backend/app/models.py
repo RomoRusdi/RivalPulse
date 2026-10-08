@@ -28,6 +28,33 @@ class Workspace(Base):
     created_at: Mapped[object] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class LLMConfiguration(Identity, Base):
+    """Versioned model selection; never put plaintext keys into research inputs."""
+    __tablename__ = "llm_configurations"
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), index=True)
+    provider: Mapped[str] = mapped_column(String(20))
+    model: Mapped[str] = mapped_column(String(100))
+    enabled: Mapped[bool] = mapped_column(Boolean)
+    cloud_consent: Mapped[bool] = mapped_column(Boolean, default=False)
+    encrypted_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class WorkspaceLLM(Base):
+    __tablename__ = "workspace_llm"
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), primary_key=True)
+    configuration_id: Mapped[str] = mapped_column(ForeignKey("llm_configurations.id"))
+
+
+class WorkspaceDataKey(Base):
+    """A workspace's own data-provider key, encrypted like model keys. Research
+    uses it before the server default; it is never returned to a browser."""
+    __tablename__ = "workspace_data_keys"
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(20), primary_key=True, default="sectors")
+    encrypted_key: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[object] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class WorkspaceMembership(Base):
     __tablename__ = "workspace_memberships"
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)

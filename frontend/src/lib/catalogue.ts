@@ -254,6 +254,34 @@ export const TYPO_STOPWORDS = new Set([
   "kecil", "tinggi", "rendah", "baik", "buruk", "harga", "berita", "pasar",
   "saham", "tren", "laba", "rugi", "untung", "naik", "turun", "berubah",
   "perubahan", "friend", "teman", "kawan",
+  // Product vocabulary is not a misspelled ticker or company alias.
+  "annual", "revenue", "growth", "net", "margin", "margins", "profit",
+  "earnings", "sales", "market", "share", "shares", "value", "values",
+  "rate", "rates", "unit", "units", "currency", "period", "scope",
+  "evidence", "supporting", "position", "comparison", "limitations",
+  "report", "reports", "change", "changes", "pendapatan", "tahunan",
+  "pertumbuhan", "bukti", "posisi", "batasan", "laporan", "penjualan",
+  // Question vocabulary the router understands ("BBCA plans" is not PGAS,
+  // "NPL" is not ARTO, "berapa" is not ERAA).
+  "plan", "plans", "strategy", "update", "updates", "news", "launch", "launched",
+  "ship", "shipped", "release", "released", "deal", "deals", "merger", "risk", "risks",
+  "lately", "recently", "recent", "doing", "better", "bigger", "leading", "winning",
+  "dividend", "dividends", "stock", "stocks", "loan", "loans", "credit", "deposit",
+  "deposits", "debt", "assets", "equity", "capex", "ebitda", "npl", "nim", "casa",
+  "roe", "roa", "ojk", "ihsg", "idx", "ipo", "bank", "banks", "app", "apps",
+  "feature", "features", "branch", "branches", "berapa", "kabar", "rencana",
+  "strategi", "dividen", "kredit", "pinjaman", "utang", "aset", "cabang", "fitur",
+  "aplikasi", "layanan", "rilis", "luncurkan", "terakhir", "hari", "minggu",
+  "bulan", "tahun", "lagi", "ngapain", "gimana", "bagaimana", "kinerja",
+  "ratio", "ratios", "rasio", "since", "sejak", "anything", "lebih",
+  // Recall and fresh-data vocabulary ("fresh" is not FREN).
+  "fresh", "refresh", "again", "latest", "newest", "data", "stored", "saved", "found",
+  "findings", "know", "summary", "recap", "review", "overview", "terbaru", "terkini",
+  "temuan", "tersimpan", "ringkas", "ringkasan", "rekap", "sebelumnya",
+  // Indonesian research verbs ("riset" is not ISAT).
+  "riset", "teliti", "selidiki", "investigasi", "analisis", "analisa", "bandingkan", "cari",
+  // Found by checking ~375 common business words against all 36 companies.
+  "trend", "trends", "power", "media", "kerja", "neraca", "merek", "impor", "ekspor",
 ]);
 
 /**
@@ -275,9 +303,10 @@ function stemPossessive(lower: string): string | null {
 /**
  * Company names the user probably mistyped ("reserch on bcca", "brbi").
  * Caps-only tickers are owned by missedTickers and skipped here; tokens that
- * match anything exactly are skipped too. A suggestion needs a unique winner
- * within a tight threshold (1 edit for short tokens, 2 for longer ones), so
- * ordinary words never match.
+ * match anything exactly are skipped too. Single words may match only a whole
+ * ticker or single-word alias, never a fragment of a multi-word name. Phrase
+ * typos need every other word to match exactly. Suggestions need a unique
+ * winner within a tight threshold; financial vocabulary is excluded.
  */
 export function suggestCompanies(text: string): CompanyTypo[] {
   const tokens = [...new Set(text.match(/[\p{L}\p{N}]{3,}/gu) ?? [])];
@@ -292,7 +321,7 @@ export function suggestCompanies(text: string): CompanyTypo[] {
       if (WORD_LIKE_TICKERS.has(company.ticker)) continue;
       const candidates = [
         company.ticker,
-        ...(COMPANY_ALIASES[company.ticker] ?? []).flatMap((alias) => alias.split(/\s+/)),
+        ...(COMPANY_ALIASES[company.ticker] ?? []).filter((alias) => !/\s/.test(alias)),
       ];
       for (const candidate of candidates) {
         if (!candidate || candidate.length < 3) continue;
@@ -308,6 +337,52 @@ export function suggestCompanies(text: string): CompanyTypo[] {
     if (best && !best.tied && !seen.has(best.company.ticker)) {
       seen.add(best.company.ticker);
       suggestions.push({ company: best.company, token });
+    }
+  }
+  // Keep genuine phrase typos such as 'jasa margga' recoverable without
+  // turning the ordinary word 'margin' into a Jasa Marga request. Only one
+  // phrase word may be misspelled; the rest must identify the name exactly.
+  const words = [...text.matchAll(/[\p{L}\p{N}]+/gu)];
+  for (let start = 0; start < words.length; start++) {
+    let best: { company: Company; distance: number; tied: boolean; token: string } | null = null;
+    for (const company of COMPANY_CATALOGUE) {
+      if (WORD_LIKE_TICKERS.has(company.ticker)) continue;
+      const phrases = [company.name, ...(COMPANY_ALIASES[company.ticker] ?? [])];
+      for (const phrase of phrases) {
+        const parts = phrase.toLowerCase().split(/\s+/);
+        if (parts.length < 2 || start + parts.length > words.length) continue;
+        const window = words.slice(start, start + parts.length);
+        const at = window[0].index;
+        const end = window.at(-1)!.index + window.at(-1)![0].length;
+        const token = text.slice(at, end);
+        if (!/^[\p{L}\p{N}\s]+$/u.test(token)) continue;
+        let distance = 0;
+        let differences = 0;
+        for (let index = 0; index < parts.length; index++) {
+          const lower = window[index][0].toLowerCase();
+          if (lower === parts[index]) continue;
+          if (TYPO_STOPWORDS.has(lower) || KNOWN_WORDS.has(lower) || stemPossessive(lower)) {
+            differences = 2;
+            break;
+          }
+          distance = editDistance(lower, parts[index]);
+          if (distance > (lower.length <= 4 ? 1 : 2)) {
+            differences = 2;
+            break;
+          }
+          differences++;
+        }
+        if (differences !== 1) continue;
+        if (!best || distance < best.distance) {
+          best = { company, distance, tied: false, token };
+        } else if (distance === best.distance && best.company.ticker !== company.ticker) {
+          best.tied = true;
+        }
+      }
+    }
+    if (best && !best.tied && !seen.has(best.company.ticker)) {
+      seen.add(best.company.ticker);
+      suggestions.push({ company: best.company, token: best.token });
     }
   }
   return suggestions.slice(0, 3);

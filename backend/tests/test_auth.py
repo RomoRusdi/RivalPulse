@@ -386,7 +386,7 @@ def test_account_ai_context_and_conversation_references(account_client, monkeypa
 
     monkeypatch.setenv("LLM_ENABLED", "true")
     get_settings.cache_clear()
-    monkeypatch.setattr("app.chat.OllamaAdapter", Talker)
+    monkeypatch.setattr("app.agent.OllamaAdapter", Talker)
     assert mutate(c, "/chat", {"message": "Hello RivalPulse"}).json()["source"] == "llm"
     prompt_a = json.dumps(captured[-1])
     assert "Account A confidential" in prompt_a and "Our company: ISAT" in prompt_a

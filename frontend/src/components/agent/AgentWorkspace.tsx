@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { Route as NextRoute } from "next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChatScroll } from "@/lib/use-chat-scroll";
 import { ReceivedText } from "./ReceivedText";
@@ -24,6 +25,9 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { AgentPrompt, type PromptSuggestion } from "./AgentPrompt";
+import { PeerComparison } from "./PeerComparison";
+import { DecisionSupport } from "@/components/signal/DecisionSupport";
+import { sectorGroups, sectorKey } from "@/lib/sector-groups";
 import styles from "./AgentWorkspace.module.css";
 import { useRegisterAgentNavigation } from "./AgentNavigation";
 import { promptSuggestions } from "@/lib/prompt-suggestions";
@@ -32,7 +36,7 @@ import { FinancialValue } from "@/components/ui/FinancialValue";
 import { Pill, cx } from "@/components/ui/primitives";
 import { useStore } from "@/lib/store";
 import { clock, prettyBriefKind, BRIEF_KINDS, runFailureMessage } from "@/lib/format";
-import { routeMessage, detectLanguage } from "@/lib/agent-router";
+import { routeMessage, detectLanguage, type RouteSuggestion } from "@/lib/agent-router";
 import {
   type ChatMessage,
   type ChatSession,
@@ -82,6 +86,7 @@ export function AgentWorkspace({ initialPrompt = "", initialAction }: { initialP
   const pendingRun = useRef<PendingRun | null>(null);
   const pendingSync = useRef<Promise<unknown>>(Promise.resolve());
   const clearingRef = useRef(false);
+  const syncedPayloads = useRef(new Map<string, string>());
 
   const busy = activeRun?.status === "queued" || activeRun?.status === "running";
 
@@ -91,6 +96,17 @@ export function AgentWorkspace({ initialPrompt = "", initialAction }: { initialP
   );
   const scrollSignature = `${selectedSession?.messages.length ?? 0}:${selectedSession?.updatedAt ?? ""}:${activeRun?.currentStep ?? -1}:${activeRun?.status ?? "idle"}:${activeRun?.toolCalls.length ?? 0}`;
   const { viewport: scrollRef, content: contentRef, resume: resumeScroll, showJump, scrolled, onScroll: onConversationScroll, jump } = useChatScroll(selectedSessionId, scrollSignature);
+  // The composer floats over the conversation; its live height pads the
+  // messages so the last one can always scroll clear of it.
+  const dockRef = useRef<HTMLDivElement>(null);
+  const [dockHeight, setDockHeight] = useState(0);
+  useEffect(() => {
+    const dock = dockRef.current;
+    if (!dock || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => setDockHeight(Math.ceil(entry.target.getBoundingClientRect().height)));
+    observer.observe(dock);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -100,6 +116,9 @@ export function AgentWorkspace({ initialPrompt = "", initialAction }: { initialP
       getConversationHistory().then((remote) => {
         if (!active) return;
         const stored = storageScope ? remote : mergeHistories(local, remote);
+        // Server delivery may contain read-only report corrections. Merely
+        // loading those views must not POST them back into saved history.
+        syncedPayloads.current = new Map(remote.map((session) => [session.id, JSON.stringify(persistable(session))]));
         setSessions(stored);
         setSelectedSessionId(initialAction === "new" ? null : stored[0]?.id ?? null);
         if (initialAction === "history") setHistoryOpen(true);
@@ -114,8 +133,14 @@ export function AgentWorkspace({ initialPrompt = "", initialAction }: { initialP
   useEffect(() => {
     if (!historyReady || clearingRef.current) return;
     saveChatHistory(sessions, storageScope);
+    const changed = sessions.map((session) => ({ session: persistable(session), signature: JSON.stringify(persistable(session)) }))
+      .filter(({ session, signature }) => syncedPayloads.current.get(session.id) !== signature);
+    if (!changed.length) return;
     const timer = window.setTimeout(() => {
-      if (!clearingRef.current) pendingSync.current = Promise.all(sessions.map((session) => saveConversation(persistable(session))))
+      if (!clearingRef.current) pendingSync.current = Promise.all(changed.map(async ({ session, signature }) => {
+        await saveConversation(session);
+        syncedPayloads.current.set(session.id, signature);
+      }))
         .then(() => setHistoryError(null))
         .catch(() => { setHistoryError("Conversation changes could not be saved. Check your connection, then send another message to retry."); });
     }, 600);
@@ -344,15 +369,23 @@ export function AgentWorkspace({ initialPrompt = "", initialAction }: { initialP
         createdAt: new Date().toISOString(),
       }], conversationTitle(clean));
       setChatPending(true);
-      const settle = (content: string, label?: string) => setSessions((current) => current.map((session) => ({
+      const settle = (content: string, label?: string, suggestions?: RouteSuggestion[]) => setSessions((current) => current.map((session) => ({
         ...session,
         updatedAt: session.id === sessionId ? new Date().toISOString() : session.updatedAt,
         messages: session.messages.map((message) => message.id === replyId
-          ? { ...message, content, label, pending: false, createdAt: new Date().toISOString() }
+          ? { ...message, content, label, suggestions, pending: false, createdAt: new Date().toISOString() }
           : message),
       })));
-      sendChat(clean, history)
-        .then((reply) => settle(reply.reply, reply.source === "llm" ? "AI response" : reply.source === "fallback" ? "Assistant unavailable" : "Research guidance"))
+      // Stored summaries are free; new data is always one deliberate tap away.
+      const tickers = (route.companies ?? []).map((company) => company.ticker).slice(0, 3);
+      const refresh: RouteSuggestion[] = route.saved ? [{
+        label: route.language === "id" ? "Riset dengan data baru (memakai kredit)" : "Research with new data (uses credits)",
+        prompt: route.language === "id"
+          ? `Riset ${tickers.length ? tickers.join(" dan ") : "kompetitor saya"} dengan data baru`
+          : `Research ${tickers.length ? tickers.join(" and ") : "my competitors"} with new data`,
+      }] : [];
+      sendChat(clean, history, { saved: route.saved, symbols: tickers })
+        .then((reply) => settle(reply.reply, reply.source === "saved_evidence" ? "Saved evidence · no new collection" : reply.source === "workspace" ? "Workspace · no credits used" : reply.source === "llm" ? "AI response" : reply.source === "fallback" ? "Assistant unavailable" : "Research guidance", reply.source === "saved_evidence" ? refresh : undefined))
         .catch(() => settle(route.language === "id"
           ? "Maaf, saya tidak bisa menjawab saat ini. Perintah watchlist dan investigasi tetap berfungsi."
           : "Sorry — I can't reply right now. Watchlist commands and investigations still work."))
@@ -494,7 +527,7 @@ export function AgentWorkspace({ initialPrompt = "", initialAction }: { initialP
   };
 
   return (
-    <section className={styles.workspace} data-welcome={welcome} aria-label="RivalPulse agent workspace">
+    <section className={styles.workspace} data-welcome={welcome} aria-label="RivalPulse agent workspace" style={{ "--dock-height": `${dockHeight}px` } as React.CSSProperties}>
       {!welcome ? <header className={cx(styles.toolbar, "rp-agent-header relative flex shrink-0 items-start px-4 pt-4 pb-3 md:px-6")} data-scrolled={scrolled}>
         <h1 className="rp-agent-heading min-w-0 text-[clamp(17px,2vw,22px)] font-bold leading-snug tracking-tight" data-compact="true">What would you like to know today?</h1>
       </header> : null}
@@ -506,7 +539,7 @@ export function AgentWorkspace({ initialPrompt = "", initialAction }: { initialP
         data-scrolled={scrolled}
         className={cx("rp-chat-scroll rp-scrollbar min-h-0", welcome ? styles.emptyMessages : "flex-1 overflow-y-auto overscroll-contain")}
       >
-        <div ref={contentRef}>
+        <div ref={contentRef} className={welcome ? undefined : styles.messagesPad}>
         {selectedSession ? (
           <Conversation
             session={selectedSession}
@@ -519,15 +552,15 @@ export function AgentWorkspace({ initialPrompt = "", initialAction }: { initialP
         </div>
       </div>
 
-      <div className={cx(styles.promptDock, "rp-scrollbar")} data-welcome={welcome}>
+      <div ref={dockRef} className={cx(styles.promptDock, "rp-scrollbar")} data-welcome={welcome}>
         {showJump && selectedSession ? (
         <button
           type="button"
           onClick={jump}
           aria-label="Jump to latest message"
-          className="rp-press sticky top-0 z-10 mx-auto mb-2 flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-full border border-border bg-card px-4 text-xs font-semibold text-ink-2 shadow-sm hover:bg-subtle"
+          className="rp-press sticky top-0 z-10 mx-auto mb-2 flex min-h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-border bg-card px-3 text-[11px] font-semibold text-ink-2 shadow-sm hover:bg-subtle"
         >
-          <ArrowDown aria-hidden size={15} />Jump to latest
+          <ArrowDown aria-hidden size={13} />Jump to latest
         </button>
         ) : null}
         <AgentPrompt key={composerVersion} {...composerProps} />
@@ -579,7 +612,7 @@ function Conversation({ session, liveRunId, onCancel, onRetry, onLaunch }: { ses
 function AssistantMessage({ message, live, onCancel, onRetry, onLaunch }: { message: ChatMessage; live: boolean; onCancel: () => void; onRetry: () => void; onLaunch: (prompt: string) => void }) {
   if (message.kind === "instant") {
     return (
-      <div className="max-w-[720px] rounded-detail border border-divider bg-card px-4 py-3.5">
+      <div className="w-full rounded-detail border border-divider bg-card px-4 py-3.5">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-ink-strong text-white"><Check size={11} strokeWidth={3} /></span>
           <span className="text-xs font-extrabold text-ink">{message.label === "Instant action" ? "Workspace update" : message.label === "Perintah instan" ? "Pembaruan workspace" : message.label}</span>
@@ -605,7 +638,7 @@ function AssistantMessage({ message, live, onCancel, onRetry, onLaunch }: { mess
 
   if (message.kind === "chat") {
     return (
-      <div className="max-w-[720px] rounded-detail border border-divider bg-card px-4 py-3.5">
+      <div className="w-full rounded-detail border border-divider bg-card px-4 py-3.5">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-subtle text-accent">
             {message.pending ? <LoaderCircle size={11} className="animate-spin" /> : <MessageSquareText size={11} />}
@@ -617,8 +650,18 @@ function AssistantMessage({ message, live, onCancel, onRetry, onLaunch }: { mess
           className={cx("whitespace-pre-line text-[13px] leading-[1.65]", message.pending ? "text-muted" : "text-ink-2")}
           aria-live="polite"
         >
-          <ReceivedText text={message.content} />
+          {message.label?.startsWith("Saved evidence") ? message.content.split(/(Evidence: \/signals\/[a-f0-9-]{36})/g).map((part, index) => part.startsWith("Evidence: /signals/") ? <Link key={index} href={part.replace("Evidence: ", "") as NextRoute} className="font-bold text-accent-ink underline underline-offset-2">Open saved evidence →</Link> : <span key={index}>{part}</span>) : <ReceivedText text={message.content} />}
         </p>
+        {message.suggestions && message.suggestions.length > 0 ? (
+          <div className="mt-2.5 flex flex-wrap gap-1.5" role="group" aria-label="Suggested follow-ups">
+            {message.suggestions.map((suggestion) => (
+              <button key={`${suggestion.label}::${suggestion.prompt}`} type="button" onClick={() => onLaunch(suggestion.prompt)}
+                className="cursor-pointer rounded-full border border-accent-wash-border bg-accent-wash px-3 py-1.5 text-xs font-bold text-accent-ink transition-console hover:bg-accent hover:text-white active:scale-95">
+                {suggestion.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -626,7 +669,7 @@ function AssistantMessage({ message, live, onCancel, onRetry, onLaunch }: { mess
   if (message.kind === "research") {
     if (!message.run) {
       return (
-        <div className="max-w-[720px] rounded-detail border border-divider bg-card px-4 py-3.5">
+        <div className="w-full rounded-detail border border-divider bg-card px-4 py-3.5">
           <div className="flex items-center gap-2 text-sm font-bold"><LoaderCircle size={14} className="animate-spin text-accent" /> Preparing your research</div>
           <p className="mt-2 text-xs leading-[1.6] text-muted">Reviewing your question and selecting relevant sources…</p>
         </div>
@@ -663,12 +706,13 @@ function SignalLinkList({ items, total }: { items: Signal[]; total: number }) {
 function ResearchRunMessage({ run, live, onCancel, onRetry }: { run: AgentRun; live: boolean; onCancel: () => void; onRetry: () => void }) {
   const busy = run.status === "queued" || run.status === "running";
   const { signals, watchlist } = useStore();
-  const industries = (run.financialBrief?.rows.map((row) => watchlist?.companies.find((company) => company.ticker === row.symbol)?.industry)
-    ?? signals.filter((signal) => signal.runId === run.id).map((signal) => watchlist?.companies.find((company) => company.ticker === signal.company)?.industry));
+  const industries = (run.comparison?.entries.map((entry) => entry.industry)
+    ?? run.financialBrief?.rows.map((row) => row.industry)
+    ?? signals.filter((signal) => signal.runId === run.id).map((signal) => watchlist?.companies.find((company) => company.ticker === signal.company)?.industry)).map(sectorKey);
   const allowComparison = industries.length > 0 && industries.every(Boolean) && new Set(industries).size === 1;
   if (run.status === "failed") {
     return (
-      <div className="max-w-[760px] rounded-detail border border-accent-wash-border bg-card p-4">
+      <div className="w-full rounded-detail border border-accent-wash-border bg-card p-4">
         <div className="flex items-center gap-2 font-bold text-ink"><X size={16} className="text-accent-ink" /> {run.failedTool === "CANCELLED" || run.failedTool === "cancelled by user" ? "Investigation stopped" : "Research could not finish"}</div>
         <p className="mt-2 text-[13px] leading-[1.6] text-muted">{runFailureMessage(run.failedTool)}</p>
         <p className="mt-1.5 font-mono text-[11px] text-muted">
@@ -684,9 +728,15 @@ function ResearchRunMessage({ run, live, onCancel, onRetry }: { run: AgentRun; l
     const partial = run.coverageStatus === "partial";
     // Baselines belong to this run too: match stored signals by run id so a
     // first investigation shows its comparison instead of a dead end.
-    const runSignals = signals.filter((s) => s.runId === run.id);
-    const baselineCount = runSignals.filter((s) => !run.producedSignalIds?.includes(s.id)).length;
-    const shown = runSignals.slice(0, 6);
+    const runSignals = run.findings?.length ? run.findings : signals.filter((s) => s.runId === run.id);
+    const contextCount = runSignals.filter((s) => s.findingScope && s.findingScope !== "competitor_move").length;
+    const baselineCount = runSignals.filter((s) => (!s.findingScope || s.findingScope === "competitor_move") && (s.changeStatus === "baseline" || (!s.changeStatus && !run.producedSignalIds?.includes(s.id)))).length;
+    // Competitor moves get the full implication treatment; context (analyst
+    // notes, sector coverage) is listed compactly so it never buries the answer.
+    const moves = runSignals.filter((s) => !s.findingScope || s.findingScope === "competitor_move");
+    const context = runSignals.filter((s) => s.findingScope && s.findingScope !== "competitor_move");
+    const shown = moves.slice(0, 6);
+    const activityRun = run.orchestration?.route === "competitive_activity";
     // A comparison that published nothing new still answers better with the
     // relevant stored signals for the compared companies — but only then, so
     // fresh findings are never duplicated below.
@@ -700,7 +750,7 @@ function ResearchRunMessage({ run, live, onCancel, onRetry }: { run: AgentRun; l
         ? signals.filter((s) => comparedSymbols.includes(s.company)).length
         : 0;
     return (
-      <div className="rp-card max-w-[760px] rounded-detail border border-divider bg-card p-4 md:p-5">
+      <div className="rp-card w-full rounded-detail border border-divider bg-card p-4 md:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-[14px] font-bold">
             <span className={cx("flex h-5 w-5 items-center justify-center rounded-full text-white", partial ? "bg-ink-2" : "bg-accent")}><Check size={12} strokeWidth={3} /></span>
@@ -709,20 +759,34 @@ function ResearchRunMessage({ run, live, onCancel, onRetry }: { run: AgentRun; l
           <Pill tone="neutral"><Clock3 size={11} className="mr-1 inline" />{clock(run.elapsedSeconds)}</Pill>
         </div>
         <p className="mt-3 text-[14px] leading-[1.7] text-ink-2">{run.resultSummary ?? "The evidence was collected, validated, and stored."}</p>
+        {run.orchestration?.newsReview ? <p className="mt-3 text-xs leading-relaxed text-muted">Read the {run.orchestration.newsReview.selected_articles} most relevant {run.orchestration.newsReview.selected_articles === 1 ? "article" : "articles"} about the companies you asked about{run.orchestration.newsReview.window_days ? ` from the last ${run.orchestration.newsReview.window_days} days` : ""}; {run.orchestration.newsReview.not_reviewed} others were not read. This is a focused review, not an exhaustive news search.</p> : null}
+        {run.comparison ? <PeerComparison comparison={run.comparison} brief={run.financialBrief} /> : null}
         <details className="mt-4 rounded-detail border border-divider bg-subtle/50 p-3.5">
           <summary className="cursor-pointer text-xs font-bold text-ink-2">Source coverage{partial ? " · gaps remain" : " · review evidence"}</summary>
           <p className="mt-3 text-xs leading-relaxed text-muted">{partial ? "Some evidence could not be verified. The available findings remain saved; review their sources before using them." : "Research reflects the sources available at the time of the investigation. Open a finding to review its evidence."}</p>
           {run.orchestration?.gaps?.length ? <ul className="mt-3 flex flex-col gap-2">{run.orchestration.gaps.map((gap, index) => <li key={`${gap.symbol}-${gap.missing}-${index}`} className="text-xs leading-relaxed text-ink-2"><strong>{gap.symbol}</strong> — {gap.missing === "financial" ? "Financial statements unavailable or incomplete" : gap.missing === "public_events" ? "Recent company activity could not be fully verified" : "Supporting evidence unavailable or incomplete"}</li>)}</ul> : null}
           <Link href="/signals" className="mt-3 inline-flex min-h-9 items-center gap-1.5 text-xs font-bold text-accent-ink no-underline hover:text-accent">Review finding sources <ArrowRight aria-hidden size={13} /></Link>
         </details>
-        {run.financialBrief ? <FinancialEvidence brief={run.financialBrief} /> : null}
+        {run.financialBrief ? (activityRun && !run.comparison
+          ? <details className="mt-4 rounded-detail border border-divider p-3.5"><summary className="cursor-pointer text-xs font-bold text-ink-2">Annual financial context (not asked; for reference)</summary><FinancialEvidence brief={run.financialBrief} perspective={null} industries={{}} /></details>
+          : <FinancialEvidence brief={run.financialBrief} perspective={run.comparison?.perspective ?? null} industries={Object.fromEntries(run.comparison?.entries.map((entry) => [entry.symbol, entry.industry]) ?? [])} />) : null}
         {shown.length > 0 ? (
           <div className="mt-4 border-t border-divider pt-4">
             <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-muted-strong">
-              Findings in this run ({runSignals.length})
+              Competitor moves in this run ({moves.length})
             </p>
-            <SignalLinkList items={shown} total={runSignals.length} />
+            <SignalLinkList items={shown} total={moves.length} />
+            <div className="mt-3 space-y-3">{shown.map((signal, index) => <details key={signal.id} open={index === 0} className="rounded-field border border-divider p-3">
+              <summary className="cursor-pointer break-words text-xs font-bold text-ink-2">{signal.company} · Implication and next step</summary>
+              <div className="mt-3"><DecisionSupport signal={signal} compact /></div>
+            </details>)}</div>
           </div>
+        ) : null}
+        {context.length > 0 ? (
+          <details className="mt-4 rounded-detail border border-divider p-3.5">
+            <summary className="cursor-pointer text-xs font-bold text-ink-2">Related coverage ({context.length}) · analyst and market context, not competitor moves</summary>
+            <SignalLinkList items={context.slice(0, 8)} total={context.length} />
+          </details>
         ) : null}
         {relevantSignals.length > 0 ? (
           <div className="mt-4 border-t border-divider pt-4">
@@ -733,7 +797,7 @@ function ResearchRunMessage({ run, live, onCancel, onRetry }: { run: AgentRun; l
           </div>
         ) : null}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-divider pt-4">
-          <span className="text-xs text-muted">{run.financialBrief && run.orchestration?.route === "financial_statements" ? "Financial context only · no claims about recent competitor moves" : produced ? `${produced} evidence-backed ${produced === 1 ? "signal" : "signals"} published` : partial ? "Some sources were unavailable. Review coverage and each finding’s evidence." : baselineCount ? `${baselineCount} baseline ${baselineCount === 1 ? "observation" : "observations"} recorded — the reference for future runs` : signals.length > 0 ? "No new findings in this run — previously observed findings are in Signals" : run.financialBrief ? "No new announcements; cited annual comparison below" : "No publishable changes in the available evidence"}</span>
+          <span className="text-xs text-muted">{run.financialBrief && run.orchestration?.route === "financial_statements" ? "Financial context only · no claims about recent competitor moves" : produced ? `${produced} evidence-backed ${produced === 1 ? "signal" : "signals"} published` : partial ? "Some sources were unavailable. Review coverage and each finding’s evidence." : contextCount === runSignals.length && contextCount > 0 ? `${contextCount} context-only findings · no verified competitor moves in these articles` : runSignals.some((signal) => signal.changeStatus === "unchanged") ? "No new competitive changes in this run; saved evidence and this investigation’s interpretation are shown above" : baselineCount ? `${baselineCount} baseline ${baselineCount === 1 ? "observation" : "observations"} recorded — the reference for future runs` : signals.length > 0 ? "No new findings in this run — previously observed findings are in Signals" : run.financialBrief ? "No new announcements; cited annual comparison below" : "No publishable changes in the available evidence"}</span>
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -757,7 +821,7 @@ function ResearchRunMessage({ run, live, onCancel, onRetry }: { run: AgentRun; l
   const currentLabel = researchStage(run.steps[Math.max(0, run.currentStep)]?.label ?? "Preparing investigation");
 
   return (
-    <div className="max-w-[780px] overflow-hidden rounded-detail border border-divider bg-card">
+    <div className="w-full overflow-hidden rounded-detail border border-divider bg-card">
       <div className="border-b border-divider bg-subtle/55 px-4 py-3.5 md:px-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -824,11 +888,17 @@ function researchActivity(name: string): string {
   return labels[name] ?? name.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
 }
 
-function FinancialEvidence({ brief }: { brief: NonNullable<AgentRun["financialBrief"]> }) {
+function FinancialEvidence({ brief, perspective, industries = {} }: { brief: NonNullable<AgentRun["financialBrief"]>; perspective: string | null; industries?: Record<string, string> }) {
+  const groups = sectorGroups(brief.rows, (row) => row.industry || industries[row.symbol], (row) => row.symbol);
   return (
     <div className="mt-4 border-t border-divider pt-4">
       <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-accent-ink">Cited annual statements {brief.period ? `· ${brief.period}` : "· periods vary"}</p>
-      <ComparisonTable brief={brief} />
+      {groups.length > 1 ? <p className="mt-3 rounded-field bg-subtle p-3 text-xs leading-relaxed text-muted">Mixed-sector watchlist. Annual figures are separated by sector and shown as reported context, not one peer comparison. Bank revenue and telecom revenue measure different businesses.</p> : null}
+      {groups.map((group) => <section key={group.label} aria-label={`${group.label} annual context`} className="mt-4">
+        <h3 className="text-xs font-bold text-ink-2">{group.label} · reported annual context</h3>
+        <ComparisonTable brief={{ ...brief, rows: group.items }} perspective={perspective} />
+      </section>)}
+      <p className="mt-3 rounded-field bg-subtle p-3 text-xs leading-relaxed text-muted">Percentage labels distinguish calculated annual growth from Sectors-reported margins. A reported percentage does not verify the currency/scale of monetary figures or make companies comparable. Unverified calculated annual growth is withheld.</p>
       <p className="mt-2 text-xs leading-relaxed text-muted-strong">
         Select a value to see its exact reported amount and units, or open the company report. Unverified amounts are excluded from monetary growth comparisons.
       </p>
@@ -850,9 +920,8 @@ function FinancialEvidence({ brief }: { brief: NonNullable<AgentRun["financialBr
  * "compare" answer actually compares instead of stacking per-company cards.
  * Every cell links its cited source; missing cells say so instead of hiding.
  */
-function ComparisonTable({ brief }: { brief: NonNullable<AgentRun["financialBrief"]> }) {
-  const { watchlist } = useStore();
-  const ours = watchlist?.user_company ?? null;
+function ComparisonTable({ brief, perspective }: { brief: NonNullable<AgentRun["financialBrief"]>; perspective: string | null }) {
+  const ours = perspective;
   const present = BRIEF_KINDS.filter((kind) =>
     brief.rows.some((row) => row.metrics.some((metric) => metric.metric === kind)),
   );
@@ -870,8 +939,10 @@ function ComparisonTable({ brief }: { brief: NonNullable<AgentRun["financialBrie
   }
 
   return (
-    <div className="mt-3 overflow-x-auto rounded-field border border-divider">
-      <table className="w-full min-w-[480px] border-collapse text-xs">
+    <div className="mt-3">
+      {brief.rows.length > 1 ? <p className="mb-2 text-[11px] leading-relaxed text-muted md:hidden">Scroll sideways to see all companies →</p> : null}
+      <div tabIndex={0} role="region" aria-label={`Annual figures for ${brief.rows.map((row) => row.symbol).join(", ")}; scroll horizontally if needed`} className="overflow-x-auto rounded-field border border-divider focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
+      <table className={cx("w-full border-collapse text-xs", brief.rows.length > 1 && "min-w-[480px]")}>
         <thead>
           <tr className="bg-subtle/70">
             <th className="px-3 py-2 text-left font-bold text-muted">Metric · Period</th>
@@ -911,6 +982,7 @@ function ComparisonTable({ brief }: { brief: NonNullable<AgentRun["financialBrie
           )}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

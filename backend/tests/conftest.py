@@ -36,6 +36,7 @@ def env(tmp_path, monkeypatch):
     seed()
     import fakeredis
     test_redis = fakeredis.FakeRedis()
+    monkeypatch.setattr("app.providers.redis_connection", lambda: test_redis)
     monkeypatch.setattr("app.chat.redis_connection", lambda: test_redis)
     monkeypatch.setattr("app.jobs.enqueue", lambda run_id: True)
     yield get_settings()

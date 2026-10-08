@@ -1,80 +1,94 @@
 # RivalPulse
 
-**AI competitive-intelligence agent for Indonesian public companies.**
-Sectors Hackathon 2026 — Track 01, AI Agents & Assistants.
+**Evidence-backed competitor intelligence for Indonesian public companies.**
 
-> RivalPulse monitors competitors, combines public competitive signals with
-> Sectors financial data, and uses an AI agent to explain not only what changed
-> — but why it may matter to marketing and strategy teams.
+Ask a question in English or Bahasa Indonesia, compare tracked companies, and review what changed—with saved source evidence, financial context, and clearly separated AI interpretation.
 
-Information and analysis only. Not investment advice.
+## What it does
 
----
+- Tracks **2–5 competitors**, with an independent optional own-company perspective.
+- Collects company reports and news from **Sectors v2**, plus administrator-approved public pages.
+- Runs bounded investigations with progress, cancellation, coverage warnings, and cited results.
+- Explains **what happened, why it matters, possible implications, and suggested next steps**. Suggestions do not execute automatically.
+- Saves accounts, watchlists, conversations, research, and immutable evidence in PostgreSQL.
+- Exports investigation results to **Excel-compatible `.xls`** and individual findings to text. Exports retain the question, figures, interpretations, and notes/limitations.
+- Supports **Local Ollama, OpenAI, Anthropic, and Gemini** through owner-managed workspace settings. Workspace Sectors and cloud-model keys are encrypted server-side.
 
-## Repository layout
+## Quick start · Windows
 
-| Folder | What it is | Owner |
-| --- | --- | --- |
-| [`frontend/`](frontend/) | Next.js app — dashboard, signal detail, watchlists, agent runs | Frontend |
-| [`backend/`](backend/) | FastAPI, Sectors integration, Ollama agent, PostgreSQL/Redis persistence | Backend / Agent |
-| [`rivalpulse_agent/`](rivalpulse_agent/) | Standalone agent laboratory and deterministic fixtures | Agent reference |
-
-The two halves meet at one file: **[`frontend/src/lib/schemas.ts`](frontend/src/lib/schemas.ts)**.
-It defines every shape that crosses the wire, as zod schemas. The frontend
-derives its TypeScript types from it and validates every response against it,
-so a mismatch fails loudly and names the offending field instead of rendering
-as `undefined`.
-
-See [`backend/README.md`](backend/README.md) for the implemented API and operating details.
-
-## Running it
-
-### Sectors v2 on Windows
-
-For step-by-step live API checks, including Sectors-only and local AI testing, see [START_SECTORS_GUIDE.md](START_SECTORS_GUIDE.md).
-
-Set a valid `SECTORS_API_KEY` in the ignored `backend/.env` (copy `backend/.env.example` if needed). Start Docker Desktop and Ollama, ensure `qwen3.8:27b` is installed, then run from the repository root:
+**Requirements:** Docker Desktop (Linux containers), Node.js 20.9+, and a Sectors API key for live research. Local AI additionally needs Ollama and an installed model; cloud AI needs the selected provider's API key. Python 3.11+ is needed only for local backend development/tests.
 
 ```powershell
+# From the repository root; do not overwrite existing configuration.
+if (-not (Test-Path backend/.env)) { Copy-Item backend/.env.example backend/.env }
+if (-not (Test-Path frontend/.env.local)) { Copy-Item frontend/.env.example frontend/.env.local }
+
+# Configure verification SMTP in backend/.env for ordinary signup.
+# Optionally set a shared SECTORS_API_KEY, or add your workspace key in Settings.
 .\START_SECTORS.ps1
 ```
 
-This starts the frontend, FastAPI, PostgreSQL, Redis and gateway with Sectors v2 as the **only live financial provider**. When AI is enabled, it connects to the already running Ollama service. The startup script checks for a configured key but does not spend credits or verify the key with Sectors. Research uses bounded requests and never substitutes a different provider. Stop with `.\STOP_SECTORS.ps1`; the PostgreSQL and Redis volumes remain intact.
+Open **http://localhost:8080**. Sign up and verify your email, or log in to an existing account. In **Settings**, configure your Sectors connection and AI provider/model. Saving keys/settings does not run a paid connection test. The separate **Connect** button for AI lists provider models without generating an answer.
 
-Startup builds the images once and limits concurrent Compose engine operations. If Docker Desktop times out while inspecting or starting containers, the script retries that startup step up to three times without rebuilding or removing volumes. It reports success only after the API and the frontend login page respond through the gateway. If Docker remains unresponsive, restart Docker Desktop and rerun the script; do not delete the data volumes. Run `powershell.exe -NoProfile -File scripts/test_startup.ps1` to check timeout recovery without starting Docker.
-
-**Frontend** — uses account authentication and the backend by default:
-
-```bash
-cd frontend
-npm install
-npm run dev          # http://localhost:3000
+```powershell
+.\STOP_SECTORS.ps1   # Stops the Docker stack; keeps database/Redis volumes.
 ```
 
-**Backend** — see [`backend/README.md`](backend/README.md). It uses live Sectors v2 with local Ollama `qwen3.8:27b` planning and interpretation; synthetic replay is restricted to automated tests. Plans and provider requests remain bounded by server budgets and validators.
+See [Setup](docs/SETUP.md) for SMTP, administrator account provisioning, manual startup, and troubleshooting.
 
-To point the frontend at the private backend without exposing credentials in browser code, copy `frontend/.env.example` to `frontend/.env.local` and set:
+## Try it
 
-```bash
-NEXT_PUBLIC_AUTH_MODE=accounts
-NEXT_PUBLIC_USE_MOCKS=false
-NEXT_PUBLIC_API_BASE=/backend
+- `Show my competitor watchlist.` — workspace command, no research.
+- `Summarize the stored findings for TLKM.` — saved evidence, no new collection or AI generation.
+- `Compare annual revenue and earnings for TLKM and EXCL.` — a new investigation; provider charges may apply.
+- `Research recent product and partnership activity for BBCA.` — bounded news research, not an exhaustive search.
+
+Use companies in your current watchlist; add or change them under **Competitors**.
+
+## How it works
+
+```text
+Next.js UI → FastAPI → Redis/RQ worker → Sectors / approved pages
+                              ↓
+                   validated AI interpretation
+                              ↓
+                PostgreSQL evidence and results
 ```
 
-Start the frontend on port 3000, run `docker compose --profile frontend up -d` from `backend/`, then open `http://localhost:8080/signup` to create an email/password account. Configure verification SMTP in the ignored backend `.env`; new accounts activate only after entering the emailed code. Each account receives its own workspace, watchlist, research and conversation history. Profile edits are saved in PostgreSQL. Login uses an HttpOnly session cookie, temporary sessions also require a tab proof, and mutations require a CSRF token; provider credentials stay on the server. The shared token gate remains available only through explicit demo mode.
+The backend owns access, budgets, approved tools, source figures, arithmetic, and citation checks. The selected model proposes bounded qualitative interpretation; it cannot execute arbitrary tools or write financial facts. Opening saved results and exporting them does not collect data or regenerate analysis.
 
-See [START_DEMO.md](START_DEMO.md) for setup and a walkthrough, and [docs/ACCOUNT_AI_INTEGRATION.md](docs/ACCOUNT_AI_INTEGRATION.md) for integration and verification details.
+| Directory | Contents |
+| --- | --- |
+| [`frontend/`](frontend/) | Next.js/React interface, Zod contracts, exports, UI tests |
+| [`backend/`](backend/) | FastAPI, research agent, providers, migrations, worker, backend tests |
+| [`docs/`](docs/) | Setup, architecture, development, and Sectors endpoint reference |
+| [`scripts/`](scripts/) | Repository checks and offline startup tests |
 
-## Status
+## Development
 
-- **Frontend** — agent-first Next.js workspace: login lands on a scrollable conversation with workspace-synced history, while dashboards and reports remain secondary agent outputs.
-- **Backend** — queued research runs, Sectors v2 financial evidence, approved public sources, immutable snapshots/revisions, and transparent signal scoring are implemented. A valid Sectors key is still required for a live financial investigation.
-- **Agent** — simple watchlist/help commands run instantly. Financial questions return cited Sectors annual statements and may include a validated Qwen interpretation. Weekly activity still requires approved public evidence. PostgreSQL stores research and conversation history; previously collected test data stays archived and cannot become a live baseline.
-- **Decision workflow** — agent summary reports, competitor battlecards, action scenarios, a continuously refreshed signal timeline, and bounded Gmail digests connect evidence to marketing response.
+```powershell
+# Backend: create a virtual environment and install dependencies first.
+cd backend
+python -m venv .venv
+.venv/Scripts/python.exe -m pip install -e ".[test]"
+.venv/Scripts/python.exe -m pytest -q -m "not integration"
+.venv/Scripts/ruff.exe check app tests scripts migrations
 
-## Demo controls
+cd ../frontend
+npm ci
+npm test
+npm run lint
+npm run build
+```
 
-The frontend ships a hidden panel for rehearsing the states a healthy dataset
-never produces. Press **Ctrl+Shift+D**, or append `?debug=1`:
-Sectors outage, empty feed, failing agent run, latency, and a reset to a first
-visit. Details in [`frontend/README.md`](frontend/README.md).
+[Development](docs/DEVELOPMENT.md) covers checks and API contracts. GitHub Actions runs offline tests, lint, and the frontend build. [Architecture](docs/ARCHITECTURE.md) explains evidence, credentials, billing, and current limitations.
+
+## Important limits
+
+- Sectors requests and cloud-model use may incur **separate charges**. Internal research credits are application limits, not an authoritative provider balance.
+- Missing/unreviewed evidence does not prove nothing changed. AI attribution and implications require human review.
+- Some Sectors monetary fields lack currency, scale, or reporting-scope metadata. The current display/export includes a rupiah inference for large unlabeled figures; it is **not source-confirmed currency**. Review financial assumptions before using results.
+- `.xls` exports are HTML-based tables, not native `.xlsx` workbooks; Excel may show a format warning.
+- The included Compose/gateway setup is for **local development**, not a hardened public deployment. Keep secrets out of Git and retain the encryption master key with protected database backups.
+
+*Information and analysis only. Not investment advice.*
