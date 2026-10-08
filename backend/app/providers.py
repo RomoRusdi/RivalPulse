@@ -67,7 +67,7 @@ def normalize_report(payload, symbol):
     return {"schema_version": PROJECTION_VERSION, "symbol": symbol, "name": payload.get("company_name"),
             "overview": payload.get("overview") or {}, "metrics": metrics, "peers": payload.get("peers") or [],
             "performance_metrics": performance_metrics(payload),
-            "warnings": ([] if currency else ["Currency/reporting scale was not supplied. Calculated annual monetary growth and peer rankings are withheld; Sectors-reported percentages are separate context."])}
+            "warnings": ([] if currency else ["Sectors did not state the currency or scale; figures are shown as reported (IDX statements are in rupiah). Growth and same-sector rankings use each company's own figures, so the currency cancels."])}
 
 
 def response_error(response):

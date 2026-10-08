@@ -240,10 +240,18 @@ export async function sendChat(message: string, history: ChatTurn[], scope: { sa
         : "I'm here and ready to help. I can update your watchlist, or run an evidence-backed investigation — try “Compare BBRI and BMRI this week”.",
     });
   }
-  return request("/api/v1/chat", ChatReplySchema, {
+  const send = (withScope: boolean) => request("/api/v1/chat", ChatReplySchema, {
     method: "POST",
-    body: JSON.stringify({ message, history: history.slice(-10), ...(scope.saved ? { saved: true, symbols: (scope.symbols ?? []).slice(0, 10) } : {}) }),
+    body: JSON.stringify({ message, history: history.slice(-10), ...(withScope && scope.saved ? { saved: true, symbols: (scope.symbols ?? []).slice(0, 10) } : {}) }),
   });
+  try {
+    return await send(true);
+  } catch (error) {
+    // A backend older than this client rejects the scope fields (422). Ask
+    // again without them rather than failing the whole reply.
+    if (scope.saved && error instanceof ApiError && error.status === 422) return send(false);
+    throw error;
+  }
 }
 
 /* ── Agent runs ────────────────────────────────────────────────────────── */

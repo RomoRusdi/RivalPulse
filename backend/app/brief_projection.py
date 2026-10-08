@@ -10,11 +10,18 @@ from app.contracts import FinancialBrief
 from app.financial_projection import decimal_value, project_snapshot, growth, scope_boundary
 
 
-MONEY_WARNING = "Currency/reporting scale was not supplied. Calculated annual monetary growth and peer rankings are withheld; Sectors-reported percentages are separate context."
+MONEY_WARNING = ("Sectors did not state the currency or scale; figures are shown as reported (IDX statements are in rupiah). "
+                 "Growth and same-sector rankings use each company's own figures, so the currency cancels.")
+# Wording saved in older runs; shown with the current explanation instead.
+OLD_MONEY_WARNINGS = {
+    "Provider did not specify currency; monetary comparisons are disabled.",
+    "Currency/reporting scale was not supplied. Calculated annual monetary growth and peer rankings are withheld; Sectors-reported percentages are separate context.",
+}
 
 
 def financial_warning(text):
-    return MONEY_WARNING if text == "Provider did not specify currency; monetary comparisons are disabled." else text
+    # Caveats can also be structured entries; only known strings are rewritten.
+    return MONEY_WARNING if isinstance(text, str) and text in OLD_MONEY_WARNINGS else text
 
 
 def verified_annual_growth(brief, snapshots):
